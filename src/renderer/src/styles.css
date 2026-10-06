@@ -2995,3 +2995,19 @@ textarea:focus {
 .fx-section .group.fx.open {
   border-color: color-mix(in srgb, var(--section) 35%, rgba(255, 255, 255, 0.08));
 }
+
+/* The glass blur makes each panel its own layer: keep the top bar (and its dropdown menus) above the
+   tool rail and side panels, or the menus open underneath them and can't be clicked. */
+.topbar {
+  position: relative;
+  z-index: 40;
+}
+.fx-section-count {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--section) 80%, white);
+  background: color-mix(in srgb, var(--section) 16%, transparent);
+}

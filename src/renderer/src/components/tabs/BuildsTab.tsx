@@ -8,7 +8,7 @@ import { addTerrain } from '../../sceneActions'
 import { useStore } from '../../store'
 import { errorText } from '../../errors'
 import { groupStructures, structureCategories, VILLAGE_BIOMES, type PieceKind } from '../../structureGroups'
-import { Hint, Toggle } from '../controls'
+import { ColorSection, Hint, Toggle } from '../controls'
 
 const pretty = (id: string): string => {
   const parts = id.split('/')
@@ -70,22 +70,84 @@ function PieceCard({ kind, busy, onAdd }: { kind: PieceKind; busy: string; onAdd
   )
 }
 
+/** Accents for the structure families, in order (matching the colour-coded sections of the other tabs). */
+const SECTION_COLOURS = [
+  '#4ade80', // villages
+  '#5eead4', // ancient city
+  '#fbbf24', // trial chambers
+  '#fb923c', // trail ruins
+  '#b48cff', // ruined portals
+  '#60a5fa', // pillager outpost
+  '#38bdf8', // shipwrecks
+  '#818cf8', // ocean ruins
+  '#f87171', // bastion
+  '#e879f9', // end city
+  '#a3e635', // fossils
+  '#e2e8f0', // igloo
+  '#94a3b8' // other
+]
+
+/** A family's pieces, grouped by kind (houses, streets…) when there is more than one group. */
+function PieceSections({
+  ids,
+  titled = false,
+  busy,
+  onAdd
+}: {
+  ids: string[]
+  titled?: boolean
+  busy: string
+  onAdd: (id: string) => void
+}): ReactNode {
+  const sections = useMemo(() => groupStructures(ids), [ids])
+  return (
+    <>
+      {sections.map((section) => (
+        <div key={section.label} className="piece-section">
+          {(sections.length > 1 || titled) && <h4>{section.label}</h4>}
+          <div className="card-grid">
+            {section.kinds.map((k) => (
+              <PieceCard key={k.ids[0]} kind={k} busy={busy} onAdd={onAdd} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
+
+/** Village pieces for one biome at a time (and zombie villages on request). */
+function VillagePieces({ ids, busy, onAdd }: { ids: string[]; busy: string; onAdd: (id: string) => void }): ReactNode {
+  const [biome, setBiome] = useState<(typeof VILLAGE_BIOMES)[number]>('plains')
+  const [zombie, setZombie] = useState(false)
+  const shown = useMemo(
+    () => ids.filter((id) => id.startsWith(`village/${biome}/`) && id.includes('/zombie/') === zombie),
+    [ids, biome, zombie]
+  )
+  return (
+    <>
+      <div className="village-filter">
+        <div className="segmented">
+          {VILLAGE_BIOMES.map((b) => (
+            <button key={b} className={biome === b ? 'active' : ''} onClick={() => setBiome(b)}>
+              {b.charAt(0).toUpperCase() + b.slice(1)}
+            </button>
+          ))}
+        </div>
+        <Toggle label="Zombie village" checked={zombie} onChange={setZombie} />
+      </div>
+      <PieceSections ids={shown} busy={busy} onAdd={onAdd} />
+    </>
+  )
+}
+
 export function BuildsTab(): ReactNode {
   const assets = useStore((s) => s.assets)!
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState('village')
-  const [biome, setBiome] = useState<(typeof VILLAGE_BIOMES)[number]>('plains')
-  const [zombie, setZombie] = useState(false)
   const [busy, setBusy] = useState('')
   const categories = useMemo(() => structureCategories(assets.structures), [assets])
   const buildings = useMemo(() => categories.flatMap((c) => c.ids), [categories])
-  const shown = useMemo(() => {
-    if (query.trim()) return searchStructures(buildings, query)
-    const ids = categories.find((c) => c.id === category)?.ids ?? []
-    if (category !== 'village') return ids
-    return ids.filter((id) => id.startsWith(`village/${biome}/`) && id.includes('/zombie/') === zombie)
-  }, [categories, buildings, query, category, biome, zombie])
-  const sections = useMemo(() => groupStructures(shown), [shown])
+  const found = useMemo(() => (query.trim() ? searchStructures(buildings, query) : []), [buildings, query])
   const setStatus = useStore.getState().setStatus
 
   const addStructure = async (id: string): Promise<void> => {
@@ -116,43 +178,29 @@ export function BuildsTab(): ReactNode {
         <span>Search</span>
         <input value={query} placeholder="house, portal, ship…" onChange={(e) => setQuery(e.target.value)} />
       </label>
-      <div className="chips">
-        {categories.map((c) => (
-          <button
+      {query.trim() ? (
+        <>
+          <PieceSections ids={found} titled busy={busy} onAdd={addStructure} />
+          {found.length === 0 && <p className="hint">No buildings match “{query}”.</p>}
+        </>
+      ) : (
+        categories.map((c, i) => (
+          <ColorSection
             key={c.id}
-            className={`chip ${!query && category === c.id ? 'active' : ''}`}
-            onClick={() => {
-              setCategory(c.id)
-              setQuery('')
-            }}
+            id={`builds-${c.id}`}
+            title={c.label}
+            color={SECTION_COLOURS[i % SECTION_COLOURS.length]}
+            count={c.id === 'village' ? undefined : c.ids.length}
+            defaultOpen={c.id === 'village'}
           >
-            {c.label}
-          </button>
-        ))}
-      </div>
-      {!query && category === 'village' && (
-        <div className="village-filter">
-          <div className="segmented">
-            {VILLAGE_BIOMES.map((b) => (
-              <button key={b} className={biome === b ? 'active' : ''} onClick={() => setBiome(b)}>
-                {b.charAt(0).toUpperCase() + b.slice(1)}
-              </button>
-            ))}
-          </div>
-          <Toggle label="Zombie village" checked={zombie} onChange={setZombie} />
-        </div>
+            {c.id === 'village' ? (
+              <VillagePieces ids={c.ids} busy={busy} onAdd={addStructure} />
+            ) : (
+              <PieceSections ids={c.ids} busy={busy} onAdd={addStructure} />
+            )}
+          </ColorSection>
+        ))
       )}
-      {sections.map((section) => (
-        <div key={section.label} className="piece-section">
-          {(sections.length > 1 || query) && <h4>{section.label}</h4>}
-          <div className="card-grid">
-            {section.kinds.map((k) => (
-              <PieceCard key={k.ids[0]} kind={k} busy={busy} onAdd={addStructure} />
-            ))}
-          </div>
-        </div>
-      ))}
-      {shown.length === 0 && <p className="hint">{query ? `No buildings match “${query}”.` : 'Nothing here.'}</p>}
       <Hint label="About these buildings">
         Pieces from Minecraft {assets.version}, exactly as the game stores them. Use the arrows on a tile to step
         through its variants. Village pieces appear before the game's random block swaps (mossy, cracked…).

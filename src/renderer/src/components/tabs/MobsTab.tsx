@@ -14,7 +14,7 @@ import { mobThumbnail } from '../../minecraft/thumbnails'
 import { placeNew } from '../../placement'
 import { newId, useStore } from '../../store'
 import { errorText } from '../../errors'
-import { Hint } from '../controls'
+import { ColorSection, Hint } from '../controls'
 
 /** Stand-in key for the giant when the game has no layer of its own for it. */
 const GIANT = 'minecraft:giant#main'
@@ -60,13 +60,43 @@ const withoutUserName = (text: string): string =>
     .replace(/([A-Za-z]:[\\/]Users[\\/])[^\\/\r\n]+/gi, '$1<user>')
     .replace(/(\/(?:home|Users)\/)[^/\r\n]+/g, '$1<user>')
 
+/** Each entity category's accent (matching the colour-coded sections of the other tabs). */
+const CATEGORY_COLOURS: Record<EntityCategory, string> = {
+  mobs: '#4ade80',
+  bosses: '#f87171',
+  blocks: '#fbbf24',
+  vehicles: '#60a5fa',
+  gear: '#b48cff',
+  effects: '#f472b6'
+}
+
+function MobGrid({
+  keys,
+  models,
+  onAdd
+}: {
+  keys: string[]
+  models: MobModels
+  onAdd: (key: string) => void
+}): ReactNode {
+  return (
+    <div className="card-grid">
+      {keys.map((k) => (
+        <button key={k} className="asset-card" onClick={() => onAdd(k)} title={pretty(k)} aria-label={pretty(k)}>
+          <MobIcon models={models} layerKey={k === GIANT ? 'minecraft:zombie#main' : k} />
+          <span className="asset-name">{pretty(k)}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function MobsTab(): ReactNode {
   const [models, setModels] = useState<MobModels | null>(null)
   const [error, setError] = useState('')
   const [log, setLog] = useState<string[]>([])
   const [filter, setFilter] = useState('')
   const [allLayers, setAllLayers] = useState(false)
-  const [category, setCategory] = useState<EntityCategory>('mobs')
 
   useEffect(() => {
     const off = window.blockframe.onMobProgress((line) => setLog((l) => [...l.slice(-20), line.trim()].filter(Boolean)))
@@ -89,19 +119,21 @@ export function MobsTab(): ReactNode {
     return out
   }, [models, allLayers])
 
-  const keys = useMemo(() => {
+  /** Search matches across every category (empty when not searching). */
+  const matches = useMemo(() => {
     const f = filter.trim().toLowerCase()
-    return (
-      shownLayers
-        .filter((k) => !f || pretty(k).toLowerCase().includes(f) || k.includes(f.replace(/\s+/g, '_')))
-        // Searching looks everywhere; otherwise show the chosen shelf.
-        .filter((k) => f !== '' || entityCategory(k) === category)
-        .sort((a, b) => pretty(a).localeCompare(pretty(b)))
-    )
-  }, [shownLayers, filter, category])
-  const counts = useMemo(() => {
-    const c: Partial<Record<EntityCategory, number>> = {}
-    for (const k of shownLayers) c[entityCategory(k)] = (c[entityCategory(k)] ?? 0) + 1
+    if (!f) return []
+    return shownLayers
+      .filter((k) => pretty(k).toLowerCase().includes(f) || k.includes(f.replace(/\s+/g, '_')))
+      .sort((a, b) => pretty(a).localeCompare(pretty(b)))
+  }, [shownLayers, filter])
+  /** Each category's entities, alphabetically. */
+  const byCategory = useMemo(() => {
+    const c = new Map<EntityCategory, string[]>()
+    for (const k of [...shownLayers].sort((a, b) => pretty(a).localeCompare(pretty(b)))) {
+      const cat = entityCategory(k)
+      c.set(cat, [...(c.get(cat) ?? []), k])
+    }
     return c
   }, [shownLayers])
 
@@ -182,32 +214,29 @@ export function MobsTab(): ReactNode {
         <span>Search</span>
         <input value={filter} placeholder="zombie, creeper, chest…" onChange={(e) => setFilter(e.target.value)} />
       </label>
-      <div className="chips">
-        {ENTITY_CATEGORIES.filter((c) => counts[c.id]).map((c) => (
-          <button
-            key={c.id}
-            className={`chip ${!filter && category === c.id ? 'active' : ''}`}
-            onClick={() => {
-              setCategory(c.id)
-              setFilter('')
-            }}
-          >
-            {c.label} <span className="chip-count">{counts[c.id]}</span>
-          </button>
-        ))}
-      </div>
       <label className="check">
         <input type="checkbox" checked={allLayers} onChange={(e) => setAllLayers(e.target.checked)} />
         <span>Show extra layers (armor, outer layers, saddles…)</span>
       </label>
-      <div className="card-grid">
-        {keys.map((k) => (
-          <button key={k} className="asset-card" onClick={() => add(k)} title={pretty(k)} aria-label={pretty(k)}>
-            <MobIcon models={models} layerKey={k === GIANT ? 'minecraft:zombie#main' : k} />
-            <span className="asset-name">{pretty(k)}</span>
-          </button>
-        ))}
-      </div>
+      {filter.trim() ? (
+        <>
+          <MobGrid keys={matches} models={models} onAdd={add} />
+          {matches.length === 0 && <p className="hint">Nothing matches “{filter}”.</p>}
+        </>
+      ) : (
+        ENTITY_CATEGORIES.filter((c) => byCategory.get(c.id)?.length).map((c) => (
+          <ColorSection
+            key={c.id}
+            id={`mobs-${c.id}`}
+            title={c.label}
+            color={CATEGORY_COLOURS[c.id]}
+            count={byCategory.get(c.id)!.length}
+            defaultOpen={c.id === 'mobs'}
+          >
+            <MobGrid keys={byCategory.get(c.id)!} models={models} onAdd={add} />
+          </ColorSection>
+        ))
+      )}
       <Hint>
         {Object.keys(models.layers).length} models exported from Minecraft {models.version}'s own code, with textures
         from your jar. Pick a different texture variant (e.g. biome villagers, cat breeds) and pose limbs in the

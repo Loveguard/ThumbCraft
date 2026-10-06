@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronRight, CircleHelp } from 'lucide-react'
 
 /**
@@ -295,5 +295,47 @@ export function Slider({
       />
       <em>{format(value)}</em>
     </label>
+  )
+}
+
+/**
+ * A colour-coded, collapsible top-level section of a tab (Look, Mobs, Builds…). Remembers whether it's open;
+ * its contents are only built while open, so closed sections cost nothing.
+ */
+export function ColorSection({
+  id,
+  title,
+  color,
+  count,
+  defaultOpen = false,
+  children
+}: {
+  /** Unique across the app (it keys the remembered open state). */
+  id: string
+  title: string
+  color: string
+  count?: number
+  defaultOpen?: boolean
+  children: ReactNode
+}): ReactNode {
+  const [open, setOpen] = useState(() => readFlag(`section:${id}`, defaultOpen))
+  const style = { '--section': color } as CSSProperties
+  return (
+    <section className={`fx-section ${open ? 'open' : ''}`} style={style}>
+      <button
+        className="fx-section-head"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open)
+          writeFlag(`section:${id}`, !open)
+        }}
+      >
+        <span className="fx-section-dot" />
+        <span>{title}</span>
+        {count !== undefined && <span className="fx-section-count">{count}</span>}
+        <ChevronRight size={14} className="chev" />
+      </button>
+      {open && <div className="fx-section-body">{children}</div>}
+    </section>
   )
 }

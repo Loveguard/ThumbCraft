@@ -1,12 +1,11 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
-import { ChevronRight } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useStore, type EffectSettings } from '../../store'
 import { sunInView } from '../Effects'
 import { gradeColor, LOOKS, lookSettings, parseCube, type Grade } from '../../grading'
 import { registerMedia } from '../../media'
 import { errorText } from '../../errors'
 import { viewport } from '../Viewport'
-import { Group, Hint, readFlag, Slider, Toggle, writeFlag } from '../controls'
+import { ColorSection, Group, Hint, Slider, Toggle } from '../controls'
 
 type NumKey = { [K in keyof EffectSettings]: EffectSettings[K] extends number ? K : never }[keyof EffectSettings]
 type BoolKey = { [K in keyof EffectSettings]: EffectSettings[K] extends boolean ? K : never }[keyof EffectSettings]
@@ -56,41 +55,6 @@ function FxGroup({
   )
 }
 
-/** A colour-coded, collapsible top-level section of the tab (remembers whether it's open). */
-function FxSection({
-  id,
-  title,
-  color,
-  defaultOpen = false,
-  children
-}: {
-  id: string
-  title: string
-  color: string
-  defaultOpen?: boolean
-  children: ReactNode
-}): ReactNode {
-  const [open, setOpen] = useState(() => readFlag(`fx-section:${id}`, defaultOpen))
-  const style = { '--section': color } as CSSProperties
-  return (
-    <section className={`fx-section ${open ? 'open' : ''}`} style={style}>
-      <button
-        className="fx-section-head"
-        aria-expanded={open}
-        onClick={() => {
-          setOpen(!open)
-          writeFlag(`fx-section:${id}`, !open)
-        }}
-      >
-        <span className="fx-section-dot" />
-        <span>{title}</span>
-        <ChevronRight size={14} className="chev" />
-      </button>
-      {open && <div className="fx-section-body">{children}</div>}
-    </section>
-  )
-}
-
 export function EffectsTab(): ReactNode {
   const { sunAzimuth, sunElevation } = useStore((s) => s.settings)
   const setSettings = useStore((s) => s.setSettings)
@@ -116,11 +80,11 @@ export function EffectsTab(): ReactNode {
         onChange={(on) => setEffects({ cleanOverlays: on })}
       />
 
-      <FxSection id="look" title="Look" color="#b48cff" defaultOpen>
+      <ColorSection id="fx-look" title="Look" color="#b48cff" defaultOpen>
         <LookPicker onPick={applyLook} />
-      </FxSection>
+      </ColorSection>
 
-      <FxSection id="adjust" title="Adjust" color="#60a5fa">
+      <ColorSection id="fx-adjust" title="Adjust" color="#60a5fa">
         <FxSlider k="exposure" label="Exposure" min={-2} max={2} step={0.05} />
         <FxSlider k="contrast" label="Contrast" min={-0.6} max={0.6} step={0.01} />
         <FxSlider k="saturation" label="Saturation" min={-1} max={1} step={0.01} />
@@ -143,9 +107,9 @@ export function EffectsTab(): ReactNode {
           </div>
           <FxSlider k="split" label="Strength" min={0} max={1} step={0.01} />
         </Group>
-      </FxSection>
+      </ColorSection>
 
-      <FxSection id="focus" title="Focus" color="#5eead4" defaultOpen={depthOfField}>
+      <ColorSection id="fx-focus" title="Focus" color="#5eead4" defaultOpen={depthOfField}>
         <FxGroup k="depthOfField" label="Focus blur (depth of field)">
           <FxSlider k="dofBlur" label="Blur" min={0.5} max={10} step={0.1} />
           <FxSlider k="dofRange" label="In-focus depth" min={0.5} max={40} step={0.5} />
@@ -155,9 +119,9 @@ export function EffectsTab(): ReactNode {
             + on its edge to add more points for several subjects.
           </Hint>
         </FxGroup>
-      </FxSection>
+      </ColorSection>
 
-      <FxSection id="lens" title="Lens" color="#fbbf24">
+      <ColorSection id="fx-lens" title="Lens" color="#fbbf24">
         <FxGroup k="warp" label="Lens warp">
           <FxSlider k="warpAmount" label="Pinch ↔ Bulge" min={-1} max={1} step={0.01} />
           <Hint>
@@ -181,9 +145,9 @@ export function EffectsTab(): ReactNode {
         <FxGroup k="chromatic" label="Chromatic aberration">
           <FxSlider k="chromaticAmount" label="Amount" min={0} max={0.01} step={0.0005} />
         </FxGroup>
-      </FxSection>
+      </ColorSection>
 
-      <FxSection id="overlays" title="Overlays" color="#f472b6">
+      <ColorSection id="fx-overlays" title="Overlays" color="#f472b6">
         <FxGroup k="vignette" label="Vignette">
           <FxSlider k="vignetteDarkness" label="Darkness" min={0} max={1} step={0.01} />
           <FxSlider k="vignetteOffset" label="Size" min={0} max={1} step={0.01} />
@@ -201,9 +165,9 @@ export function EffectsTab(): ReactNode {
             onChange={(on) => setEffects({ crtOverLayers: on, ...(on && { cleanOverlays: true }) })}
           />
         </FxGroup>
-      </FxSection>
+      </ColorSection>
 
-      <FxSection id="light" title="Light & sun" color="#fb923c">
+      <ColorSection id="fx-light" title="Light & sun" color="#fb923c">
         <FxGroup k="bloom" label="Bloom (glow)">
           <FxSlider k="bloomIntensity" label="Intensity" min={0} max={3} step={0.05} />
           <FxSlider k="bloomThreshold" label="Threshold" min={0} max={1} step={0.01} />
@@ -248,7 +212,7 @@ export function EffectsTab(): ReactNode {
             tree, player or build for the strongest rays. Effects are included in the export.
           </Hint>
         </Group>
-      </FxSection>
+      </ColorSection>
     </div>
   )
 }
