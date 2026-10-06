@@ -24,7 +24,7 @@ import { applyBlockLight } from './lighting'
 import { makeWaterReflective } from './waterReflection'
 import type { TextObject } from '../store'
 import { customFamily, fontWeight } from '../textStyles'
-import { blockLetterCells } from './blockLetters'
+import { blockLetterCells, HARDCORE_HEART } from './blockLetters'
 
 // ------------------------------------------------------------------ terrain
 
@@ -400,7 +400,8 @@ function voxelGeometry(
   height: number,
   depth: number,
   scale: number,
-  shade?: (px: number, py: number, normal: number[]) => Shade
+  shade?: (px: number, py: number, normal: number[]) => Shade,
+  tint?: (px: number, py: number) => [number, number, number]
 ): THREE.BufferGeometry {
   const pos: number[] = []
   const nrm: number[] = []
@@ -415,6 +416,7 @@ function voxelGeometry(
     const y1 = height / 2 - py
     const y0 = y1 - 1
     const has = (dx: number, dy: number): boolean => filled.has(`${px + dx},${py + dy}`)
+    const rgb = tint?.(px, py) ?? [1, 1, 1]
     const quad = (v: number[][], n: number[], t: number[][]): void => {
       const s = shade?.(px, py, n) ?? 1
       for (const i of [0, 1, 2, 0, 2, 3]) {
@@ -422,7 +424,7 @@ function voxelGeometry(
         nrm.push(...n)
         uv.push(t[i][0] / 16, t[i][1] / 16)
         const c = Array.isArray(s) ? (v[i][2] === z1 ? s[0] : s[1]) : s
-        col.push(c, c, c)
+        col.push(c * rgb[0], c * rgb[1], c * rgb[2])
       }
     }
     const front = (x: number, y: number): number[] => [x, y]
@@ -537,7 +539,8 @@ export async function buildPixelText(
   style: PixelTextStyle = 'plain'
 ): Promise<THREE.Group> {
   const group = new THREE.Group()
-  if (style !== 'plain') return buildStoneText(text, color, depth, shadow, style, group)
+  if (style === 'hardcore') return buildHardcoreText(text, color, depth, shadow, group)
+  if (style === 'stone') return buildStoneText(text, color, depth, shadow, group)
   const glyphs = await minecraftFont()
   if (!glyphs) return group
   const { filled, width, height } = layoutText(glyphs, text)
@@ -603,14 +606,13 @@ function cellNoise(x: number, y: number, seed: number): number {
 /**
  * Chunky carved title letters in the style of game logos: a block alphabet thickened into blocks, a stone
  * face (the game's own stone texture) with chiselled dark edges and cracks, a deep extrusion fading to black,
- * and a black outline behind. "hardcore" is the same in blood red.
+ * and a black outline behind. The colour tints the stone (grey, gold, diamond…).
  */
 async function buildStoneText(
   text: string,
   color: string,
   depth: number,
   outline: boolean,
-  style: Exclude<PixelTextStyle, 'plain'>,
   group: THREE.Group
 ): Promise<THREE.Group> {
   const base = blockLetterCells(text)
@@ -664,10 +666,130 @@ async function buildStoneText(
     }
     const back = new THREE.Mesh(
       voxelGeometry(rim, width + 2, height + 2, cells, scale),
-      new THREE.MeshBasicMaterial({ color: style === 'hardcore' ? 0x1a0000 : 0x0d0d0d })
+      new THREE.MeshBasicMaterial({ color: 0x0d0d0d })
     )
     back.position.z = -0.01
     back.scale.z = 0.98
+    group.add(back)
+  }
+  return group
+}
+
+/**
+ * Hardcore-video title letters: a front-on look rather than a carved block. Open, rounded letters (each letter
+ * pixel a 3×3 block, outer corners clipped), a glossy pixelated red face, a dark-red layer dropping below it
+ * for depth, and a thick black outline. Every O becomes the hardcore heart.
+ */
+function buildHardcoreText(
+  text: string,
+  color: string,
+  depth: number,
+  outline: boolean,
+  group: THREE.Group
+): THREE.Group {
+  const base = blockLetterCells(text, true)
+  const S = 3
+  const raw = new Set<string>()
+  for (const key of base.filled) {
+    const [x, y] = key.split(',').map(Number)
+    for (let dy = 0; dy < S; dy++) for (let dx = 0; dx < S; dx++) raw.add(`${x * S + dx},${y * S + dy}`)
+  }
+  const has = (set: Set<string>, x: number, y: number): boolean => set.has(`${x},${y}`)
+  // Clip every outer corner cell: the letters read round and chunky rather than square.
+  const face = new Set<string>()
+  for (const key of raw) {
+    const [x, y] = key.split(',').map(Number)
+    // Only true outer corners: open on two adjacent sides and on the diagonal between them.
+    const open = (dx: number, dy: number): boolean =>
+      !has(raw, x + dx, y) && !has(raw, x, y + dy) && !has(raw, x + dx, y + dy)
+    if (!(open(-1, -1) || open(1, -1) || open(-1, 1) || open(1, 1))) face.add(key)
+  }
+
+  // Hearts: the sprite at 2 cells per pixel, centred on the letters' line.
+  const heartColours: Record<string, [number, number, number]> = {
+    K: [0.08, 0.01, 0.01],
+    R: [0.9, 0.08, 0.06],
+    D: [0.5, 0.02, 0.02],
+    H: [1, 0.72, 0.7]
+  }
+  const heartCells = new Map<string, [number, number, number]>()
+  for (const [hx, hy] of base.hearts) {
+    const ox = hx * S - 1
+    const oy = hy * S - 2
+    HARDCORE_HEART.forEach((row, y) =>
+      [...row].forEach((p, x) => {
+        if (p === '.') return
+        for (let dy = 0; dy < 2; dy++)
+          for (let dx = 0; dx < 2; dx++) heartCells.set(`${ox + x * 2 + dx},${oy + y * 2 + dy}`, heartColours[p])
+      })
+    )
+  }
+  const solid = new Set([...face, ...heartCells.keys()])
+
+  const width = base.width * S
+  const height = base.height * S
+  const cells = Math.max(1, depth)
+  const scale = 1 / 24
+  const drop = 3 // how far the dark-red layer hangs below the face, in cells
+
+  // Face: a pixel-noise red with a bright top lip and a darker lower edge on every stroke.
+  const faceShade = (px: number, py: number, n: number[]): Shade => {
+    if (n[2] !== 1) return n[1] === 1 ? 0.9 : 0.55
+    let s = 1
+    if (!has(face, px, py - 1)) s = 1.3
+    else if (!has(face, px, py - 2)) s = 1.12
+    else if (!has(face, px, py + 1)) s = 0.62
+    else {
+      const blotch = cellNoise(Math.floor(px / 2), Math.floor(py / 2), 11)
+      s = blotch < 0.22 ? 0.72 : blotch > 0.9 ? 1.15 : 1
+    }
+    return s
+  }
+  const main = new THREE.Mesh(
+    voxelGeometry(face, width, height, cells, scale, faceShade),
+    new THREE.MeshLambertMaterial({ color: new THREE.Color(color), vertexColors: true })
+  )
+  main.castShadow = true
+  group.add(main)
+
+  if (heartCells.size) {
+    const heart = new THREE.Mesh(
+      voxelGeometry(new Set(heartCells.keys()), width, height, cells, scale, undefined, (x, y) =>
+        heartCells.get(`${x},${y}`)!
+      ),
+      new THREE.MeshLambertMaterial({ vertexColors: true })
+    )
+    heart.position.z = 0.002
+    group.add(heart)
+  }
+
+  // The dark-red layer under the letters gives the front-on 3D: the same shapes, lower and further back.
+  const under = new THREE.Mesh(
+    voxelGeometry(solid, width, height, cells, scale),
+    new THREE.MeshLambertMaterial({ color: new THREE.Color(color).multiplyScalar(0.32) })
+  )
+  under.position.set(0, -drop * scale, (-cells * scale) / 2)
+  group.add(under)
+
+  if (outline) {
+    // A thick black border around letters and drop together.
+    const both = new Set(solid)
+    for (const key of solid) {
+      const [x, y] = key.split(',').map(Number)
+      for (let d = 1; d <= drop; d++) both.add(`${x},${y + d}`)
+    }
+    const rim = new Set<string>()
+    const R = 2
+    for (const key of both) {
+      const [x, y] = key.split(',').map(Number)
+      for (let dy = -R; dy <= R; dy++)
+        for (let dx = -R; dx <= R; dx++) if (Math.abs(dx) + Math.abs(dy) <= R + 1) rim.add(`${x + dx},${y + dy}`)
+    }
+    const back = new THREE.Mesh(
+      voxelGeometry(rim, width, height, cells, scale),
+      new THREE.MeshBasicMaterial({ color: 0x0a0000 })
+    )
+    back.position.z = -cells * scale * 0.75
     group.add(back)
   }
   return group

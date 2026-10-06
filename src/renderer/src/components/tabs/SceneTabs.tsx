@@ -479,11 +479,23 @@ async function importModels(files: FileList | null): Promise<void> {
   }
 }
 
-/** The carved logo-style title looks and the colour each starts with. */
-export const STONE_TITLES = [
+/** The two title looks (carved stone, front-on hardcore) and the colour each starts with. */
+export const TITLE_STYLES = [
   { style: 'stone', label: 'Stone', color: '#d9d4d1' },
-  { style: 'hardcore', label: 'Hardcore', color: '#ff2418' }
+  { style: 'hardcore', label: 'Hardcore', color: '#f0261c' }
 ] as const
+
+/** Quick colours for titles: stone, ores and gems. */
+export const TITLE_SWATCHES = [
+  { name: 'Stone', color: '#d9d4d1' },
+  { name: 'Gold', color: '#ffd23f' },
+  { name: 'Diamond', color: '#5fe6ff' },
+  { name: 'Emerald', color: '#3fe07a' },
+  { name: 'Redstone', color: '#f0261c' },
+  { name: 'Amethyst', color: '#b77cff' },
+  { name: 'Obsidian', color: '#5a4a86' },
+  { name: 'Snow', color: '#ffffff' }
+]
 
 export function TextTab(): ReactNode {
   const [text, setText] = useState('EPIC BASE!')
@@ -533,7 +545,7 @@ export function TextTab(): ReactNode {
         Add 3D Minecraft-font text
       </button>
       <div className="row">
-        {STONE_TITLES.map((t) => (
+        {TITLE_STYLES.map((t) => (
           <button
             key={t.style}
             onClick={() =>
@@ -556,8 +568,8 @@ export function TextTab(): ReactNode {
         ))}
       </div>
       <Hint>
-        3D text is extruded pixel-for-pixel from Minecraft's own font texture. Stone and hardcore titles carve it into
-        chunky logo-style blocks with the game's stone texture.
+        3D text is extruded pixel-for-pixel from Minecraft's own font texture. Stone titles are carved logo-style blocks
+        in any colour; hardcore titles are front-on red letters where every O becomes the hardcore heart.
       </Hint>
     </div>
   )

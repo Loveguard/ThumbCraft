@@ -56,19 +56,51 @@ const GLYPHS: Record<string, string[]> = {
   ' ': ['...', '...', '...', '...', '...']
 }
 
-/** Filled pixels for `text` in the block alphabet: one cell per pixel, lines 7 pixels apart. */
-export function blockLetterCells(text: string): { filled: Set<string>; width: number; height: number } {
+/** Width in letter pixels left for a heart sprite drawn in place of a glyph (see `hearts`). */
+export const HEART_ADVANCE = 6
+
+/**
+ * Filled pixels for `text` in the block alphabet: one cell per pixel, lines 7 pixels apart.
+ * With `heartsForO`, every O (and ♥ or <3) leaves a gap and its top-left pixel is listed in `hearts`,
+ * for a heart sprite to be drawn there instead.
+ */
+export function blockLetterCells(
+  text: string,
+  heartsForO = false
+): { filled: Set<string>; width: number; height: number; hearts: [number, number][] } {
   const lines = text.toUpperCase().replace(/<3/g, '♥').split('\n')
   const filled = new Set<string>()
+  const hearts: [number, number][] = []
   let width = 0
   lines.forEach((line, row) => {
     let cursor = 0
     for (const ch of line) {
+      if (heartsForO && (ch === 'O' || ch === '♥')) {
+        hearts.push([cursor, row * 7])
+        cursor += HEART_ADVANCE + 1
+        continue
+      }
       const g = GLYPHS[ch] ?? GLYPHS['?']
       g.forEach((r, y) => [...r].forEach((p, x) => p === 'X' && filled.add(`${cursor + x},${row * 7 + y}`)))
       cursor += g[0].length + 1
     }
     width = Math.max(width, cursor - 1)
   })
-  return { filled, width, height: lines.length * 7 - 2 }
+  return { filled, width, height: lines.length * 7 - 2, hearts }
 }
+
+/**
+ * The hardcore-mode heart, as the game draws it: dark outline, red body with a darker lower edge, a pale
+ * highlight top-left. K outline, R red, D dark red, H highlight.
+ */
+export const HARDCORE_HEART = [
+  '.KKK.KKK.',
+  'KHHRKRRRK',
+  'KHRRRRRDK',
+  'KRRRRRRDK',
+  'KRRRRRDDK',
+  '.KRRRDDK.',
+  '..KRDDK..',
+  '...KDK...',
+  '....K....'
+]

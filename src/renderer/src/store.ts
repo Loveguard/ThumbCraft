@@ -17,6 +17,10 @@ interface Base {
   /** Degrees */
   rotation: Vec3
   scale: number
+  /** Drawn over everything else in the scene, whatever is in front of it. */
+  onTop?: boolean
+  /** Unlit: its own colours, evenly bright, untouched by the scene's lights and shadows. */
+  flat?: boolean
 }
 
 export interface TerrainObject extends Base {

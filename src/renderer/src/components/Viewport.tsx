@@ -52,6 +52,7 @@ import { Weather } from './Weather'
 import { VfxNode } from './VfxNode'
 import { errorText } from '../errors'
 import { isLit, LIGHTING, type RenderMode } from '../renderModes'
+import { syncOverlay } from '../overlay'
 
 export interface Placement {
   /** A spot in front of the camera, on the ground under the centre of the view. */
@@ -477,6 +478,17 @@ const ObjectNode = memo(function ObjectNode({ o, order }: { o: SceneObject; orde
     if (ref.current) viewport.objects.set(o.id, ref.current)
     return () => void viewport.objects.delete(o.id)
   }, [o.id])
+  // Flat images and text handle "on top" in their own material; 3D objects go through the overlay pass.
+  const overlay = o.kind !== 'image' && o.kind !== 'video' && o.kind !== 'text'
+  const onTop = overlay && !!o.onTop
+  const flat = overlay && !!o.flat
+  const overlaid = useRef(false)
+  useFrame(() => {
+    // Every frame while active, so parts that finish loading later (skins, textures) are included too.
+    if (!ref.current || (!onTop && !flat && !overlaid.current)) return
+    syncOverlay(ref.current, onTop, flat, order)
+    overlaid.current = onTop || flat
+  })
   const onClick = (e: ThreeEvent<MouseEvent>): void => {
     e.stopPropagation()
     if (wasDrag(e.nativeEvent)) return

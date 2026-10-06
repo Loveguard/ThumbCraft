@@ -35,7 +35,7 @@ import { CutoutControls } from './CutoutControls'
 import { viewport } from './Viewport'
 import { defaultSkinUrl } from '../minecraft/builders'
 import { RENDER_MODES } from '../renderModes'
-import { STONE_TITLES } from './tabs/SceneTabs'
+import { TITLE_STYLES, TITLE_SWATCHES } from './tabs/SceneTabs'
 
 export const KIND_ICON: Record<SceneObject['kind'], LucideIcon> = {
   terrain: Mountain,
@@ -333,6 +333,22 @@ function TransformGroup({ o }: { o: SceneObject }): ReactNode {
         <span>Scale</span>
         <ScrubNumber step={0.05} min={0.01} digits={2} value={o.scale} onChange={(scale) => set({ scale })} />
       </div>
+      {OVERLAY_KINDS.has(o.kind) && !(o.kind === 'terrain' && o.ground) && (
+        <>
+          <Toggle
+            label="Always on top"
+            title="Drawn over everything, even terrain or trees in front of it"
+            checked={!!o.onTop}
+            onChange={(onTop) => set({ onTop })}
+          />
+          <Toggle
+            label="Flat lighting"
+            title="Its own colours, evenly bright: no shading from lights or shadows"
+            checked={!!o.flat}
+            onChange={(flat) => set({ flat })}
+          />
+        </>
+      )}
       <div className="icon-row">
         <button className="icon-btn" title="Draw above other overlay layers" onClick={() => reorder(o.id, 1)}>
           <BringToFront size={16} />
@@ -344,6 +360,9 @@ function TransformGroup({ o }: { o: SceneObject }): ReactNode {
     </Group>
   )
 }
+
+/** Objects that can be drawn on top of the scene and unlit (flat images and text have their own switch). */
+const OVERLAY_KINDS = new Set<SceneObject['kind']>(['terrain', 'player', 'mob', 'pixelText', 'model', 'vfx'])
 
 function Properties({ o }: { o: SceneObject }): ReactNode {
   const { update } = useStore.getState()
@@ -427,7 +446,7 @@ function Properties({ o }: { o: SceneObject }): ReactNode {
             <textarea rows={2} value={o.text} onChange={(e) => set({ text: e.target.value })} />
           </label>
           <div className="segmented">
-            {([{ style: 'plain', label: 'Font', color: '#ffffff' }, ...STONE_TITLES] as const).map((t) => (
+            {([{ style: 'plain', label: 'Font', color: '#ffffff' }, ...TITLE_STYLES] as const).map((t) => (
               <button
                 key={t.style}
                 className={(o.style ?? 'plain') === t.style ? 'active' : ''}
@@ -441,6 +460,20 @@ function Properties({ o }: { o: SceneObject }): ReactNode {
             <span>Colour</span>
             <input type="color" value={o.color} onChange={(e) => set({ color: e.target.value })} />
           </label>
+          {(o.style ?? 'plain') !== 'plain' && (
+            <div className="swatches">
+              {TITLE_SWATCHES.map((c) => (
+                <button
+                  key={c.name}
+                  className={`swatch ${o.color.toLowerCase() === c.color ? 'active' : ''}`}
+                  title={c.name}
+                  aria-label={c.name}
+                  style={{ background: c.color }}
+                  onClick={() => set({ color: c.color })}
+                />
+              ))}
+            </div>
+          )}
           <label className="field">
             <span>Depth</span>
             <input
