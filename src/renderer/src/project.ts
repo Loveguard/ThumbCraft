@@ -183,8 +183,8 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
   )
 
   const { skyColor: legacySkyColor, ...settings } = json.settings as SceneSettings & { skyColor?: string | null }
-  // The Vivid render mode became Painterly.
-  if ((settings.renderMode as string) === 'vivid') settings.renderMode = 'painterly'
+  // The Vivid render mode became Painterly, which became Cartoon.
+  if (['vivid', 'painterly'].includes(settings.renderMode as string)) settings.renderMode = 'cartoon'
   useStore.setState({
     objects,
     selectedId: null,

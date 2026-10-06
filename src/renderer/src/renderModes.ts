@@ -1,9 +1,9 @@
 // Render modes: Vanilla draws the game's own lighting; the others light the scene with a real sun, shadows
-// and placed lights, each tuned to a look (a shader pack, Minecraft's promo art). Shader looks also add a little post-processing
+// and placed lights, each tuned to a look (a shader pack, Minecraft's cel-shaded key art). Shader looks also add a little post-processing
 // underneath the user's own Look (the user's settings always win).
 import type { EffectSettings } from './store'
 
-export type RenderMode = 'vanilla' | 'cinematic' | 'soft' | 'painterly'
+export type RenderMode = 'vanilla' | 'cinematic' | 'soft' | 'cartoon'
 
 export const RENDER_MODES: { id: RenderMode; label: string; hint: string }[] = [
   { id: 'vanilla', label: 'Vanilla', hint: 'Exactly how the game draws it' },
@@ -14,9 +14,9 @@ export const RENDER_MODES: { id: RenderMode; label: string; hint: string }[] = [
     hint: 'Warm sun, soft shadows and sky-tinted light (in the spirit of Complementary Reimagined)'
   },
   {
-    id: 'painterly',
-    label: 'Painterly',
-    hint: 'Soft light and brush-stroke shading, like Minecraft promotional art'
+    id: 'cartoon',
+    label: 'Cartoon',
+    hint: 'Bright, clean cel-shaded colour like Minecraft key art, with crisp shadows and outlines'
   }
 ]
 
@@ -60,15 +60,17 @@ export const LIGHTING: Record<Exclude<RenderMode, 'vanilla'>, Lighting> = {
     fill: 0.22,
     shadowSoftness: 7
   },
-  painterly: {
-    sun: 2.2,
-    sunColor: '#fff0d2',
-    ambient: 0.3,
-    hemisphere: 0.8,
-    skyColor: '#c2e0ff',
-    groundColor: '#9a7a52',
-    fill: 0.25,
-    shadowSoftness: 5
+  // Key art: a strong clean sun with crisp shadows, and shade filled with bright sky-blue light so it
+  // never goes muddy.
+  cartoon: {
+    sun: 2.0,
+    sunColor: '#fff6e0',
+    ambient: 0.55,
+    hemisphere: 1.1,
+    skyColor: '#cfe9ff',
+    groundColor: '#a7c27a',
+    fill: 0.3,
+    shadowSoftness: 1.5
   }
 }
 
@@ -84,15 +86,13 @@ const POST: Partial<Record<RenderMode, Partial<EffectSettings>>> = {
     vignette: true,
     vignetteDarkness: 0.3
   },
-  painterly: {
+  cartoon: {
     bloom: true,
-    bloomIntensity: 0.4,
-    bloomThreshold: 0.85,
-    saturation: 0.32,
-    contrast: 0.14,
-    temperature: 0.05,
-    vignette: true,
-    vignetteDarkness: 0.25
+    bloomIntensity: 0.3,
+    bloomThreshold: 0.9,
+    saturation: 0.1,
+    contrast: 0.1,
+    temperature: 0.03
   }
 }
 

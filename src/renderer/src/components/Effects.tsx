@@ -15,7 +15,7 @@ import * as THREE from 'three'
 import { NO_EFFECTS, useStore, type EffectSettings, type SceneSettings } from '../store'
 import { ColorGrade } from './colorGrade'
 import { withShaderLook } from '../renderModes'
-import { Painterly } from './painterly'
+import { Cartoon } from './cartoon'
 
 /** Unit vector pointing at the sun for the given azimuth/elevation (degrees). */
 export function sunDirection(azimuth: number, elevation: number): THREE.Vector3 {
@@ -73,13 +73,13 @@ function Sun({ onMesh }: { onMesh: (m: THREE.Mesh | null) => void }): ReactNode 
 export function Effects(): ReactNode {
   const userEffects = useStore((s) => s.effects)
   const renderMode = useStore((s) => s.settings.renderMode)
-  // Shader looks (Soft, Vivid) add their own bloom and colour under the user's Look.
+  // Shader looks (Soft, Cartoon) add their own bloom and colour under the user's Look.
   const e = useMemo(() => withShaderLook(userEffects, renderMode), [userEffects, renderMode])
   const controls = useThree((s) => s.controls) as unknown as { target?: THREE.Vector3 } | null
   const [sun, setSun] = useState<THREE.Mesh | null>(null)
   const ref = useRef<Composer>(null)
-  const painterly = renderMode === 'painterly'
-  const active = hasEffects(e) || painterly
+  const cartoon = renderMode === 'cartoon'
+  const active = hasEffects(e) || cartoon
 
   useEffect(() => {
     composerHandle.current = active ? ref.current : null
@@ -100,8 +100,8 @@ export function Effects(): ReactNode {
   })
 
   const effects: ReactElement[] = []
-  // The painterly look works on the raw render, before glow and grading.
-  if (painterly) effects.push(<Painterly key="paint" />)
+  // The cartoon look works on the raw render, before glow and grading.
+  if (cartoon) effects.push(<Cartoon key="cartoon" />)
   if (e.depthOfField)
     effects.push(
       <DepthOfField
