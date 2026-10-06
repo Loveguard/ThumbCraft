@@ -135,17 +135,19 @@ const LUT_SIZE = 33
 
 /** Bakes a look into a 3D LUT texture (input and output in sRGB, as .cube files are). */
 export function bakeLut(g: Grade, size = LUT_SIZE): LookupTexture {
-  const data = new Float32Array(size * size * size * 4)
+  // 8-bit entries: every GPU can filter these smoothly (float LUTs need an extension some drivers lack,
+  // and without it they sample as black).
+  const data = new Uint8Array(size * size * size * 4)
   let i = 0
   for (let b = 0; b < size; b++)
     for (let gr = 0; gr < size; gr++)
       for (let r = 0; r < size; r++) {
         const out = gradeColor([r / (size - 1), gr / (size - 1), b / (size - 1)], g)
-        data.set([out[0], out[1], out[2], 1], i)
+        data.set([Math.round(out[0] * 255), Math.round(out[1] * 255), Math.round(out[2] * 255), 255], i)
         i += 4
       }
   const lut = new LookupTexture(data, size)
-  lut.type = THREE.FloatType
+  lut.type = THREE.UnsignedByteType
   lut.needsUpdate = true
   return lut
 }

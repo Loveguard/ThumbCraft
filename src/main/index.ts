@@ -84,6 +84,42 @@ const picked = (p: unknown, what: string): string => {
   return p
 }
 
+/**
+ * A window that never shows anything is the worst way to fail. Report why in the terminal (and, if the
+ * interface still hasn't appeared after a while, in a dialog), instead of leaving a silent dark window.
+ */
+function watchStartup(w: BrowserWindow, devUrl: string | undefined): void {
+  const wc = w.webContents
+  wc.on('did-fail-load', (_e, code, description, url) =>
+    console.error(`[ThumbCraft] The window failed to load ${url}: ${description} (${code})`)
+  )
+  wc.on('render-process-gone', (_e, details) =>
+    console.error(`[ThumbCraft] The window's process stopped: ${details.reason} (exit code ${details.exitCode})`)
+  )
+  wc.on('preload-error', (_e, path, error) => console.error(`[ThumbCraft] Preload failed (${path}):`, error))
+  // While developing, the page's own errors show up in the terminal running `npm run dev`.
+  if (devUrl)
+    wc.on('console-message', (e) => {
+      if (e.level === 'error') console.error(`[renderer] ${e.message} (${e.sourceId}:${e.lineNumber})`)
+    })
+  wc.once('did-finish-load', () => {
+    setTimeout(async () => {
+      if (w.isDestroyed()) return
+      const shown = await wc.executeJavaScript('document.getElementById("root")?.childElementCount ?? 0').catch(() => 0)
+      if (shown) return
+      console.error('[ThumbCraft] The interface has not appeared after 20 seconds.')
+      void dialog.showMessageBox(w, {
+        type: 'warning',
+        title: 'ThumbCraft',
+        message: 'ThumbCraft is taking unusually long to start.',
+        detail:
+          'Press Ctrl+R (Cmd+R on a Mac) to reload the window. If it stays dark, close the app and start it again; ' +
+          'when running from source, the terminal lists the error.'
+      })
+    }, 20_000)
+  })
+}
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 1600,
@@ -117,7 +153,12 @@ function createWindow(): void {
     win.webContents.send('app:flush')
   })
   // The app never navigates; a stray link or drop must not load another page next to the preload API.
-  win.webContents.on('will-navigate', (e) => e.preventDefault())
+  // (In development the dev server may reload its own page after re-bundling dependencies.)
+  const devUrl = !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined
+  win.webContents.on('will-navigate', (e, url) => {
+    if (!devUrl || !url.startsWith(devUrl)) e.preventDefault()
+  })
+  watchStartup(win, devUrl)
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https:\/\//.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
