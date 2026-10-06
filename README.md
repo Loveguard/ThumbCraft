@@ -65,9 +65,32 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 2. Open it.
    - **Windows:** the app isn't code-signed yet, so SmartScreen may say _"Windows protected your PC"_. Click
      **More info → Run anyway**.
-   - **macOS:** the app isn't notarised yet, so the first launch is **right-click the app → Open → Open**.
+   - **macOS:** see [Installing on a Mac](#installing-on-a-mac) below. It takes one extra step the first time.
 3. That's it. ThumbCraft finds your Minecraft automatically, whether it's the official launcher, Prism, Modrinth
    or CurseForge.
+
+### Installing on a Mac
+
+ThumbCraft is free and made by one creator. Apple only "notarises" apps for members of its developer program,
+which costs $99 a year, so the Mac version isn't notarised. It works fine, but macOS blocks it on first launch
+with _"ThumbCraft can't be opened because Apple cannot check it for malicious software"_. You only need to
+allow it once:
+
+1. Open the `.dmg` and drag **ThumbCraft** into **Applications**.
+2. Open ThumbCraft. When macOS blocks it, click **Done** (or **OK**).
+3. Open **System Settings → Privacy & Security**, scroll down to _"ThumbCraft was blocked…"_ and click
+   **Open Anyway**. Confirm with your password or Touch ID.
+
+On macOS 14 (Sonoma) and older you can instead **right-click the app → Open → Open**.
+
+If macOS says the app _"is damaged and can't be opened"_, that's the same block worded differently. Paste this
+into **Terminal** and open the app again:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/ThumbCraft.app
+```
+
+On a Mac, new versions are announced inside the app with a download link; they don't install themselves.
 
 **You need** Minecraft: Java Edition 1.18 or newer. If the app can't find your game, it downloads the files
 from Mojang for you. Generating terrain needs Java. The official launcher already includes it, and if it's
@@ -146,6 +169,15 @@ stays warm and new areas take seconds. The ready-made backdrops are always insta
 
 Mojang's [usage guidelines](https://www.minecraft.net/usage-guidelines) allow screenshots and videos, including
 monetised ones. Thumbnails are covered.
+
+</details>
+
+<details>
+<summary><b>Is it safe to click "Open Anyway" on a Mac?</b></summary>
+
+The warning only means the app hasn't gone through Apple's paid notarisation, not that anything bad was found. The
+full source code is in this repository, and every release is built from it by GitHub Actions, where anyone can
+see the build logs.
 
 </details>
 

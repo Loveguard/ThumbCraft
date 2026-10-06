@@ -298,7 +298,10 @@ function TextNode({ o, order }: { o: TextObject; order: number }): ReactNode {
 }
 
 function PixelTextNode({ o }: { o: PixelTextObject }): ReactNode {
-  const g = useAsync(() => buildPixelText(o.text, o.color, o.depth, o.shadow), [o.text, o.color, o.depth, o.shadow])
+  const g = useAsync(
+    () => buildPixelText(o.text, o.color, o.depth, o.shadow, o.style),
+    [o.text, o.color, o.depth, o.shadow, o.style]
+  )
   return g ? <primitive object={g} /> : null
 }
 

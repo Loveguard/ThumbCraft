@@ -5,6 +5,7 @@ import type { AssetBundle, TerrainData } from '@shared/types'
 import type { ExportFormat } from './exportImage'
 import type { VfxType } from './vfx'
 import type { RenderMode } from './renderModes'
+import type { PixelTextStyle } from './minecraft/builders'
 
 export type Vec3 = [number, number, number]
 
@@ -91,9 +92,13 @@ export interface TextObject extends Base {
 export interface PixelTextObject extends Base {
   kind: 'pixelText'
   text: string
+  /** Letter colour; for the stone looks, the tint over the stone texture. */
   color: string
   depth: number
+  /** Plain: the vanilla text shadow. Stone looks: the black outline. */
   shadow: boolean
+  /** Plain font pixels, or carved logo-style letters in grey stone or hardcore red. */
+  style?: PixelTextStyle
 }
 
 export interface MobObject extends Base {

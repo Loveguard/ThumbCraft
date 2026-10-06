@@ -102,7 +102,9 @@ server jar it downloads for terrain is the matching one for that version.
    Schematic sites have no public API, so searching them happens in the browser.
 6. **Camera bookmarks:** save several named camera views inside a project (one saved shot exists today).
 7. **More templates:** community-made layouts, and templates built on generated biomes.
-8. **Code signing:** sign the Windows installer (Azure Trusted Signing or SignPath) and notarise the macOS app.
+8. **Code signing:** sign the Windows installer (Azure Trusted Signing, or SignPath's free plan for open-source
+   projects). Notarising the macOS app needs a paid Apple Developer membership ($99/year), so Mac releases stay
+   ad-hoc signed and the README explains the one-time "Open Anyway" step.
 9. **Generation speed:** keep a pre-warmed server per seed (it already stays running between generations in a
    session), and cache generated areas on disk.
 10. **Older worlds:** the region reader targets the 1.18+ chunk format. Older saves need to be opened once in a newer version.

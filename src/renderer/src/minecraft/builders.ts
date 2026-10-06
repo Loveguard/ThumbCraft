@@ -24,6 +24,7 @@ import { applyBlockLight } from './lighting'
 import { makeWaterReflective } from './waterReflection'
 import type { TextObject } from '../store'
 import { customFamily, fontWeight } from '../textStyles'
+import { blockLetterCells } from './blockLetters'
 
 // ------------------------------------------------------------------ terrain
 
@@ -369,19 +370,11 @@ export function minecraftFont(): Promise<Map<number, Glyph> | null> {
   return fontPromise
 }
 
-/** Extruded voxel text built from the Minecraft font. One unit = one font pixel × 1/8 block. */
-export async function buildPixelText(
-  text: string,
-  color: string,
-  depth: number,
-  shadow: boolean
-): Promise<THREE.Group> {
-  const glyphs = await minecraftFont()
-  const group = new THREE.Group()
-  if (!glyphs) return group
+/** Which font pixels are filled for `text` (one cell per font pixel, rows 10 pixels apart). */
+function layoutText(glyphs: Map<number, Glyph>, text: string): { filled: Set<string>; width: number; height: number } {
   const lines = text.split('\n')
   const filled = new Set<string>()
-  let maxW = 0
+  let width = 0
   lines.forEach((line, row) => {
     let cursor = 0
     for (const ch of line) {
@@ -389,47 +382,293 @@ export async function buildPixelText(
       g.pixels.forEach((on, i) => on && filled.add(`${cursor + (i % 8)},${row * 10 + Math.floor(i / 8)}`))
       cursor += g.width + 1
     }
-    maxW = Math.max(maxW, cursor - 1)
+    width = Math.max(width, cursor - 1)
   })
-  const height = lines.length * 10 - 2
+  return { filled, width, height: lines.length * 10 - 2 }
+}
 
-  const build = (dz: number, offset: number): THREE.BufferGeometry => {
-    const pos: number[] = []
-    const nrm: number[] = []
-    const quad = (a: number[], b: number[], c: number[], d: number[], n: number[]): void => {
-      pos.push(...a, ...b, ...c, ...a, ...c, ...d)
-      for (let i = 0; i < 6; i++) nrm.push(...n)
+/** Per-vertex colour for a quad: one value, or [front, back] for faces running along the depth. */
+type Shade = number | [number, number]
+
+/**
+ * Culled voxel geometry for a set of filled cells, centred on the origin, `depth` cells deep, scaled by `scale`.
+ * `shade` gives each face's vertex brightness (for the stone looks); UVs map one texture pixel per cell.
+ */
+function voxelGeometry(
+  filled: Set<string>,
+  width: number,
+  height: number,
+  depth: number,
+  scale: number,
+  shade?: (px: number, py: number, normal: number[]) => Shade
+): THREE.BufferGeometry {
+  const pos: number[] = []
+  const nrm: number[] = []
+  const uv: number[] = []
+  const col: number[] = []
+  const z0 = -depth / 2
+  const z1 = depth / 2
+  for (const key of filled) {
+    const [px, py] = key.split(',').map(Number)
+    const x0 = px - width / 2
+    const x1 = x0 + 1
+    const y1 = height / 2 - py
+    const y0 = y1 - 1
+    const has = (dx: number, dy: number): boolean => filled.has(`${px + dx},${py + dy}`)
+    const quad = (v: number[][], n: number[], t: number[][]): void => {
+      const s = shade?.(px, py, n) ?? 1
+      for (const i of [0, 1, 2, 0, 2, 3]) {
+        pos.push(...v[i])
+        nrm.push(...n)
+        uv.push(t[i][0] / 16, t[i][1] / 16)
+        const c = Array.isArray(s) ? (v[i][2] === z1 ? s[0] : s[1]) : s
+        col.push(c, c, c)
+      }
     }
-    for (const key of filled) {
-      const [px, py] = key.split(',').map(Number)
-      const x0 = px - maxW / 2 + offset
-      const x1 = x0 + 1
-      const y1 = height / 2 - py - offset
-      const y0 = y1 - 1
-      const z0 = -depth / 2 + dz
-      const z1 = depth / 2 + dz
-      const has = (dx: number, dy: number): boolean => filled.has(`${px + dx},${py + dy}`)
-      quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1])
-      quad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, 0, -1])
-      if (!has(-1, 0)) quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [-1, 0, 0])
-      if (!has(1, 0)) quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [1, 0, 0])
-      if (!has(0, -1)) quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], [0, 1, 0])
-      if (!has(0, 1)) quad([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0])
-    }
-    const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
-    g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3))
-    g.scale(1 / 8, 1 / 8, 1 / 8)
-    return g
+    const front = (x: number, y: number): number[] => [x, y]
+    quad(
+      [
+        [x0, y0, z1],
+        [x1, y0, z1],
+        [x1, y1, z1],
+        [x0, y1, z1]
+      ],
+      [0, 0, 1],
+      [front(x0, y0), front(x1, y0), front(x1, y1), front(x0, y1)]
+    )
+    quad(
+      [
+        [x1, y0, z0],
+        [x0, y0, z0],
+        [x0, y1, z0],
+        [x1, y1, z0]
+      ],
+      [0, 0, -1],
+      [
+        [x1, y0],
+        [x0, y0],
+        [x0, y1],
+        [x1, y1]
+      ]
+    )
+    // Sides run one texture pixel per cell of depth too, so the extrusion reads as stacked blocks.
+    if (!has(-1, 0))
+      quad(
+        [
+          [x0, y0, z0],
+          [x0, y0, z1],
+          [x0, y1, z1],
+          [x0, y1, z0]
+        ],
+        [-1, 0, 0],
+        [
+          [z0, y0],
+          [z1, y0],
+          [z1, y1],
+          [z0, y1]
+        ]
+      )
+    if (!has(1, 0))
+      quad(
+        [
+          [x1, y0, z1],
+          [x1, y0, z0],
+          [x1, y1, z0],
+          [x1, y1, z1]
+        ],
+        [1, 0, 0],
+        [
+          [z1, y0],
+          [z0, y0],
+          [z0, y1],
+          [z1, y1]
+        ]
+      )
+    if (!has(0, -1))
+      quad(
+        [
+          [x0, y1, z1],
+          [x1, y1, z1],
+          [x1, y1, z0],
+          [x0, y1, z0]
+        ],
+        [0, 1, 0],
+        [
+          [x0, z1],
+          [x1, z1],
+          [x1, z0],
+          [x0, z0]
+        ]
+      )
+    if (!has(0, 1))
+      quad(
+        [
+          [x0, y0, z0],
+          [x1, y0, z0],
+          [x1, y0, z1],
+          [x0, y0, z1]
+        ],
+        [0, -1, 0],
+        [
+          [x0, z0],
+          [x1, z0],
+          [x1, z1],
+          [x0, z1]
+        ]
+      )
   }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3))
+  g.scale(scale, scale, scale)
+  return g
+}
 
-  const main = new THREE.Mesh(build(0, 0), new THREE.MeshLambertMaterial({ color: new THREE.Color(color) }))
+export type PixelTextStyle = 'plain' | 'stone' | 'hardcore'
+
+/** Extruded voxel text built from the Minecraft font. One unit = one font pixel × 1/8 block. */
+export async function buildPixelText(
+  text: string,
+  color: string,
+  depth: number,
+  shadow: boolean,
+  style: PixelTextStyle = 'plain'
+): Promise<THREE.Group> {
+  const group = new THREE.Group()
+  if (style !== 'plain') return buildStoneText(text, color, depth, shadow, style, group)
+  const glyphs = await minecraftFont()
+  if (!glyphs) return group
+  const { filled, width, height } = layoutText(glyphs, text)
+  const main = new THREE.Mesh(
+    voxelGeometry(filled, width, height, depth, 1 / 8),
+    new THREE.MeshLambertMaterial({ color: new THREE.Color(color) })
+  )
   main.castShadow = true
   group.add(main)
   if (shadow) {
     // Vanilla draws text shadows at 1px offset with the colour darkened to 25%.
     const c = new THREE.Color(color).multiplyScalar(0.25)
-    group.add(new THREE.Mesh(build(-depth * 0.5, 1), new THREE.MeshLambertMaterial({ color: c })))
+    const back = new THREE.Mesh(
+      voxelGeometry(filled, width, height, depth, 1 / 8),
+      new THREE.MeshLambertMaterial({ color: c })
+    )
+    back.position.set(1 / 8, -1 / 8, (-depth * 0.5) / 8)
+    group.add(back)
+  }
+  return group
+}
+
+let stoneTexture: Promise<THREE.Texture | null> | null = null
+/**
+ * The game's stone texture, made into a light, low-contrast surface: carved title letters read as pale stone
+ * with the stone's pixel grain, and take any tint (grey, hardcore red) cleanly.
+ */
+function stoneMap(): Promise<THREE.Texture | null> {
+  stoneTexture ??= loadImage(assetUrl('block/stone')).then((img) => {
+    if (!img) return null
+    const d = imageData(img)
+    const lum = (i: number): number => 0.299 * d.data[i] + 0.587 * d.data[i + 1] + 0.114 * d.data[i + 2]
+    let mean = 0
+    for (let i = 0; i < d.data.length; i += 4) mean += lum(i)
+    mean /= d.data.length / 4
+    const c = document.createElement('canvas')
+    c.width = d.width
+    c.height = d.height
+    const out = new ImageData(d.width, d.height)
+    for (let i = 0; i < d.data.length; i += 4) {
+      const v = Math.round(255 * Math.min(1, Math.max(0, 0.82 + ((lum(i) - mean) / 255) * 0.7)))
+      out.data.set([v, v, v, 255], i)
+    }
+    c.getContext('2d')!.putImageData(out, 0, 0)
+    const t = new THREE.CanvasTexture(c)
+    t.magFilter = THREE.NearestFilter
+    t.minFilter = THREE.NearestFilter
+    t.generateMipmaps = false
+    t.wrapS = t.wrapT = THREE.RepeatWrapping
+    t.colorSpace = THREE.SRGBColorSpace
+    return t
+  })
+  return stoneTexture
+}
+
+/** Deterministic 0…1 noise per cell. */
+function cellNoise(x: number, y: number, seed: number): number {
+  let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(seed, 2246822519)
+  h = Math.imul(h ^ (h >>> 13), 1274126177)
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296
+}
+
+/**
+ * Chunky carved title letters in the style of game logos: a block alphabet thickened into blocks, a stone
+ * face (the game's own stone texture) with chiselled dark edges and cracks, a deep extrusion fading to black,
+ * and a black outline behind. "hardcore" is the same in blood red.
+ */
+async function buildStoneText(
+  text: string,
+  color: string,
+  depth: number,
+  outline: boolean,
+  style: Exclude<PixelTextStyle, 'plain'>,
+  group: THREE.Group
+): Promise<THREE.Group> {
+  const base = blockLetterCells(text)
+  // Each letter pixel becomes 2×2 cells, then strokes grow one cell right and down: 3-cell-thick strokes
+  // with 1-cell slits, the heavy blocky letterforms of a logo.
+  const filled = new Set<string>()
+  for (const key of base.filled) {
+    const [x, y] = key.split(',').map(Number)
+    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) filled.add(`${x * 2 + dx},${y * 2 + dy}`)
+  }
+  const width = base.width * 2 + 1
+  const height = base.height * 2 + 1
+  const cells = depth * 2
+  const empty = (x: number, y: number): boolean => !filled.has(`${x},${y}`)
+  const scale = 1 / 16
+
+  const shade = (px: number, py: number, n: number[]): Shade => {
+    if (n[2] === 1) {
+      // Face: darker toward the bottom of each line, a carved bevel (lit top-left edges, shaded
+      // bottom-right ones), and the odd crack.
+      const row = py % 14
+      let s = 1.05 - (row / 11) * 0.25
+      if (empty(px, py + 1) || empty(px + 1, py)) s *= 0.7
+      else if (empty(px, py - 1) || empty(px - 1, py)) s *= 1.12
+      else if (cellNoise(px, py, 3) < 0.09) s *= 0.55
+      return s
+    }
+    if (n[2] === -1) return 0.12
+    // Extrusion: lit from above, fading to near-black toward the back.
+    const side = n[1] === 1 ? 0.62 : n[1] === -1 ? 0.22 : 0.4
+    return [side, side * 0.25]
+  }
+
+  const tint = new THREE.Color(color)
+  const map = await stoneMap()
+  const material = new THREE.MeshLambertMaterial({
+    color: tint,
+    map,
+    vertexColors: true
+  })
+  const main = new THREE.Mesh(voxelGeometry(filled, width, height, cells, scale, shade), material)
+  main.castShadow = true
+  group.add(main)
+
+  if (outline) {
+    // A black rim around the letters' silhouette, as thick as a stroke gap, behind the extrusion.
+    const rim = new Set<string>()
+    for (const key of filled) {
+      const [x, y] = key.split(',').map(Number)
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) rim.add(`${x + dx + 1},${y + dy + 1}`)
+    }
+    const back = new THREE.Mesh(
+      voxelGeometry(rim, width + 2, height + 2, cells, scale),
+      new THREE.MeshBasicMaterial({ color: style === 'hardcore' ? 0x1a0000 : 0x0d0d0d })
+    )
+    back.position.z = -0.01
+    back.scale.z = 0.98
+    group.add(back)
   }
   return group
 }

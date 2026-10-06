@@ -35,6 +35,7 @@ import { CutoutControls } from './CutoutControls'
 import { viewport } from './Viewport'
 import { defaultSkinUrl } from '../minecraft/builders'
 import { RENDER_MODES } from '../renderModes'
+import { STONE_TITLES } from './tabs/SceneTabs'
 
 export const KIND_ICON: Record<SceneObject['kind'], LucideIcon> = {
   terrain: Mountain,
@@ -425,6 +426,17 @@ function Properties({ o }: { o: SceneObject }): ReactNode {
             <span>Text</span>
             <textarea rows={2} value={o.text} onChange={(e) => set({ text: e.target.value })} />
           </label>
+          <div className="segmented">
+            {([{ style: 'plain', label: 'Font', color: '#ffffff' }, ...STONE_TITLES] as const).map((t) => (
+              <button
+                key={t.style}
+                className={(o.style ?? 'plain') === t.style ? 'active' : ''}
+                onClick={() => set({ style: t.style, color: t.color })}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
           <label className="field">
             <span>Colour</span>
             <input type="color" value={o.color} onChange={(e) => set({ color: e.target.value })} />
@@ -441,7 +453,7 @@ function Properties({ o }: { o: SceneObject }): ReactNode {
           </label>
           <label className="check">
             <input type="checkbox" checked={o.shadow} onChange={(e) => set({ shadow: e.target.checked })} />
-            <span>Minecraft text shadow</span>
+            <span>{(o.style ?? 'plain') === 'plain' ? 'Minecraft text shadow' : 'Black outline'}</span>
           </label>
         </>
       )}
