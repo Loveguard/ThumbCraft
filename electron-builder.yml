@@ -17,6 +17,10 @@ extraResources:
     filter: ['vision_wasm_internal.js', 'vision_wasm_internal.wasm']
   - from: resources/models/
     to: mediapipe/
+  # The secret scenes' models (tools/blender/build_secret_scenes.py).
+  - from: resources/secret/
+    to: secret/
+    filter: ['*.glb']
   # Licences of everything bundled (fonts, MediaPipe, libraries).
   - from: THIRD_PARTY_NOTICES.md
     to: THIRD_PARTY_NOTICES.md

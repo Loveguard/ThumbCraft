@@ -2,15 +2,7 @@
 // framed by a saved camera shot. Everything is a normal scene object afterwards, so users just edit the text
 // and swap in their own skin.
 import { buildTower, buildTrunk, TOWER_TOP, type BackdropId } from '@shared/minecraft/backdrops'
-import {
-  buildDarkTowers,
-  buildGlassPane,
-  buildTable,
-  buildWhiteRoom,
-  ruinBlocks,
-  scrambleBlocks,
-  TABLE_HEIGHT
-} from '@shared/minecraft/props'
+import { buildGlassPane, ruinBlocks, scrambleBlocks } from '@shared/minecraft/props'
 import type { TerrainData } from '@shared/types'
 import { VFX_PRESETS, type VfxType } from './vfx'
 import * as THREE from 'three'
@@ -21,6 +13,8 @@ import { assetUrl } from './minecraft/assets'
 import { defaultSkinUrl } from './minecraft/builders'
 import { mobModels } from './minecraft/mobs'
 import { aimAt } from './lights'
+import { errorText } from './errors'
+import { registerMedia } from './media'
 import { newProject } from './project'
 import { flushAutosave, markClean } from './projectActions'
 import { frameTransform } from './placement'
@@ -41,6 +35,10 @@ import {
   type Vec3
 } from './store'
 import { FONTS, TEXT_STYLES } from './textStyles'
+import SECRET_ANCHORS from '../../../resources/secret/anchors.json'
+
+/** Where Loveguard stands on the valley ledge in the vision scene (on top of the ledge's blocks). */
+const LG_VISION: Vec3 = [1.2, 2, 1.6]
 
 interface PlayerSpec {
   name: string
@@ -144,8 +142,37 @@ export interface Template {
   props?: PropSpec[]
   pieces?: PieceSpec[]
   vfx?: VfxSpec[]
+  /** Models built in Blender (tools/blender), placed where they were built (plus an optional offset). */
+  models?: ModelSpec[]
   camera: CameraState
   fov: number
+}
+
+type SecretModel = keyof typeof SECRET_ANCHORS
+
+interface ModelSpec {
+  file: SecretModel
+  name: string
+  /** Moves the model from where it was built. */
+  offset?: Vec3
+  /** Or puts its anchor (bottom centre) at an exact spot instead. */
+  at?: Vec3
+  rotation?: Vec3
+}
+
+/**
+ * Glasses on a player's face: the frames sit just in front of the eyes, turned with the player.
+ * (Built facing +z with their lenses 0.07 above the model's bottom and 0.15 in front of its centre.)
+ */
+function glassesOn(at: Vec3, yaw: number, scale = 1): { at: Vec3; rotation: Vec3 } {
+  const r = THREE.MathUtils.degToRad(yaw)
+  const fwd = [Math.sin(r), 0, Math.cos(r)]
+  const eye = 1.71 * scale
+  const front = 0.27 * scale - 0.151
+  return {
+    at: [at[0] + fwd[0] * front, at[1] + eye - 0.07, at[2] + fwd[2] * front],
+    rotation: [0, yaw, 0]
+  }
 }
 
 const YELLOW = '#ffe14d'
@@ -336,115 +363,72 @@ export const TEMPLATES: Template[] = [
     id: 'lg-ai-vision',
     secret: true,
     name: 'Seeing Minecraft through AI',
-    hint: 'Loveguard looks out through a hazy pane at a vivid meadow',
-    backdrop: 'meadow',
+    hint: 'Loveguard, in glasses, gazes across a vivid valley through a hazy pane',
+    backdrop: null,
     sky: 'clear',
     look: 'pop',
     effects: { bloom: true, bloomIntensity: 0.6, bloomThreshold: 0.75 },
-    settings: { ...DAY, sunAzimuth: 210, sunElevation: 28 },
-    players: [{ name: 'Loveguard', username: 'Loveguard', pose: 'Standing', at: [2.3, 0, 2.6], yaw: -95 }],
+    settings: { ...DAY, sunAzimuth: 215, sunElevation: 30, fog: false },
+    players: [{ name: 'Loveguard', username: 'Loveguard', pose: 'Standing', at: LG_VISION, yaw: -78 }],
     props: [
-      { name: 'Oak tree', build: () => buildTrunk('oak_log', 7), at: [-3.6, -1, 0.4] },
-      // The hazy "AI view" behind Loveguard, angled across the right of the frame.
-      { name: 'Glass pane', build: () => buildGlassPane(14, 14), at: [4.2, -1, -1.2], rotation: [0, 38, 0] }
+      // The hazy "AI view": a tall pane cutting diagonally across the right of the frame.
+      { name: 'Glass pane', build: () => buildGlassPane(16, 18), at: [3.4, -2, -4], rotation: [0, 62, 0] }
+    ],
+    models: [
+      { file: 'vision', name: 'Valley (Blender)' },
+      { file: 'glasses', name: 'Glasses', ...glassesOn(LG_VISION, -78) }
     ],
     texts: [],
-    camera: { position: [-0.4, 1.7, 6.6], target: [1.4, 2, 0] },
-    fov: 58
+    camera: { position: [-1.4, 3.7, 6.4], target: [-7.5, 0.5, -30] },
+    fov: 62
   },
   {
     id: 'lg-build-off',
     secret: true,
     name: 'Who builds best?',
-    hint: 'A giant Loveguard judges four tiny AI builds on a table',
+    hint: 'A giant Loveguard judges four tiny builds on a table',
     backdrop: null,
-    sky: 'color',
-    skyColor: '#3d1f78',
+    sky: 'night',
     look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, depthOfField: true, dofBlur: 3, dofRange: 10 },
+    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6 },
     settings: {
       renderMode: 'cinematic',
-      sunStrength: 0.6,
-      ambientStrength: 0.8,
+      sunStrength: 0.7,
+      ambientStrength: 0.85,
       fog: false,
       sunAzimuth: 160,
       sunElevation: 35
     },
-    players: [
-      {
-        name: 'Loveguard',
-        username: 'Loveguard',
-        pose: 'Pointing',
-        at: [0.6, -0.6, -2.4],
-        yaw: 15,
-        scale: 3
-      }
-    ],
-    props: [
-      { name: 'Table', build: () => buildTable(16, 4), at: [0, 0, 0] },
-      { name: 'Skyline', build: () => buildDarkTowers(60, 10), at: [0, -10, -32] }
-    ],
-    pieces: [
-      { id: 'village/plains/houses/plains_small_house_1', at: [-5.6, TABLE_HEIGHT, 0.2], scale: 0.32 },
-      {
-        id: 'village/plains/houses/plains_small_house_2',
-        at: [-1.9, TABLE_HEIGHT, 0.4],
-        scale: 0.32,
-        rotation: [0, 15, -12]
-      },
-      {
-        id: 'village/plains/houses/plains_small_house_3',
-        at: [1.9, TABLE_HEIGHT, 0.2],
-        scale: 0.32,
-        remix: 'scramble'
-      },
-      { id: 'village/plains/houses/plains_small_house_4', at: [5.6, TABLE_HEIGHT, 0.2], scale: 0.32, remix: 'ruin' }
-    ],
-    // A glow over each build, one per AI.
-    vfx: [
-      { effect: 'magic', at: [-5.6, TABLE_HEIGHT + 2, 0.2], color: '#ff9a62', scale: 0.45 },
-      { effect: 'magic', at: [-1.9, TABLE_HEIGHT + 2, 0.4], color: '#ffffff', scale: 0.45 },
-      { effect: 'magic', at: [1.9, TABLE_HEIGHT + 2, 0.2], color: '#7cf0a8', scale: 0.45 },
-      { effect: 'magic', at: [5.6, TABLE_HEIGHT + 2, 0.2], color: '#3b82ff', scale: 0.45 }
-    ],
+    players: [{ name: 'Loveguard', username: 'Loveguard', pose: 'Pointing', at: [0.8, -3.2, -5.2], yaw: 12, scale: 7 }],
+    models: [{ file: 'builds', name: 'Table and builds (Blender)' }],
     texts: [],
     lights: [
-      { at: [0, 9, -8], aim: [0.6, 3, -2.4], color: '#9d7bff', intensity: 400, range: 30 },
-      { at: [0, 6, 8], aim: [0, 3.2, 0], color: '#ffe2c0', intensity: 220, range: 24 }
+      { at: [-6, 7, 5], aim: [-2, 3, 0], color: '#ffd9a8', intensity: 260, range: 30 },
+      { at: [7, 6, 4], color: '#b48cff', intensity: 60, range: 20 }
     ],
-    camera: { position: [0, 4.4, 9.5], target: [0, 3.8, 0] },
-    fov: 50
+    camera: { position: [0, 5.6, 11.5], target: [0, 6.2, -2] },
+    fov: 56
   },
   {
     id: 'lg-boss',
     secret: true,
     name: 'Bosses coded by AI',
-    hint: 'From behind Loveguard, a giant boss looms against blinding light',
+    hint: 'From behind Loveguard, a giant spiked boss looms against blinding light',
     backdrop: null,
     sky: 'color',
     skyColor: '#f2f2f2',
-    look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 1.2, bloomThreshold: 0.55, vignette: true, vignetteDarkness: 0.6 },
-    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.12, fog: true },
-    players: [{ name: 'Loveguard', username: 'Loveguard', pose: 'Waving', at: [0, 0, 1.6], yaw: 180 }],
-    props: [{ name: 'White room', build: () => buildWhiteRoom(18, 26, 18), at: [0, -1, -6] }],
-    mobs: [
-      {
-        mob: 'warden',
-        fallback: 'giant',
-        at: [0, 0, -4],
-        yaw: 0,
-        scale: 2.6,
-        parts: { right_arm: [-35, 0, 25], left_arm: [-35, 0, -25] }
-      }
-    ],
+    look: 'cinema-cool',
+    effects: { bloom: true, bloomIntensity: 1.3, bloomThreshold: 0.6, vignette: true, vignetteDarkness: 0.6 },
+    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.18, fog: true },
+    players: [{ name: 'Loveguard', username: 'Loveguard', pose: 'Waving', at: [0.3, 0, 2.2], yaw: 180 }],
+    models: [{ file: 'boss', name: 'Boss and hall (Blender)', offset: [0, 0, -2.5] }],
     texts: [],
     lights: [
-      { at: [0, 12, -14], aim: [0, 3, 2], color: '#ffffff', intensity: 1200, range: 50 },
-      { at: [0, 3, -9], color: '#ffffff', intensity: 200, range: 20 }
+      { at: [0, 14, -30], aim: [0, 4, 4], color: '#ffffff', intensity: 1600, range: 60 },
+      { at: [0, 4, -14], color: '#ffffff', intensity: 260, range: 24 }
     ],
-    camera: { position: [0.4, 0.35, 3.8], target: [0, 4.6, -4] },
-    fov: 72
+    camera: { position: [0.6, 0.5, 5.6], target: [0, 6.5, -6] },
+    fov: 74
   }
 ]
 
@@ -554,6 +538,7 @@ export async function applyTemplate(t: Template): Promise<void> {
   markClean()
   if (t.mobs?.length) void addTemplateMobs(t.mobs)
   if (t.pieces?.length) void addTemplatePieces(t.pieces)
+  if (t.models?.length) void addTemplateModels(t.models)
   for (const p of t.players) if (p.username) void wearSkin(p.name, p.username)
 }
 
@@ -586,6 +571,39 @@ async function addTemplatePieces(pieces: PieceSpec[]): Promise<void> {
     addTerrain(t, p.id.split('/').pop()!.replace(/_/g, ' '), p.at)
     const added = useStore.getState().objects.at(-1)
     if (added) useStore.getState().update(added.id, { rotation: p.rotation ?? [0, 0, 0], scale: p.scale ?? 1 })
+  }
+  useStore.setState({ selectedId: null, past: [], future: [] })
+  markClean()
+}
+
+/** Loads a template's Blender models (shipped next to the app) and places them where they were built. */
+async function addTemplateModels(models: ModelSpec[]): Promise<void> {
+  const projectId = useStore.getState().project.id
+  for (const m of models) {
+    let bytes: Uint8Array
+    try {
+      const res = await fetch(`tcres://secret/${m.file}.glb`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      bytes = new Uint8Array(await res.arrayBuffer())
+    } catch (e) {
+      useStore.getState().setStatus(`Couldn't load the ${m.name} model: ${errorText(e)}`)
+      continue
+    }
+    if (useStore.getState().project.id !== projectId) return
+    const media = registerMedia(`${m.file}.glb`, 'model/gltf-binary', bytes)
+    const anchor = SECRET_ANCHORS[m.file] as Vec3
+    const o = m.offset ?? [0, 0, 0]
+    useStore.getState().add({
+      id: newId('obj'),
+      kind: 'model',
+      name: m.name,
+      mediaId: media.id,
+      extraMediaIds: [],
+      visible: true,
+      position: m.at ?? [anchor[0] + o[0], anchor[1] + o[1], anchor[2] + o[2]],
+      rotation: m.rotation ?? [0, 0, 0],
+      scale: 1
+    })
   }
   useStore.setState({ selectedId: null, past: [], future: [] })
   markClean()

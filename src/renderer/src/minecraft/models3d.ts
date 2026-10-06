@@ -41,11 +41,13 @@ export async function loadModel(main: MediaEntry, extras: MediaEntry[]): Promise
     mesh.receiveShadow = true
     for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
       const map = (mat as THREE.MeshStandardMaterial).map
-      // Small textures are almost always pixel art (Blockbench exports): keep them sharp like the game.
-      if (map?.image && (map.image as { width: number }).width <= 256) {
+      // Small textures are almost always pixel art (Blockbench exports): keep them sharp up close like the game,
+      // with mipmaps in the distance so far-off surfaces don't shimmer.
+      const pixelArt = map?.magFilter === THREE.NearestFilter // the file asks for crisp pixels
+      if (map?.image && (pixelArt || (map.image as { width: number }).width <= 256)) {
         map.magFilter = THREE.NearestFilter
-        map.minFilter = THREE.NearestFilter
-        map.generateMipmaps = false
+        map.minFilter = THREE.NearestMipmapLinearFilter
+        map.generateMipmaps = true
         map.needsUpdate = true
       }
     }

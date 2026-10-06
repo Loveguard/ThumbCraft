@@ -52,6 +52,15 @@ const MEDIAPIPE_FILES: Record<string, string> = {
   'vision_wasm_internal.wasm': 'application/wasm',
   'selfie_segmenter.tflite': 'application/octet-stream'
 }
+/** The secret scenes' models (built with tools/blender), served on tcres://secret/<name>. */
+const SECRET_FILES = new Set(['vision.glb', 'builds.glb', 'boss.glb', 'glasses.glb'])
+function secretFile(name: string): string | null {
+  if (!SECRET_FILES.has(name)) return null
+  const dirs = app.isPackaged
+    ? [join(process.resourcesPath, 'secret')]
+    : [app.getAppPath(), join(__dirname, '../..'), process.cwd()].map((root) => join(root, 'resources', 'secret'))
+  return dirs.map((d) => join(d, name)).find((p) => existsSync(p)) ?? null
+}
 function mediapipeFile(name: string): string | null {
   const dirs = app.isPackaged
     ? [join(process.resourcesPath, 'mediapipe')]
@@ -333,8 +342,9 @@ app.whenReady().then(() => {
   protocol.handle('tcres', (req) => {
     const url = new URL(req.url)
     const name = url.pathname.replace(/^\//, '')
-    const type = url.hostname === 'mediapipe' ? MEDIAPIPE_FILES[name] : undefined
-    const file = type ? mediapipeFile(name) : null
+    const secret = url.hostname === 'secret'
+    const type = secret ? 'model/gltf-binary' : url.hostname === 'mediapipe' ? MEDIAPIPE_FILES[name] : undefined
+    const file = !type ? null : secret ? secretFile(name) : mediapipeFile(name)
     if (!file) return new Response('Not found', { status: 404 })
     return new Response(readFileSync(file), { headers: { 'content-type': type!, 'access-control-allow-origin': '*' } })
   })
