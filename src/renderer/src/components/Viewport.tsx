@@ -14,6 +14,7 @@ import { glowStrength } from '../minecraft/lighting'
 import { mediaStore } from '../media'
 import { composerHandle, Effects, renderFrame, sunDirection } from './Effects'
 import { FocusPoints } from './FocusPoints'
+import { Rulers, rulerBridge, type ScreenRect } from './Rulers'
 import { SkyBackdrop } from './SkyBackdrop'
 import { snapPoint } from './snapping'
 import { ViewportOverlay } from './ViewportOverlay'
@@ -55,7 +56,7 @@ import { Weather } from './Weather'
 import { VfxNode } from './VfxNode'
 import { errorText } from '../errors'
 import { isLit, LIGHTING, type RenderMode } from '../renderModes'
-import { OVERLAY_LAYER, setLayer, syncOverlay } from '../overlay'
+import { HELPER_LAYER, OVERLAY_LAYER, setLayer, syncOverlay } from '../overlay'
 
 export interface Placement {
   /** A spot in front of the camera, on the ground under the centre of the view. */
@@ -727,7 +728,24 @@ function PointerTracker(): null {
   return null
 }
 
-/** Keeps the floating selection toolbar just above the selected object on screen. */
+/** The screen area a box covers, in fractions of the frame (y down); null when it's behind the camera. */
+function screenRect(box: THREE.Box3, camera: THREE.Camera, v: THREE.Vector3): ScreenRect | null {
+  const r = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity }
+  for (let i = 0; i < 8; i++) {
+    v.set(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z)
+    v.project(camera)
+    if (v.z > 1) return null
+    const x = (v.x + 1) / 2
+    const y = (1 - v.y) / 2
+    r.x0 = Math.min(r.x0, x)
+    r.x1 = Math.max(r.x1, x)
+    r.y0 = Math.min(r.y0, y)
+    r.y1 = Math.max(r.y1, y)
+  }
+  return r
+}
+
+/** Keeps the floating selection toolbar just above the selected object on screen (and the rulers' selection marks). */
 function SelectionTracker(): null {
   const ids = useStore(useShallow((s) => selection(s)))
   const box = useMemo(() => new THREE.Box3(), [])
@@ -735,13 +753,14 @@ function SelectionTracker(): null {
   const v = useMemo(() => new THREE.Vector3(), [])
   useFrame(({ camera, size }) => {
     const el = viewport.selectionToolbar
-    if (!el) return
     // Above everything selected, so it never sits on the group's handles.
     box.makeEmpty()
     for (const id of ids) {
       const obj = viewport.objects.get(id)
       if (obj?.visible) box.union(one.setFromObject(obj))
     }
+    if (rulerBridge.update) rulerBridge.update(box.isEmpty() ? null : screenRect(box, camera, v))
+    if (!el) return
     if (box.isEmpty()) {
       el.style.visibility = 'hidden'
       return
@@ -772,6 +791,7 @@ function IkGizmo({ id, limb, slim }: { id: string; limb: Limb; slim: boolean }):
     )
     dot.renderOrder = 999
     dot.userData.helper = true
+    dot.layers.set(HELPER_LAYER)
     h.add(dot)
     return h
   }, [])
@@ -851,6 +871,10 @@ function useGizmoRegistry(controls: { current: unknown }): void {
 /**
  * Handles for several selected objects at once: they sit at the selection's centre, and moving, turning or
  * resizing them does the same to every object around that centre, as one undo step.
+ *
+ * Moving keeps the selection lined up as seen through the camera: an object further away moves further in the
+ * world, by its distance over the centre's, so titles that look edge to edge stay edge to edge on screen even
+ * when one is nearer the camera than the other.
  */
 function GroupGizmo({ ids }: { ids: string[] }): ReactNode {
   const mode = useStore((s) => s.transformMode)
@@ -865,7 +889,8 @@ function GroupGizmo({ ids }: { ids: string[] }): ReactNode {
   }, [])
   const start = useRef<{
     inverse: THREE.Matrix4
-    items: { id: string; obj: THREE.Object3D; m: THREE.Matrix4 }[]
+    pivot: THREE.Vector3
+    items: { id: string; obj: THREE.Object3D; m: THREE.Matrix4; pos: THREE.Vector3; depth: number }[]
   } | null>(null)
   useEffect(() => {
     scene.add(pivot)
@@ -892,11 +917,20 @@ function GroupGizmo({ ids }: { ids: string[] }): ReactNode {
       showY
       onMouseDown={() => {
         pivot.updateMatrixWorld()
+        const cam = viewport.camera
+        const forward = new THREE.Vector3()
+        cam?.getWorldDirection(forward)
+        // Depth along the view, relative to the centre's (1 = as far as the centre).
+        const depthOf = (p: THREE.Vector3): number => (cam ? p.clone().sub(cam.position).dot(forward) : 1)
+        const centreDepth = depthOf(pivot.position)
         start.current = {
           inverse: pivot.matrixWorld.clone().invert(),
+          pivot: pivot.position.clone(),
           items: ids.flatMap((id) => {
             const obj = viewport.objects.get(id)
-            return obj ? [{ id, obj, m: obj.matrix.clone() }] : []
+            if (!obj) return []
+            const d = centreDepth > 0.05 ? depthOf(obj.position) / centreDepth : 1
+            return [{ id, obj, m: obj.matrix.clone(), pos: obj.position.clone(), depth: d > 0.05 ? d : 1 }]
           })
         }
       }}
@@ -911,6 +945,11 @@ function GroupGizmo({ ids }: { ids: string[] }): ReactNode {
         if (mode === 'translate' && (pointer.shift || useStore.getState().settings.snap))
           for (const a of ['x', 'y', 'z'] as const) pivot.position[a] = Math.round(pivot.position[a] * 2) / 2
         pivot.updateMatrixWorld()
+        if (mode === 'translate') {
+          const move = pivot.position.clone().sub(st.pivot)
+          for (const it of st.items) it.obj.position.copy(it.pos).addScaledVector(move, it.depth)
+          return
+        }
         const delta = m.multiplyMatrices(pivot.matrixWorld, st.inverse)
         for (const it of st.items) {
           new THREE.Matrix4().multiplyMatrices(delta, it.m).decompose(it.obj.position, it.obj.quaternion, sc)
@@ -951,6 +990,7 @@ function SelectionBoxes(): ReactNode {
             mat.opacity = 0.8
             h.renderOrder = 998
             h.userData.helper = true
+            h.layers.set(HELPER_LAYER)
             return h
           })
         : [],
@@ -1217,6 +1257,7 @@ export function Viewport(): ReactNode {
             />
           </Canvas>
           <FocusPoints />
+          <Rulers />
           <ViewportOverlay />
         </GlErrorBoundary>
       </div>

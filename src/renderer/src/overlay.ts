@@ -15,6 +15,28 @@ export const OVERLAY_ORDER = 1000
  */
 export const OVERLAY_LAYER = 1
 
+/**
+ * Editing handles (move/turn/size arrows, selection outlines) live on their own layer, drawn after everything
+ * else, so effects like depth of field never blur them. They are hidden in exports.
+ */
+export const HELPER_LAYER = 2
+
+/** Moves the visible parts of the move/turn/size handles onto the helper layer (their invisible pick shapes stay). */
+export function liftHandles(scene: THREE.Object3D): void {
+  for (const root of scene.children) {
+    const flags = root as { isTransformControls?: boolean; isTransformControlsRoot?: boolean }
+    if (!flags.isTransformControls && !flags.isTransformControlsRoot) continue
+    root.traverse((o) => {
+      const g = o as unknown as { isTransformControlsGizmo?: boolean; gizmo?: object; helper?: object }
+      if (!g.isTransformControlsGizmo) return
+      for (const part of [...Object.values(g.gizmo ?? {}), ...Object.values(g.helper ?? {})] as THREE.Object3D[])
+        part.traverse((p) => {
+          if (p.layers.mask !== 1 << HELPER_LAYER) p.layers.set(HELPER_LAYER)
+        })
+    })
+  }
+}
+
 /** Puts an object and everything under it on one render layer. */
 export function setLayer(root: THREE.Object3D, layer: number): void {
   root.traverse((o) => {

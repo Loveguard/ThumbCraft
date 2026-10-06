@@ -214,7 +214,12 @@ function Beam({ color, opacity }: { color: string; opacity: number }): ReactNode
 export function VfxNode({ o, cinematic }: { o: VfxObject; cinematic: boolean }): ReactNode {
   const layers = useMemo(() => vfxLayers(o.effect, o.density, o.seed), [o.effect, o.density, o.seed])
   const [half, height] = vfxBounds(o.effect)
-  const glowAt: Record<string, [number, number, number]> = { fire: [0, 1, 0], explosion: [0, 2, 0], beam: [0, 1, 0] }
+  const glowAt: Record<string, [number, number, number]> = {
+    fire: [0, 1, 0],
+    explosion: [0, 2, 0],
+    beam: [0, 1, 0],
+    totem: [0, 1.3, 0]
+  }
   return (
     <>
       {o.effect === 'beam' && <Beam color={o.color} opacity={o.opacity} />}

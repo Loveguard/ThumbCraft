@@ -3041,3 +3041,132 @@ textarea:focus {
   width: 1px;
   background: var(--border-strong);
 }
+
+/* A fixed three-column grid (the FX tab's 3 × 3 effects). */
+.tile-grid.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* Rulers and guides over the viewport (Shift+R). */
+.rulers {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  --ruler: 18px;
+}
+.rulers .guide {
+  position: absolute;
+}
+.rulers .guide.v {
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed rgba(255, 255, 255, 0.45);
+}
+.rulers .guide.h {
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px dashed rgba(255, 255, 255, 0.45);
+}
+.rulers .guide.third {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.rulers .guide.centre.aligned {
+  border-style: solid;
+  border-color: #4ade80;
+  box-shadow: 0 0 3px rgba(74, 222, 128, 0.6);
+}
+.rulers .ruler {
+  position: absolute;
+  overflow: hidden;
+  background: rgba(14, 16, 20, 0.78);
+  backdrop-filter: blur(4px);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+.rulers .ruler.top {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: var(--ruler);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+.rulers .ruler.left {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--ruler);
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+}
+.rulers .ruler-corner {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  top: 0;
+  width: var(--ruler);
+  height: var(--ruler);
+  background: rgba(14, 16, 20, 0.85);
+}
+.rulers .ruler i {
+  position: absolute;
+  display: block;
+  background: rgba(255, 255, 255, 0.35);
+}
+.rulers .ruler.top i {
+  bottom: 0;
+  width: 1px;
+  height: 4px;
+}
+.rulers .ruler.top i.major {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.6);
+}
+.rulers .ruler.left i {
+  right: 0;
+  height: 1px;
+  width: 4px;
+}
+.rulers .ruler.left i.major {
+  width: 8px;
+  background: rgba(255, 255, 255, 0.6);
+}
+.rulers .ruler i span {
+  position: absolute;
+  white-space: nowrap;
+}
+.rulers .ruler.top i span {
+  left: 3px;
+  bottom: 6px;
+}
+.rulers .ruler.left i span {
+  right: 6px;
+  top: 2px;
+  transform: rotate(-90deg);
+  transform-origin: right top;
+}
+.rulers .ruler-band {
+  position: absolute;
+  background: rgba(74, 222, 128, 0.32);
+}
+.rulers .ruler.top .ruler-band {
+  top: 0;
+  bottom: 0;
+}
+.rulers .ruler.left .ruler-band {
+  left: 0;
+  right: 0;
+}
+.rulers .ruler-readout {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(14, 16, 20, 0.78);
+  color: #d1fae5;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}

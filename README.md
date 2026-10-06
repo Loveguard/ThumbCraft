@@ -1,8 +1,8 @@
 <div align="center">
 
-# ThumbCraft
+<img src="docs/images/banner.jpg" alt="ThumbCraft: the free 3D thumbnail studio for Minecraft creators" width="100%">
 
-**The free thumbnail studio for Minecraft creators.**
+# ThumbCraft
 
 Build a 3D scene from real Minecraft terrain, drop in your skin and your mobs, add big bold text and export a
 YouTube-ready thumbnail in minutes. No Photoshop and no render farm needed.
@@ -48,7 +48,7 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 | 🧍 **Players**          | Type any username to get that skin, including slim arms and the outer layer. Posable down to elbows and knees, with action poses (attack, lunge, run, shocked…), armor and held items.                                                                                                                                                                                               |
 | 🐉 **Mobs**             | Every mob and entity model in your game version, with texture variants and per-limb posing.                                                                                                                                                                                                                                                                                          |
 | 🏠 **Builds**           | Every vanilla structure, from village houses to bastions and ancient cities, with isometric previews. You can also import `.schem`, `.litematic` and `.nbt` files.                                                                                                                                                                                                                   |
-| 🔥 **FX**               | Smoke, fog, fire, explosions, embers, magic, light beams, rain, snow and lightning, plus particles straight from the game.                                                                                                                                                                                                                                                           |
+| 🔥 **FX**               | Smoke, fog, fire, explosions, embers, magic, light beams, totem pops, impact shockwaves, rain, snow and lightning, plus particles straight from the game.                                                                                                                                                                                                                            |
 | 💡 **Lighting & looks** | Four render modes: Vanilla, Cinematic, Soft and Cartoon (the bright cel-shaded style of Minecraft's key art). Coloured lights, bloom, god rays and a movable sun. Film-style colour looks built as real 3D LUTs, plus your own `.cube` LUTs from DaVinci Resolve or Premiere.                                                                                                        |
 | 🎯 **Focus & lens**     | Drag a focus point onto anything and it stays sharp while the rest blurs; add more points for several subjects. Lens warp (curved-TV bulge or pinch, never black corners), speed burst, anamorphic streaks, chromatic aberration, vignette, film grain and a CRT TV look.                                                                                                            |
 | 🔤 **Text & media**     | Thumbnail-style outlined text with gradients and glow, 3D text in the Minecraft font, carved **stone titles** in any colour and front-on **Hardcore titles** (every O becomes the hardcore heart). Your own images, videos and 3D models, and one-click background removal. Anything can be set **always on top** with **flat lighting**, so a title never disappears behind a tree. |
@@ -160,6 +160,7 @@ The tool rail on the left opens one panel at a time; the panel on the right edit
 | **Shift+drag** on empty space | Box-select everything inside              |
 | **Ctrl+A**                    | Select everything except the ground       |
 | **Ctrl+G / Ctrl+Shift+G**     | Group / ungroup the selection             |
+| **Shift+R**                   | Rulers and centre guides                  |
 | **Ctrl+Z / Ctrl+Y**           | Undo / redo (camera moves included)       |
 | **Ctrl+D**                    | Duplicate the selection                   |
 | **Delete**                    | Remove the selection                      |

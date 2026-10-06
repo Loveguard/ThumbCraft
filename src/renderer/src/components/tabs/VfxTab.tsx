@@ -1,5 +1,16 @@
 import type { ReactNode } from 'react'
-import { Cloud, CloudFog, Flame, Bomb, Sparkle, Sparkles, SunDim, type LucideIcon } from 'lucide-react'
+import {
+  Cloud,
+  CloudFog,
+  Flame,
+  Bomb,
+  Sparkle,
+  Sparkles,
+  SunDim,
+  PartyPopper,
+  Radar,
+  type LucideIcon
+} from 'lucide-react'
 import { placeNew } from '../../placement'
 import { newId, useStore } from '../../store'
 import { VFX_PRESETS, vfxBounds, type VfxPreset, type VfxType } from '../../vfx'
@@ -14,7 +25,9 @@ const ICONS: Record<VfxType, LucideIcon> = {
   explosion: Bomb,
   embers: Sparkle,
   magic: Sparkles,
-  beam: SunDim
+  beam: SunDim,
+  totem: PartyPopper,
+  impact: Radar
 }
 
 function addEffect(p: VfxPreset): void {
@@ -41,7 +54,7 @@ function addEffect(p: VfxPreset): void {
 export function VfxTab(): ReactNode {
   return (
     <div className="tab-body">
-      <div className="tile-grid">
+      <div className="tile-grid cols-3">
         {VFX_PRESETS.map((p) => {
           const Icon = ICONS[p.id]
           return (

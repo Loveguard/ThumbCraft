@@ -99,7 +99,10 @@ export function Section({
 }
 
 /** Moves an object toward (+) or away from (−) the camera along the view direction. */
-/** Moves the selection toward the camera (positive) or away from it, as one step. */
+/**
+ * Moves the selection toward the camera (positive) or away from it, as one step. Several objects slide along
+ * their own lines of sight by the same share of their distance, so they stay lined up on screen.
+ */
 export function pushAlongView(amount: number): void {
   const cam = viewport.camera
   if (!cam) return
@@ -107,13 +110,20 @@ export function pushAlongView(amount: number): void {
   cam.getWorldDirection(dir)
   const s = useStore.getState()
   const ids = selection(s)
+  const list = s.objects.filter((o) => ids.includes(o.id))
+  if (!list.length) return
+  const centre = list.reduce((c, o) => c.add(new THREE.Vector3(...o.position)), new THREE.Vector3())
+  centre.divideScalar(list.length)
+  const depth = centre.clone().sub(cam.position).dot(dir)
+  // Share of the distance kept: 1 block nearer for the centre, proportionally for the rest.
+  const keep = list.length > 1 && depth > 0.5 ? Math.max(0.05, (depth - amount) / depth) : 0
   s.updateMany(
-    s.objects
-      .filter((o) => ids.includes(o.id))
-      .map((o) => {
-        const p = new THREE.Vector3(...o.position).addScaledVector(dir, -amount)
-        return { id: o.id, patch: { position: [p.x, p.y, p.z] as Vec3 } }
-      })
+    list.map((o) => {
+      const p = new THREE.Vector3(...o.position)
+      if (keep) p.sub(cam.position).multiplyScalar(keep).add(cam.position)
+      else p.addScaledVector(dir, -amount)
+      return { id: o.id, patch: { position: [p.x, p.y, p.z] as Vec3 } }
+    })
   )
 }
 

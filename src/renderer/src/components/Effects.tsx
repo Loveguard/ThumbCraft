@@ -10,7 +10,7 @@ import { Cartoon } from './cartoon'
 import { FocusBlurEffect } from './focusBlur'
 import { CrtEffect } from './retro'
 import { AnamorphicEffect, LensWarpEffect, SpeedBurstEffect } from './lens'
-import { OVERLAY_LAYER } from '../overlay'
+import { HELPER_LAYER, liftHandles, OVERLAY_LAYER } from '../overlay'
 import { lookLut, parseCube } from '../grading'
 import { mediaStore } from '../media'
 
@@ -80,6 +80,22 @@ function drawOverlayLayer(
   scene.background = background
 }
 
+/** The editing handles over the finished frame, sharp whatever effects are on. */
+function drawHelperLayer(gl: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera): void {
+  liftHandles(scene)
+  const background = scene.background
+  const mask = camera.layers.mask
+  scene.background = null
+  camera.layers.set(HELPER_LAYER)
+  const autoClear = gl.autoClear
+  gl.autoClear = false
+  gl.setRenderTarget(null)
+  gl.render(scene, camera)
+  gl.autoClear = autoClear
+  camera.layers.mask = mask
+  scene.background = background
+}
+
 /** The always-on-top layers drawn inside the effect chain, so effects after it (CRT) cover them too. */
 class OverlayLayerPass extends Pass {
   constructor(scene: THREE.Scene, camera: THREE.Camera) {
@@ -110,6 +126,7 @@ export function renderFrame(
   } else gl.render(scene, camera)
   if (useStore.getState().effects.cleanOverlays && !(useChain && chain.includesOverlays))
     drawOverlayLayer(gl, scene, camera, null)
+  drawHelperLayer(gl, scene, camera)
 }
 
 /** Takes over drawing each frame (after the effect chain, which renders at priority 1). */

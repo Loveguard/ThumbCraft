@@ -207,6 +207,8 @@ export interface SceneSettings {
   /** JPG is what YouTube wants (kept under its 2 MB limit); PNG is lossless. */
   exportFormat: ExportFormat
   showGrid: boolean
+  /** Pixel rulers and centre/thirds guides over the viewport (never in exports). */
+  showRulers?: boolean
   /** Always snap while moving (Shift does the same temporarily). */
   snap: boolean
   /** Sun direction in degrees; drives the main light and the god-rays sun. */

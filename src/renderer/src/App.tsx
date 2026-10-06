@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { ChevronDown, Download, Move3d, Redo2, Rotate3d, Scale3d, Undo2 } from 'lucide-react'
+import { ChevronDown, Download, Move3d, Redo2, Rotate3d, Ruler, Scale3d, Undo2 } from 'lucide-react'
 import { LeftPanel } from './components/LeftPanel'
 import { ProjectMenu } from './components/ProjectMenu'
 import { openProjectFile, saveProject, startAutosave, startNewProject } from './projectActions'
@@ -78,6 +78,7 @@ function TopBar(): ReactNode {
   const assets = useStore((s) => s.assets)!
   const mode = useStore((s) => s.transformMode)
   const canUndo = useStore((s) => s.past.length > 0)
+  const showRulers = useStore((s) => !!s.settings.showRulers)
   const canRedo = useStore((s) => s.future.length > 0)
   const [exportWidth, exportHeight, exportFormat] = useStore(
     useShallow((s) => [s.settings.exportWidth, s.settings.exportHeight, s.settings.exportFormat])
@@ -121,6 +122,15 @@ function TopBar(): ReactNode {
         </button>
         <button className="icon-btn" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={redo}>
           <Redo2 size={18} />
+        </button>
+        <i className="divider" />
+        <button
+          className={`icon-btn ${showRulers ? 'active' : ''}`}
+          title="Rulers and centre guides (Shift+R)"
+          aria-pressed={showRulers}
+          onClick={() => setSettings({ showRulers: !showRulers })}
+        >
+          <Ruler size={18} />
         </button>
       </div>
 
@@ -253,6 +263,7 @@ export function App(): ReactNode {
         // Everything but the ground, which is almost never meant to move with the rest.
         s.setSelection(s.objects.filter((o) => !(o.kind === 'terrain' && o.ground)).map((o) => o.id))
       } else if (e.ctrlKey || e.metaKey || e.altKey) return
+      else if (k === 'r' && e.shiftKey) s.setSettings({ showRulers: !s.settings.showRulers })
       else if (k === 'w') s.setTransformMode('translate')
       else if (k === 'e') s.setTransformMode('rotate')
       else if (k === 'r') s.setTransformMode('scale')

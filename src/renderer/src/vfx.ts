@@ -1,8 +1,9 @@
-// Special effects placed in the 3D scene: smoke, fog, fire, explosions, embers, magic and light beams.
+// Special effects placed in the 3D scene: smoke, fog, fire, explosions, embers, magic, light beams, totem
+// bursts and ground impacts.
 // Each is a deterministic cloud of camera-facing puffs (same seed, same look), so the viewport and the
 // exported image always match.
 
-export type VfxType = 'smoke' | 'fog' | 'fire' | 'explosion' | 'embers' | 'magic' | 'beam'
+export type VfxType = 'smoke' | 'fog' | 'fire' | 'explosion' | 'embers' | 'magic' | 'beam' | 'totem' | 'impact'
 
 export interface VfxPreset {
   id: VfxType
@@ -56,7 +57,23 @@ export const VFX_PRESETS: VfxPreset[] = [
     density: 0.6,
     glow: true
   },
-  { id: 'beam', label: 'Light beam', hint: 'A shaft of light from above', color: '#fff2c4', density: 0.5, glow: true }
+  { id: 'beam', label: 'Light beam', hint: 'A shaft of light from above', color: '#fff2c4', density: 0.5, glow: true },
+  {
+    id: 'totem',
+    label: 'Totem pop',
+    hint: 'The green and gold burst of a Totem of Undying saving a player',
+    color: '#7be04a',
+    density: 0.6,
+    glow: true
+  },
+  {
+    id: 'impact',
+    label: 'Impact',
+    hint: 'A ground shockwave of dust and flying bits, for a hard landing or a big hit',
+    color: '#b8a284',
+    density: 0.6,
+    glow: false
+  }
 ]
 
 export interface Puff {
@@ -229,6 +246,55 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
       }
       return [{ texture: 'spark', blending: 'additive', puffs: dust }]
     }
+    case 'totem': {
+      // Sparks thrown out in every direction from about chest height, thickest near the player.
+      const burst = (n: number): Puff[] => {
+        const out: Puff[] = []
+        for (let i = 0; i < n; i++) {
+          const u = rnd() * 2 - 1
+          const a = rnd() * Math.PI * 2
+          const r = 0.5 + 2 * rnd() ** 0.7
+          const s = Math.sqrt(1 - u * u)
+          out.push(
+            puff(Math.cos(a) * s * r, 1.3 + u * r * 0.9, Math.sin(a) * s * r, 0.07 + rnd() * 0.1, 0.95, 1 + rnd() * 0.5)
+          )
+        }
+        return out
+      }
+      const glow: Puff[] = []
+      for (let i = 0; i < 4; i++) glow.push(puff(0, 1.1 + i * 0.25, 0, 2.2, 0.1, 1))
+      return [
+        { texture: 'puff', blending: 'additive', puffs: glow },
+        { texture: 'spark', blending: 'additive', puffs: burst(count(40, 120)) },
+        { texture: 'spark', blending: 'additive', color: '#ffd23a', puffs: burst(count(25, 80)) }
+      ]
+    }
+    case 'impact': {
+      // A ring of dust rolling outwards along the ground, with chunks kicked up from the middle.
+      const ring: Puff[] = []
+      for (let i = 0, n = count(24, 60); i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + rnd() * 0.3
+        const r = 1.6 + rnd() * 1.4
+        ring.push(puff(Math.cos(a) * r, 0.3 + rnd() * 0.4, Math.sin(a) * r, 0.9 + rnd() * 0.9, 0.45, 0.8 + rnd() * 0.3))
+      }
+      const inner: Puff[] = []
+      for (let i = 0, n = count(6, 16); i < n; i++) {
+        const [x, z] = disc(rnd, 1.2)
+        inner.push(puff(x, 0.4 + rnd() * 0.8, z, 1.2 + rnd() * 0.8, 0.35, 0.95))
+      }
+      const chunks: Puff[] = []
+      for (let i = 0, n = count(10, 30); i < n; i++) {
+        const a = rnd() * Math.PI * 2
+        const r = 0.6 + rnd() * 2.6
+        chunks.push(
+          puff(Math.cos(a) * r, 0.5 + rnd() * 2.2 * (1 - r / 4), Math.sin(a) * r, 0.1 + rnd() * 0.12, 1, 0.45)
+        )
+      }
+      return [
+        { texture: 'puff', blending: 'normal', puffs: [...inner, ...ring] },
+        { texture: 'puff', blending: 'normal', color: '#4a3b2c', puffs: chunks }
+      ]
+    }
   }
 }
 
@@ -249,5 +315,9 @@ export function vfxBounds(effect: VfxType): [number, number] {
       return [1.4, 2.8]
     case 'beam':
       return [1.6, 10]
+    case 'totem':
+      return [2.4, 3.6]
+    case 'impact':
+      return [3.2, 2]
   }
 }
