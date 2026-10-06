@@ -13,6 +13,7 @@ import { guardReflector } from '../minecraft/waterReflection'
 import { glowStrength } from '../minecraft/lighting'
 import { mediaStore } from '../media'
 import { composerHandle, Effects, sunDirection } from './Effects'
+import { FocusPoints } from './FocusPoints'
 import { SkyBackdrop } from './SkyBackdrop'
 import { snapPoint } from './snapping'
 import { ViewportOverlay } from './ViewportOverlay'
@@ -961,6 +962,7 @@ export function Viewport(): ReactNode {
               }}
             />
           </Canvas>
+          <FocusPoints />
           <ViewportOverlay />
         </GlErrorBoundary>
       </div>

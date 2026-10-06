@@ -1,14 +1,5 @@
-import { useFrame, useThree } from '@react-three/fiber'
-import {
-  Bloom,
-  ChromaticAberration,
-  DepthOfField,
-  EffectComposer,
-  GodRays,
-  Noise,
-  SMAA,
-  Vignette
-} from '@react-three/postprocessing'
+import { useFrame } from '@react-three/fiber'
+import { Bloom, ChromaticAberration, EffectComposer, GodRays, Noise, SMAA, Vignette } from '@react-three/postprocessing'
 import { BlendFunction, LUT3DEffect, type EffectComposer as Composer, type Pass } from 'postprocessing'
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import * as THREE from 'three'
@@ -16,6 +7,7 @@ import { useStore, type EffectSettings, type SceneSettings } from '../store'
 import { ColorGrade } from './colorGrade'
 import { withShaderLook } from '../renderModes'
 import { Cartoon } from './cartoon'
+import { FocusBlurEffect } from './focusBlur'
 import { lookLut, parseCube } from '../grading'
 import { mediaStore } from '../media'
 
@@ -62,6 +54,22 @@ function customLut(mediaId: string | null): THREE.Data3DTexture | null {
     customLuts.set(mediaId, lut)
   }
   return customLuts.get(mediaId) ?? null
+}
+
+/** Depth of field from the on-screen focus points. */
+function FocusPass({
+  points,
+  range,
+  blur
+}: {
+  points: { x: number; y: number }[]
+  range: number
+  blur: number
+}): ReactNode {
+  const effect = useMemo(() => new FocusBlurEffect(), [])
+  useEffect(() => effect.setFocus(points, range, blur * 2.5), [effect, points, range, blur])
+  useEffect(() => () => effect.dispose(), [effect])
+  return <primitive object={effect} dispose={null} />
 }
 
 /** The colour look as a 3D LUT pass, blended with the original by its intensity. */
@@ -116,7 +124,6 @@ export function Effects(): ReactNode {
   const renderMode = useStore((s) => s.settings.renderMode)
   // Shader looks (Soft, Cartoon) add their own bloom and colour under the user's Look.
   const e = useMemo(() => withShaderLook(userEffects, renderMode), [userEffects, renderMode])
-  const controls = useThree((s) => s.controls) as unknown as { target?: THREE.Vector3 } | null
   const [sun, setSun] = useState<THREE.Mesh | null>(null)
   const ref = useRef<Composer>(null)
   const cartoon = renderMode === 'cartoon'
@@ -143,15 +150,7 @@ export function Effects(): ReactNode {
   const effects: ReactElement[] = []
   // The cartoon look works on the raw render, before glow and grading.
   if (cartoon) effects.push(<Cartoon key="cartoon" />)
-  if (e.depthOfField)
-    effects.push(
-      <DepthOfField
-        key="dof"
-        target={controls?.target ?? new THREE.Vector3()}
-        worldFocusRange={e.dofRange}
-        bokehScale={e.dofBlur}
-      />
-    )
+  if (e.depthOfField) effects.push(<FocusPass key="dof" points={e.focusPoints} range={e.dofRange} blur={e.dofBlur} />)
   if (e.godRays && sun)
     effects.push(
       <GodRays

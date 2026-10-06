@@ -256,6 +256,8 @@ export interface EffectSettings {
   depthOfField: boolean
   dofBlur: number
   dofRange: number
+  /** Where focus is taken from, in viewport fractions (x right, y down): whatever is under each point stays sharp. */
+  focusPoints: { x: number; y: number }[]
   /** The colour look (a 3D LUT): a built-in look's id, 'custom' for an imported .cube file, or null. */
   look: string | null
   /** 0 = original colour … 1 = the full look. */
@@ -291,6 +293,7 @@ export const NO_EFFECTS: EffectSettings = {
   depthOfField: false,
   dofBlur: 2,
   dofRange: 8,
+  focusPoints: [{ x: 0.5, y: 0.55 }],
   look: null,
   lookIntensity: 1,
   lutMediaId: null,

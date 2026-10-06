@@ -2866,3 +2866,73 @@ textarea:focus {
   color: #ff9b9b;
   white-space: pre-wrap;
 }
+
+/* Focus points of the depth of field: on-screen only, never in the image. */
+.focus-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.focus-point {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+.focus-point:active {
+  cursor: grabbing;
+}
+.focus-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 0 14px rgba(94, 234, 212, 0.45);
+}
+.focus-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: #5eead4;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.focus-add,
+.focus-remove {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #0b0c0e;
+  cursor: pointer;
+}
+.focus-add {
+  right: -12px;
+  top: -8px;
+  background: #5eead4;
+}
+.focus-remove {
+  right: -10px;
+  bottom: -8px;
+  background: rgba(255, 255, 255, 0.85);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.focus-point:hover .focus-remove {
+  opacity: 1;
+}
