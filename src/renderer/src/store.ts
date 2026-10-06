@@ -258,6 +258,13 @@ export interface EffectSettings {
   dofRange: number
   /** Where focus is taken from, in viewport fractions (x right, y down): whatever is under each point stays sharp. */
   focusPoints: { x: number; y: number }[]
+  /** Always-on-top layers (titles) are drawn after the effects, so blur, grain, looks and lens effects skip them. */
+  cleanOverlays: boolean
+  /** CRT TV: scanlines and phosphor mask, a curved screen, and whether it also covers the always-on-top layers. */
+  crt: boolean
+  crtAmount: number
+  crtCurve: number
+  crtOverLayers: boolean
   /** The colour look (a 3D LUT): a built-in look's id, 'custom' for an imported .cube file, or null. */
   look: string | null
   /** 0 = original colour … 1 = the full look. */
@@ -294,6 +301,11 @@ export const NO_EFFECTS: EffectSettings = {
   dofBlur: 2,
   dofRange: 8,
   focusPoints: [{ x: 0.5, y: 0.55 }],
+  cleanOverlays: true,
+  crt: false,
+  crtAmount: 0.6,
+  crtCurve: 0.5,
+  crtOverLayers: false,
   look: null,
   lookIntensity: 1,
   lutMediaId: null,

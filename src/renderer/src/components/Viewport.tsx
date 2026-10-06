@@ -12,7 +12,7 @@ import { loadModel } from '../minecraft/models3d'
 import { guardReflector } from '../minecraft/waterReflection'
 import { glowStrength } from '../minecraft/lighting'
 import { mediaStore } from '../media'
-import { composerHandle, Effects, sunDirection } from './Effects'
+import { composerHandle, Effects, renderFrame, sunDirection } from './Effects'
 import { FocusPoints } from './FocusPoints'
 import { SkyBackdrop } from './SkyBackdrop'
 import { snapPoint } from './snapping'
@@ -53,7 +53,7 @@ import { Weather } from './Weather'
 import { VfxNode } from './VfxNode'
 import { errorText } from '../errors'
 import { isLit, LIGHTING, type RenderMode } from '../renderModes'
-import { syncOverlay } from '../overlay'
+import { OVERLAY_LAYER, setLayer, syncOverlay } from '../overlay'
 
 export interface Placement {
   /** A spot in front of the camera, on the ground under the centre of the view. */
@@ -484,11 +484,21 @@ const ObjectNode = memo(function ObjectNode({ o, order }: { o: SceneObject; orde
   const onTop = overlay && !!o.onTop
   const flat = overlay && !!o.flat
   const overlaid = useRef(false)
+  // With clean layers on, on-top objects (titles included) are drawn after the effects, untouched by them.
+  const cleanLayers = useStore((s) => s.effects.cleanOverlays)
+  const lifted = !!o.onTop && cleanLayers
+  const layered = useRef(false)
   useFrame(() => {
+    if (!ref.current) return
     // Every frame while active, so parts that finish loading later (skins, textures) are included too.
-    if (!ref.current || (!onTop && !flat && !overlaid.current)) return
-    syncOverlay(ref.current, onTop, flat, order)
-    overlaid.current = onTop || flat
+    if (onTop || flat || overlaid.current) {
+      syncOverlay(ref.current, onTop, flat, order)
+      overlaid.current = onTop || flat
+    }
+    if (lifted || layered.current) {
+      setLayer(ref.current, lifted ? OVERLAY_LAYER : 0)
+      layered.current = lifted
+    }
   })
   const onClick = (e: ThreeEvent<MouseEvent>): void => {
     e.stopPropagation()
@@ -576,7 +586,9 @@ function ShadowThrottle(): null {
 }
 
 function Bridge(): null {
-  const { gl, scene, camera, size } = useThree()
+  const { gl, scene, camera, size, raycaster } = useThree()
+  // Clicking still selects objects drawn on the clean overlay layer.
+  useEffect(() => void raycaster.layers.enable(OVERLAY_LAYER), [raycaster])
   const controls = useThree((s) => s.controls) as unknown as { target?: THREE.Vector3 } | null
   useEffect(() => {
     viewport.camera = camera as THREE.PerspectiveCamera
@@ -646,8 +658,7 @@ function Bridge(): null {
         else gl.setSize(width, height, false)
         cam.aspect = width / height
         cam.updateProjectionMatrix()
-        if (composer) composer.render()
-        else gl.render(scene, cam)
+        renderFrame(gl, scene, cam, composer)
       }
       renderAt(w, h, 1)
       const url = gl.domElement.toDataURL('image/png')

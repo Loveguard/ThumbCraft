@@ -1,6 +1,6 @@
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { Bloom, ChromaticAberration, EffectComposer, GodRays, Noise, SMAA, Vignette } from '@react-three/postprocessing'
-import { BlendFunction, LUT3DEffect, type EffectComposer as Composer, type Pass } from 'postprocessing'
+import { BlendFunction, LUT3DEffect, Pass, type EffectComposer as Composer } from 'postprocessing'
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import * as THREE from 'three'
 import { useStore, type EffectSettings, type SceneSettings } from '../store'
@@ -8,6 +8,8 @@ import { ColorGrade } from './colorGrade'
 import { withShaderLook } from '../renderModes'
 import { Cartoon } from './cartoon'
 import { FocusBlurEffect } from './focusBlur'
+import { CrtEffect } from './retro'
+import { OVERLAY_LAYER } from '../overlay'
 import { lookLut, parseCube } from '../grading'
 import { mediaStore } from '../media'
 
@@ -37,7 +39,87 @@ const hasGrade = (e: EffectSettings): boolean =>
   e.exposure !== 0 || e.contrast !== 0 || e.saturation !== 0 || e.temperature !== 0 || e.tint !== 0 || e.split !== 0
 
 export const hasEffects = (e: EffectSettings): boolean =>
-  hasGrade(e) || !!e.look || e.vignette || e.grain || e.bloom || e.godRays || e.chromatic || e.depthOfField
+  hasGrade(e) || !!e.look || e.vignette || e.grain || e.bloom || e.godRays || e.chromatic || e.depthOfField || e.crt
+
+/** What the effect chain covers this frame (set while rendering the Effects component). */
+const chain = { active: false, includesOverlays: false }
+
+/** Draws only the overlay layer over what's already in `target` (null = the screen), every light still lighting it. */
+function drawOverlayLayer(
+  gl: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  target: THREE.WebGLRenderTarget | null
+): void {
+  const background = scene.background
+  const mask = camera.layers.mask
+  scene.background = null
+  scene.traverse((o) => {
+    if ((o as THREE.Light).isLight) o.layers.enable(OVERLAY_LAYER)
+  })
+  camera.layers.set(OVERLAY_LAYER)
+  const autoClear = gl.autoClear
+  gl.autoClear = false
+  gl.setRenderTarget(target)
+  gl.clearDepth()
+  gl.render(scene, camera)
+  gl.autoClear = autoClear
+  camera.layers.mask = mask
+  scene.background = background
+}
+
+/** The always-on-top layers drawn inside the effect chain, so effects after it (CRT) cover them too. */
+class OverlayLayerPass extends Pass {
+  constructor(scene: THREE.Scene, camera: THREE.Camera) {
+    super('OverlayLayerPass', scene, camera)
+    this.needsSwap = false
+  }
+  render(gl: THREE.WebGLRenderer, inputBuffer: THREE.WebGLRenderTarget): void {
+    drawOverlayLayer(gl, this.scene, this.camera, inputBuffer)
+  }
+}
+
+/**
+ * One finished frame, for the live view and for export alike: the scene (through the effect chain when one is
+ * active), then, when they're kept clean of effects, the always-on-top layers over the result (unless the
+ * chain already drew them, ahead of a CRT that covers everything). `composer` is null when no effects are on.
+ */
+export function renderFrame(
+  gl: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  composer: Composer | null,
+  composerAlreadyRan = false
+): void {
+  // Live, the chain has already rendered this frame (it runs just before); export renders it here.
+  const useChain = chain.active && (composerAlreadyRan || !!composer)
+  if (useChain) {
+    if (!composerAlreadyRan) composer?.render()
+  } else gl.render(scene, camera)
+  if (useStore.getState().effects.cleanOverlays && !(useChain && chain.includesOverlays))
+    drawOverlayLayer(gl, scene, camera, null)
+}
+
+/** Takes over drawing each frame (after the effect chain, which renders at priority 1). */
+function FrameFinisher(): null {
+  useFrame(({ gl, scene, camera }) => renderFrame(gl, scene, camera, composerHandle.current, true), 2)
+  return null
+}
+
+/** The always-on-top layers as a step inside the effect chain. */
+function OverlayPass(): ReactNode {
+  const { scene, camera } = useThree()
+  const pass = useMemo(() => new OverlayLayerPass(scene, camera), [scene, camera])
+  return <primitive object={pass} dispose={null} />
+}
+
+/** CRT as a step in the effect chain. */
+function CrtPass({ amount, curve }: { amount: number; curve: number }): ReactNode {
+  const effect = useMemo(() => new CrtEffect(), [])
+  useEffect(() => effect.setLook(amount, curve), [effect, amount, curve])
+  useEffect(() => () => effect.dispose(), [effect])
+  return <primitive object={effect} dispose={null} />
+}
 
 /** The custom .cube LUT, parsed once per imported file. */
 const customLuts = new Map<string, THREE.Data3DTexture | null>()
@@ -194,16 +276,26 @@ export function Effects(): ReactNode {
         modulationOffset={0.2}
       />
     )
+  // CRT before the always-on-top layers keeps titles clean; "over everything" moves it after them (below).
+  const crtOverLayers = e.crt && e.crtOverLayers && e.cleanOverlays
+  if (e.crt && !crtOverLayers) effects.push(<CrtPass key="crt" amount={e.crtAmount} curve={e.crtCurve} />)
   if (e.vignette)
     effects.push(<Vignette key="vig" darkness={e.vignetteDarkness} offset={e.vignetteOffset} eskil={false} />)
   if (e.grain) effects.push(<Noise key="grain" opacity={e.grainAmount} blendFunction={BlendFunction.OVERLAY} />)
   // God rays need the scene's depth to know what blocks the sun, which multisampled buffers don't
   // expose. With rays on we render without MSAA and smooth edges with SMAA instead.
+  if (crtOverLayers) {
+    effects.push(<OverlayPass key="overlays" />)
+    effects.push(<CrtPass key="crt-all" amount={e.crtAmount} curve={e.crtCurve} />)
+  }
   const msaa = e.godRays ? 0 : 4
   if (!msaa) effects.push(<SMAA key="smaa" />)
+  chain.active = active && effects.length > 0
+  chain.includesOverlays = crtOverLayers
 
   return (
     <>
+      <FrameFinisher />
       {e.godRays && <Sun onMesh={setSun} />}
       {active && effects.length > 0 && (
         <EffectComposer

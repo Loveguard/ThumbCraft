@@ -9,6 +9,19 @@ import * as THREE from 'three'
 /** Draw order of on-top objects: above the scene's own transparent layers (water renders at 1). */
 export const OVERLAY_ORDER = 1000
 
+/**
+ * The render layer on-top objects move to when post effects should leave them clean: the scene (layer 0)
+ * goes through the effect chain first, then this layer is drawn over the finished image.
+ */
+export const OVERLAY_LAYER = 1
+
+/** Puts an object and everything under it on one render layer. */
+export function setLayer(root: THREE.Object3D, layer: number): void {
+  root.traverse((o) => {
+    if (o.layers.mask !== 1 << layer) o.layers.set(layer)
+  })
+}
+
 interface Original {
   material: THREE.Material | THREE.Material[]
   renderOrder: number
