@@ -256,6 +256,13 @@ export interface EffectSettings {
   depthOfField: boolean
   dofBlur: number
   dofRange: number
+  /** The colour look (a 3D LUT): a built-in look's id, 'custom' for an imported .cube file, or null. */
+  look: string | null
+  /** 0 = original colour … 1 = the full look. */
+  lookIntensity: number
+  /** The imported .cube file (kept in the project like other media). */
+  lutMediaId: string | null
+  lutName: string
 }
 
 export const NO_EFFECTS: EffectSettings = {
@@ -283,7 +290,11 @@ export const NO_EFFECTS: EffectSettings = {
   chromaticAmount: 0.0015,
   depthOfField: false,
   dofBlur: 2,
-  dofRange: 8
+  dofRange: 8,
+  look: null,
+  lookIntensity: 1,
+  lutMediaId: null,
+  lutName: ''
 }
 
 export type SkyPreset =

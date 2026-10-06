@@ -16,7 +16,7 @@ import { VFX_PRESETS, type VfxType } from './vfx'
 import * as THREE from 'three'
 import { textureCandidates, type MobModels } from '@shared/minecraft/entityModels'
 import { POSES } from '@shared/minecraft/playerModel'
-import { EFFECT_PRESETS } from './components/Effects'
+import { lookSettings, type LookId } from './grading'
 import { assetUrl } from './minecraft/assets'
 import { defaultSkinUrl } from './minecraft/builders'
 import { mobModels } from './minecraft/mobs'
@@ -129,7 +129,7 @@ export interface Template {
   effects?: Partial<EffectSettings>
   /** Only listed once the secret code has been entered. */
   secret?: boolean
-  look: keyof typeof EFFECT_PRESETS
+  look: LookId
   settings?: Partial<SceneSettings>
   players: PlayerSpec[]
   texts: TextSpec[]
@@ -181,7 +181,7 @@ export const TEMPLATES: Template[] = [
     hint: 'Deep in a torch-lit cave, staring at diamonds',
     backdrop: 'cave',
     sky: 'night',
-    look: 'Cinematic',
+    look: 'teal-orange',
     settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.35, fog: false },
     players: [{ name: 'Steve', pose: 'Shocked', at: [-0.6, 0, 0.8], yaw: 150 }],
     texts: [{ text: 'DIAMONDS?!', color: '#7df9ff', style: 'Diamond', screen: [0.42, 0.55], height: 0.24 }],
@@ -200,7 +200,7 @@ export const TEMPLATES: Template[] = [
     hint: 'Victory on a desert island, shot low from the sea',
     backdrop: 'island',
     sky: 'golden',
-    look: 'Vibrant',
+    look: 'pop',
     settings: { ...DAY, sunAzimuth: 300, sunElevation: 14 },
     players: [{ name: 'Steve', pose: 'Victory', at: [-0.8, 0, 0.6], yaw: 25 }],
     texts: [{ text: 'I SURVIVED\n100 DAYS', color: YELLOW, style: 'Gold', screen: [0.42, 0.42], height: 0.38 }],
@@ -213,7 +213,7 @@ export const TEMPLATES: Template[] = [
     hint: 'Low angle over your shoulder at a rival on a tower',
     backdrop: 'meadow',
     sky: 'sunset',
-    look: 'Cinematic',
+    look: 'teal-orange',
     settings: { ...DAY, sunAzimuth: 20, sunElevation: 8 },
     players: [
       {
@@ -242,7 +242,7 @@ export const TEMPLATES: Template[] = [
     hint: 'Side shot of a leap across a lava ravine, piglins behind',
     backdrop: 'ravine',
     sky: 'nether',
-    look: 'Cinematic',
+    look: 'teal-orange',
     settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.45, fog: true },
     players: [{ name: 'Steve', pose: 'Leaping', at: [-0.4, 1.4, 0], yaw: 90 }],
     mobs: [
@@ -265,7 +265,7 @@ export const TEMPLATES: Template[] = [
     hint: 'You peek from behind a tree as an armed squad charges in',
     backdrop: 'forest',
     sky: 'night',
-    look: 'Cinematic',
+    look: 'teal-orange',
     settings: { renderMode: 'cinematic', sunStrength: 0.15, ambientStrength: 0.35, fog: true },
     players: [
       { name: 'Steve', pose: 'Blocking', at: [-1.35, 0, 2.4], yaw: 40, equipment: { mainHand: 'iron_sword' } },
@@ -304,7 +304,7 @@ export const TEMPLATES: Template[] = [
     hint: 'Surrounded in a dark forest as the horde closes in',
     backdrop: 'forest',
     sky: 'night',
-    look: 'Moonlit',
+    look: 'night',
     settings: { renderMode: 'cinematic', ...NIGHT_LIGHTING, fog: true },
     players: [{ name: 'Steve', pose: 'Blocking', at: HERO, yaw: 0, equipment: { mainHand: 'diamond_sword' } }],
     mobs: [
@@ -339,7 +339,7 @@ export const TEMPLATES: Template[] = [
     hint: 'Loveguard looks out through a hazy pane at a vivid meadow',
     backdrop: 'meadow',
     sky: 'clear',
-    look: 'Vibrant',
+    look: 'pop',
     effects: { bloom: true, bloomIntensity: 0.6, bloomThreshold: 0.75 },
     settings: { ...DAY, sunAzimuth: 210, sunElevation: 28 },
     players: [{ name: 'Loveguard', username: 'Loveguard', pose: 'Standing', at: [2.3, 0, 2.6], yaw: -95 }],
@@ -360,7 +360,7 @@ export const TEMPLATES: Template[] = [
     backdrop: null,
     sky: 'color',
     skyColor: '#3d1f78',
-    look: 'Cinematic',
+    look: 'teal-orange',
     effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, depthOfField: true, dofBlur: 3, dofRange: 10 },
     settings: {
       renderMode: 'cinematic',
@@ -423,7 +423,7 @@ export const TEMPLATES: Template[] = [
     backdrop: null,
     sky: 'color',
     skyColor: '#f2f2f2',
-    look: 'Cinematic',
+    look: 'teal-orange',
     effects: { bloom: true, bloomIntensity: 1.2, bloomThreshold: 0.55, vignette: true, vignetteDarkness: 0.6 },
     settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.12, fog: true },
     players: [{ name: 'Loveguard', username: 'Loveguard', pose: 'Waving', at: [0, 0, 1.6], yaw: 180 }],
@@ -464,7 +464,7 @@ export async function applyTemplate(t: Template): Promise<void> {
   const s = useStore.getState()
   s.setProject({ name: t.name })
   s.setSky({ ...DEFAULT_SKY, preset: t.sky, ...(t.skyColor && { color: t.skyColor }) })
-  const { sunInView: _sun, ...look } = EFFECT_PRESETS[t.look]
+  const { sunInView: _sun, ...look } = lookSettings(t.look)
   s.setEffects({ ...NO_EFFECTS, ...look, ...t.effects })
   s.setSettings({ ...t.settings, fov: t.fov, shot: { ...t.camera, fov: t.fov } })
 

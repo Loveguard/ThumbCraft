@@ -9,13 +9,15 @@ import {
   SMAA,
   Vignette
 } from '@react-three/postprocessing'
-import { BlendFunction, type EffectComposer as Composer, type Pass } from 'postprocessing'
+import { BlendFunction, LUT3DEffect, type EffectComposer as Composer, type Pass } from 'postprocessing'
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import * as THREE from 'three'
-import { NO_EFFECTS, useStore, type EffectSettings, type SceneSettings } from '../store'
+import { useStore, type EffectSettings, type SceneSettings } from '../store'
 import { ColorGrade } from './colorGrade'
 import { withShaderLook } from '../renderModes'
 import { Cartoon } from './cartoon'
+import { lookLut, parseCube } from '../grading'
+import { mediaStore } from '../media'
 
 /** Unit vector pointing at the sun for the given azimuth/elevation (degrees). */
 export function sunDirection(azimuth: number, elevation: number): THREE.Vector3 {
@@ -43,7 +45,46 @@ const hasGrade = (e: EffectSettings): boolean =>
   e.exposure !== 0 || e.contrast !== 0 || e.saturation !== 0 || e.temperature !== 0 || e.tint !== 0 || e.split !== 0
 
 export const hasEffects = (e: EffectSettings): boolean =>
-  hasGrade(e) || e.vignette || e.grain || e.bloom || e.godRays || e.chromatic || e.depthOfField
+  hasGrade(e) || !!e.look || e.vignette || e.grain || e.bloom || e.godRays || e.chromatic || e.depthOfField
+
+/** The custom .cube LUT, parsed once per imported file. */
+const customLuts = new Map<string, THREE.Data3DTexture | null>()
+function customLut(mediaId: string | null): THREE.Data3DTexture | null {
+  if (!mediaId) return null
+  if (!customLuts.has(mediaId)) {
+    const m = mediaStore.get(mediaId)
+    let lut: THREE.Data3DTexture | null = null
+    try {
+      lut = m ? parseCube(new TextDecoder().decode(m.bytes)) : null
+    } catch {
+      lut = null
+    }
+    customLuts.set(mediaId, lut)
+  }
+  return customLuts.get(mediaId) ?? null
+}
+
+/** The colour look as a 3D LUT pass, blended with the original by its intensity. */
+function LookPass({
+  look,
+  intensity,
+  lutMediaId
+}: {
+  look: string
+  intensity: number
+  lutMediaId: string | null
+}): ReactNode {
+  const lut = look === 'custom' ? customLut(lutMediaId) : lookLut(look)
+  const effect = useMemo(
+    () => (lut ? new LUT3DEffect(lut, { blendFunction: BlendFunction.NORMAL, tetrahedralInterpolation: true }) : null),
+    [lut]
+  )
+  useEffect(() => {
+    if (effect) effect.blendMode.opacity.value = intensity
+  }, [effect, intensity])
+  useEffect(() => () => effect?.dispose(), [effect])
+  return effect ? <primitive object={effect} dispose={null} /> : null
+}
 
 // Which depth texture each pass was last given. When the composer is rebuilt (e.g. god rays toggle
 // multisampling), reused effects can keep a stale depth texture and stop being occluded by the scene.
@@ -143,6 +184,8 @@ export function Effects(): ReactNode {
         split={e.split}
       />
     )
+  // The look comes after the manual adjustments, like a creative LUT after primary correction.
+  if (e.look) effects.push(<LookPass key="look" look={e.look} intensity={e.lookIntensity} lutMediaId={e.lutMediaId} />)
   if (e.chromatic)
     effects.push(
       <ChromaticAberration
@@ -180,97 +223,4 @@ export function Effects(): ReactNode {
       )}
     </>
   )
-}
-
-/** One-click looks. `sunInView` presets also move the sun into the shot. */
-export const EFFECT_PRESETS: Record<string, Partial<EffectSettings> & { sunInView?: boolean }> = {
-  None: NO_EFFECTS,
-  Cinematic: {
-    ...NO_EFFECTS,
-    contrast: 0.18,
-    saturation: -0.05,
-    shadowTint: '#2f7d8c',
-    highlightTint: '#ffa257',
-    split: 0.3,
-    vignette: true,
-    vignetteDarkness: 0.5,
-    bloom: true,
-    bloomIntensity: 0.4,
-    bloomThreshold: 0.85,
-    grain: true,
-    grainAmount: 0.06
-  },
-  'Sun glow': {
-    ...NO_EFFECTS,
-    exposure: 0.1,
-    temperature: 0.75,
-    contrast: 0.12,
-    saturation: 0.2,
-    shadowTint: '#6e4f86',
-    highlightTint: '#ffb040',
-    split: 0.45,
-    godRays: true,
-    godRaysIntensity: 0.9,
-    sunColor: '#ffbf66',
-    bloom: true,
-    bloomIntensity: 0.7,
-    bloomThreshold: 0.7,
-    vignette: true,
-    vignetteDarkness: 0.45,
-    sunInView: true
-  },
-  Vibrant: { ...NO_EFFECTS, contrast: 0.22, saturation: 0.4, exposure: 0.05, vignette: true, vignetteDarkness: 0.4 },
-  Dreamy: {
-    ...NO_EFFECTS,
-    exposure: 0.15,
-    contrast: -0.15,
-    tint: 0.15,
-    temperature: 0.1,
-    bloom: true,
-    bloomIntensity: 1.2,
-    bloomThreshold: 0.55,
-    depthOfField: true,
-    dofBlur: 1.5,
-    dofRange: 12
-  },
-  Retro: {
-    ...NO_EFFECTS,
-    saturation: -0.4,
-    temperature: 0.3,
-    contrast: -0.05,
-    shadowTint: '#6a5a3c',
-    highlightTint: '#ffe0a8',
-    split: 0.3,
-    grain: true,
-    grainAmount: 0.22,
-    vignette: true,
-    vignetteDarkness: 0.7,
-    chromatic: true,
-    chromaticAmount: 0.002
-  },
-  Moonlit: {
-    ...NO_EFFECTS,
-    exposure: -1.1,
-    temperature: -0.55,
-    saturation: -0.3,
-    contrast: 0.12,
-    vignette: true,
-    vignetteDarkness: 0.75,
-    bloom: true,
-    bloomIntensity: 0.8,
-    bloomThreshold: 0.5
-  },
-  Horror: {
-    ...NO_EFFECTS,
-    exposure: -0.5,
-    saturation: -0.65,
-    contrast: 0.3,
-    tint: -0.2,
-    vignette: true,
-    vignetteDarkness: 0.9,
-    grain: true,
-    grainAmount: 0.15,
-    chromatic: true,
-    chromaticAmount: 0.003
-  }
 }

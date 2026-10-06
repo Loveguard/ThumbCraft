@@ -71,6 +71,7 @@ export function serializeProject(): Uint8Array {
   const mediaIds = new Set<string>()
   for (const o of s.objects) mediaIdsOf(o, mediaIds)
   if (s.sky.preset === 'hdri' && s.sky.hdriMediaId) mediaIds.add(s.sky.hdriMediaId)
+  if (s.effects.look === 'custom' && s.effects.lutMediaId) mediaIds.add(s.effects.lutMediaId)
   const media = []
   for (const id of mediaIds) {
     const m = mediaStore.get(id)

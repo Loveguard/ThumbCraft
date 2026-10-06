@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react'
 import { useStore, type EffectSettings } from '../../store'
-import { EFFECT_PRESETS, sunInView } from '../Effects'
+import { sunInView } from '../Effects'
+import { gradeColor, LOOKS, lookSettings, parseCube, type Grade } from '../../grading'
+import { registerMedia } from '../../media'
+import { errorText } from '../../errors'
 import { viewport } from '../Viewport'
 import { Group, Hint, Slider } from '../controls'
 
@@ -61,23 +64,17 @@ export function EffectsTab(): ReactNode {
     const sun = sunInView(viewport.camera)
     if (sun) setSettings(sun)
   }
-  const applyPreset = (name: string): void => {
-    const { sunInView: moveSun, ...preset } = EFFECT_PRESETS[name]
-    setEffects(preset)
+  const applyLook = (id: string | null): void => {
+    if (!id) return setEffects({ look: null })
+    const { sunInView: moveSun, ...settings } = lookSettings(id)
+    setEffects(settings)
     if (moveSun) putSunInView()
   }
   return (
     <div className="tab-body">
-      <h4>One-click looks</h4>
-      <div className="chips">
-        {Object.keys(EFFECT_PRESETS).map((p) => (
-          <button key={p} className="chip" onClick={() => applyPreset(p)}>
-            {p}
-          </button>
-        ))}
-      </div>
+      <LookPicker onPick={applyLook} />
 
-      <h4>Colour</h4>
+      <h4>Adjust</h4>
       <FxSlider k="exposure" label="Exposure" min={-2} max={2} step={0.05} />
       <FxSlider k="contrast" label="Contrast" min={-0.6} max={0.6} step={0.01} />
       <FxSlider k="saturation" label="Saturation" min={-1} max={1} step={0.01} />
@@ -159,5 +156,77 @@ export function EffectsTab(): ReactNode {
         </Hint>
       </Group>
     </div>
+  )
+}
+
+/** Sample colours a look is previewed on: sky, grass, leaves, skin, dirt, stone, water, a dark shade. */
+const PREVIEW: [number, number, number][] = [
+  [0.47, 0.66, 1],
+  [0.45, 0.73, 0.3],
+  [0.25, 0.45, 0.18],
+  [0.9, 0.68, 0.52],
+  [0.55, 0.38, 0.25],
+  [0.5, 0.5, 0.5],
+  [0.2, 0.35, 0.75],
+  [0.12, 0.1, 0.1]
+]
+const toCss = (c: number[]): string => `rgb(${c.map((v) => Math.round(v * 255)).join(',')})`
+const strip = (g: Grade | null): string =>
+  `linear-gradient(90deg, ${PREVIEW.map((c, i) => {
+    const out = g ? gradeColor(c, g) : c
+    return `${toCss(out)} ${(i / PREVIEW.length) * 100}%, ${toCss(out)} ${((i + 1) / PREVIEW.length) * 100}%`
+  }).join(', ')})`
+
+/** The colour looks (3D LUTs): built-in grades, or the user's own .cube file, with an intensity slider. */
+function LookPicker({ onPick }: { onPick: (id: string | null) => void }): ReactNode {
+  const { look, lutName } = useStore((s) => s.effects)
+  const setEffects = useStore((s) => s.setEffects)
+  const importCube = async (file: File | undefined): Promise<void> => {
+    if (!file) return
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      parseCube(new TextDecoder().decode(bytes)) // refuse anything that isn't a 3D LUT up front
+      const media = registerMedia(file.name, 'text/plain', bytes)
+      setEffects({ look: 'custom', lookIntensity: 1, lutMediaId: media.id, lutName: file.name })
+    } catch (e) {
+      useStore.getState().setStatus(`Couldn't use ${file.name}: ${errorText(e)}`)
+    }
+  }
+  return (
+    <>
+      <h4>Look</h4>
+      <div className="look-grid">
+        <button className={`look-card ${!look ? 'active' : ''}`} onClick={() => onPick(null)} title="No look">
+          <span className="look-strip" style={{ background: strip(null) }} />
+          <span>None</span>
+        </button>
+        {LOOKS.map((l) => (
+          <button
+            key={l.id}
+            className={`look-card ${look === l.id ? 'active' : ''}`}
+            onClick={() => onPick(l.id)}
+            title={l.hint}
+          >
+            <span className="look-strip" style={{ background: strip(l.grade) }} />
+            <span>{l.label}</span>
+          </button>
+        ))}
+        {look === 'custom' && (
+          <button className="look-card active" title={lutName}>
+            <span className="look-strip custom" />
+            <span>{lutName.replace(/\.cube$/i, '')}</span>
+          </button>
+        )}
+      </div>
+      {look && <FxSlider k="lookIntensity" label="Intensity" min={0} max={1} step={0.01} />}
+      <label className="file-button">
+        <input type="file" accept=".cube" onChange={(e) => void importCube(e.target.files?.[0])} />
+        Import a .cube LUT…
+      </label>
+      <Hint label="About looks">
+        Looks are 3D colour LUTs, like in DaVinci Resolve or Premiere. Pick one, then set how strongly it applies. You
+        can also import any .cube LUT you own; it is saved inside your project.
+      </Hint>
+    </>
   )
 }

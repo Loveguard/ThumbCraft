@@ -52,6 +52,7 @@ export function pruneMedia(): void {
   for (const list of [s.objects, ...[...s.past, ...s.future].map((e) => e.objects ?? [])])
     for (const o of list) mediaIdsOf(o, used)
   if (s.sky.hdriMediaId) used.add(s.sky.hdriMediaId)
+  if (s.effects.lutMediaId) used.add(s.effects.lutMediaId)
   const now = Date.now()
   for (const [id, m] of mediaStore)
     if (!used.has(id) && now - m.addedAt > 60_000) {
