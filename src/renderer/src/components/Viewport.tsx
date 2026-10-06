@@ -28,9 +28,11 @@ import {
   jointOf,
   textCanvas
 } from '../minecraft/builders'
+import { useShallow } from 'zustand/react/shallow'
 import {
   cameraBridge,
   NO_EQUIPMENT,
+  selection,
   terrainStore,
   useStore,
   type CameraState,
@@ -72,7 +74,17 @@ export const viewport: {
   controls: { target: THREE.Vector3; update(): void } | null
   /** DOM element of the floating selection toolbar, positioned every frame. */
   selectionToolbar: HTMLElement | null
-} = { camera: null, capture: null, placement: null, objects: new Map(), controls: null, selectionToolbar: null }
+  /** The move/turn/size handles; `axis` is set while the pointer is over one. */
+  gizmo: { axis: string | null } | null
+} = {
+  camera: null,
+  capture: null,
+  placement: null,
+  objects: new Map(),
+  controls: null,
+  selectionToolbar: null,
+  gizmo: null
+}
 
 const isHelperObject = (o: THREE.Object3D): boolean => {
   const flags = o as { isTransformControls?: boolean; isTransformControlsRoot?: boolean }
@@ -506,6 +518,12 @@ const ObjectNode = memo(function ObjectNode({ o, order }: { o: SceneObject; orde
   const onClick = (e: ThreeEvent<MouseEvent>): void => {
     e.stopPropagation()
     if (wasDrag(e.nativeEvent)) return
+    // Ctrl or Shift+click adds to the selection (or takes it out).
+    const { ctrlKey, metaKey, shiftKey } = e.nativeEvent
+    if (ctrlKey || metaKey || shiftKey) {
+      useStore.getState().toggleSelect(o.id)
+      return
+    }
     // On an already-selected player, clicking a limb picks that joint for rotating.
     const { selectedId, selectJoint } = useStore.getState()
     if (o.kind === 'player' && selectedId === o.id) selectJoint(jointOf(e.object))
@@ -711,19 +729,23 @@ function PointerTracker(): null {
 
 /** Keeps the floating selection toolbar just above the selected object on screen. */
 function SelectionTracker(): null {
-  const selectedId = useStore((s) => s.selectedId)
+  const ids = useStore(useShallow((s) => selection(s)))
   const box = useMemo(() => new THREE.Box3(), [])
+  const one = useMemo(() => new THREE.Box3(), [])
   const v = useMemo(() => new THREE.Vector3(), [])
   useFrame(({ camera, size }) => {
     const el = viewport.selectionToolbar
     if (!el) return
-    const obj = selectedId ? viewport.objects.get(selectedId) : null
-    if (!obj || !obj.visible) {
+    // Above everything selected, so it never sits on the group's handles.
+    box.makeEmpty()
+    for (const id of ids) {
+      const obj = viewport.objects.get(id)
+      if (obj?.visible) box.union(one.setFromObject(obj))
+    }
+    if (box.isEmpty()) {
       el.style.visibility = 'hidden'
       return
     }
-    box.setFromObject(obj)
-    if (box.isEmpty()) return
     box.getCenter(v)
     v.y = box.max.y
     v.project(camera)
@@ -814,7 +836,221 @@ function JointGizmo({ id, joint }: { id: string; joint: PartName }): ReactNode {
   return <TransformControls object={target} mode="rotate" space="local" size={0.6} onMouseUp={commit} />
 }
 
+/** The handles hold the pointer while one is hovered (so Shift+drag on a handle snaps instead of box-selecting). */
+function useGizmoRegistry(controls: { current: unknown }): void {
+  useEffect(() => {
+    const c = controls.current as { axis: string | null } | null
+    if (!c) return
+    viewport.gizmo = c
+    return () => {
+      if (viewport.gizmo === c) viewport.gizmo = null
+    }
+  })
+}
+
+/**
+ * Handles for several selected objects at once: they sit at the selection's centre, and moving, turning or
+ * resizing them does the same to every object around that centre, as one undo step.
+ */
+function GroupGizmo({ ids }: { ids: string[] }): ReactNode {
+  const mode = useStore((s) => s.transformMode)
+  const objects = useStore((s) => s.objects)
+  const { scene } = useThree()
+  const controls = useRef<ComponentRef<typeof TransformControls>>(null)
+  useGizmoRegistry(controls)
+  const pivot = useMemo(() => {
+    const p = new THREE.Object3D()
+    p.userData.helper = true
+    return p
+  }, [])
+  const start = useRef<{
+    inverse: THREE.Matrix4
+    items: { id: string; obj: THREE.Object3D; m: THREE.Matrix4 }[]
+  } | null>(null)
+  useEffect(() => {
+    scene.add(pivot)
+    return () => void scene.remove(pivot)
+  }, [scene, pivot])
+  useEffect(() => {
+    if (start.current) return
+    const list = objects.filter((o) => ids.includes(o.id))
+    if (!list.length) return
+    const c = new THREE.Vector3()
+    for (const o of list) c.add(new THREE.Vector3(...o.position))
+    pivot.position.copy(c.divideScalar(list.length))
+    pivot.rotation.set(0, 0, 0)
+    pivot.scale.setScalar(1)
+    pivot.updateMatrixWorld()
+  }, [objects, ids, pivot])
+  const m = useMemo(() => new THREE.Matrix4(), [])
+  const sc = useMemo(() => new THREE.Vector3(), [])
+  return (
+    <TransformControls
+      ref={controls}
+      object={pivot}
+      mode={mode}
+      showY
+      onMouseDown={() => {
+        pivot.updateMatrixWorld()
+        start.current = {
+          inverse: pivot.matrixWorld.clone().invert(),
+          items: ids.flatMap((id) => {
+            const obj = viewport.objects.get(id)
+            return obj ? [{ id, obj, m: obj.matrix.clone() }] : []
+          })
+        }
+      }}
+      onObjectChange={() => {
+        const st = start.current
+        if (!st) return
+        if (mode === 'scale') {
+          // Uniform: follow whichever handle is being dragged.
+          const s = pivot.scale
+          s.setScalar([s.x, s.y, s.z].reduce((a, b) => (Math.abs(b - 1) > Math.abs(a - 1) ? b : a)))
+        }
+        if (mode === 'translate' && (pointer.shift || useStore.getState().settings.snap))
+          for (const a of ['x', 'y', 'z'] as const) pivot.position[a] = Math.round(pivot.position[a] * 2) / 2
+        pivot.updateMatrixWorld()
+        const delta = m.multiplyMatrices(pivot.matrixWorld, st.inverse)
+        for (const it of st.items) {
+          new THREE.Matrix4().multiplyMatrices(delta, it.m).decompose(it.obj.position, it.obj.quaternion, sc)
+          it.obj.scale.setScalar(sc.x)
+        }
+      }}
+      onMouseUp={() => {
+        const st = start.current
+        start.current = null
+        if (!st) return
+        const r = (v: number): number => Math.round(THREE.MathUtils.radToDeg(v) * 10) / 10
+        useStore.getState().updateMany(
+          st.items.map(({ id, obj }) => ({
+            id,
+            patch: {
+              position: [obj.position.x, obj.position.y, obj.position.z] as Vec3,
+              rotation: [r(obj.rotation.x), r(obj.rotation.y), r(obj.rotation.z)] as Vec3,
+              scale: obj.scale.x
+            }
+          }))
+        )
+      }}
+    />
+  )
+}
+
+/** Outlines every selected object while more than one is selected. */
+function SelectionBoxes(): ReactNode {
+  const ids = useStore(useShallow((s) => selection(s)))
+  const helpers = useMemo(
+    () =>
+      ids.length > 1
+        ? ids.map(() => {
+            const h = new THREE.Box3Helper(new THREE.Box3(), new THREE.Color('#4ade80'))
+            const mat = h.material as THREE.LineBasicMaterial
+            mat.depthTest = false
+            mat.transparent = true
+            mat.opacity = 0.8
+            h.renderOrder = 998
+            h.userData.helper = true
+            return h
+          })
+        : [],
+    [ids]
+  )
+  useEffect(
+    () => () =>
+      helpers.forEach((h) => {
+        h.geometry.dispose()
+        ;(h.material as THREE.Material).dispose()
+      }),
+    [helpers]
+  )
+  useFrame(() =>
+    helpers.forEach((h, i) => {
+      const o = viewport.objects.get(ids[i])
+      if (o) h.box.setFromObject(o)
+      h.visible = !!o && o.visible && !h.box.isEmpty()
+    })
+  )
+  return (
+    <>
+      {helpers.map((h, i) => (
+        <primitive key={ids[i]} object={h} />
+      ))}
+    </>
+  )
+}
+
+/** Shift+drag on empty space draws a box; everything whose centre is inside it gets selected (Ctrl adds). */
+function BoxSelect(): null {
+  const { gl, camera } = useThree()
+  useEffect(() => {
+    const el = gl.domElement
+    const rect = document.createElement('div')
+    rect.className = 'box-select'
+    let start: { x: number; y: number } | null = null
+    const orbit = (): { enabled: boolean } | null => viewport.controls as unknown as { enabled: boolean } | null
+    const place = (e: PointerEvent): void => {
+      if (!start) return
+      const host = el.parentElement!.getBoundingClientRect()
+      Object.assign(rect.style, {
+        left: `${Math.min(start.x, e.clientX) - host.left}px`,
+        top: `${Math.min(start.y, e.clientY) - host.top}px`,
+        width: `${Math.abs(e.clientX - start.x)}px`,
+        height: `${Math.abs(e.clientY - start.y)}px`
+      })
+    }
+    const down = (e: PointerEvent): void => {
+      if (!e.shiftKey || e.button !== 0 || viewport.gizmo?.axis) return
+      start = { x: e.clientX, y: e.clientY }
+      const o = orbit()
+      if (o) o.enabled = false
+      place(e)
+      el.parentElement!.appendChild(rect)
+      window.addEventListener('pointermove', place)
+      window.addEventListener('pointerup', up, { once: true })
+    }
+    const up = (e: PointerEvent): void => {
+      window.removeEventListener('pointermove', place)
+      rect.remove()
+      const o = orbit()
+      if (o) o.enabled = true
+      if (!start) return
+      const [x0, x1] = [Math.min(start.x, e.clientX), Math.max(start.x, e.clientX)]
+      const [y0, y1] = [Math.min(start.y, e.clientY), Math.max(start.y, e.clientY)]
+      start = null
+      if (x1 - x0 < 4 && y1 - y0 < 4) return // just a Shift+click, handled by the object itself
+      const r = el.getBoundingClientRect()
+      const box = new THREE.Box3()
+      const v = new THREE.Vector3()
+      const hits: string[] = []
+      for (const ob of useStore.getState().objects) {
+        if (!ob.visible || (ob.kind === 'terrain' && ob.ground)) continue
+        const obj = viewport.objects.get(ob.id)
+        if (!obj) continue
+        box.setFromObject(obj)
+        if (box.isEmpty()) continue
+        box.getCenter(v).project(camera)
+        if (v.z > 1) continue
+        const sx = r.left + ((v.x + 1) / 2) * r.width
+        const sy = r.top + ((1 - v.y) / 2) * r.height
+        if (sx >= x0 && sx <= x1 && sy >= y0 && sy <= y1) hits.push(ob.id)
+      }
+      const s = useStore.getState()
+      s.setSelection(e.ctrlKey || e.metaKey ? [...selection(s), ...hits] : hits)
+    }
+    // Capture phase, so the camera controls see themselves switched off before they start orbiting.
+    el.addEventListener('pointerdown', down, true)
+    return () => {
+      el.removeEventListener('pointerdown', down, true)
+      window.removeEventListener('pointermove', place)
+      rect.remove()
+    }
+  }, [gl, camera])
+  return null
+}
+
 function Gizmo(): ReactNode {
+  const selected = useStore(useShallow((s) => selection(s)))
   const selectedId = useStore((s) => s.selectedId)
   const selectedJoint = useStore((s) => s.selectedJoint)
   const ikMode = useStore((s) => s.ikMode)
@@ -823,8 +1059,10 @@ function Gizmo(): ReactNode {
   const objects = useStore((s) => s.objects)
   const [target, setTarget] = useState<THREE.Object3D | null>(null)
   const controls = useRef<ComponentRef<typeof TransformControls>>(null)
+  useGizmoRegistry(controls)
   useEffect(() => setTarget(selectedId ? (viewport.objects.get(selectedId) ?? null) : null), [selectedId, objects])
   const player = objects.find((o): o is PlayerObject => o.id === selectedId && o.kind === 'player')
+  if (selected.length > 1) return <GroupGizmo ids={selected} />
   if (player && selectedJoint) {
     const limb = ikMode ? limbOf(selectedJoint) : null
     if (limb) return <IkGizmo id={player.id} limb={limb} slim={player.slim} />
@@ -946,7 +1184,7 @@ export function Viewport(): ReactNode {
             gl={{ antialias: true }}
             onCreated={({ gl }) => watchContext(gl.domElement, rebuild)}
             camera={{ position: [7, 4, 9], fov: 70, near: 0.1, far: 2000 }}
-            onPointerMissed={(e) => !wasDrag(e) && select(null)}
+            onPointerMissed={(e) => !wasDrag(e) && !e.shiftKey && !e.ctrlKey && !e.metaKey && select(null)}
           >
             <Bridge />
             <ShadowThrottle />
@@ -961,6 +1199,8 @@ export function Viewport(): ReactNode {
             ))}
             {showGrid && <gridHelper args={[64, 64, '#666', '#333']} userData={{ helper: true }} />}
             <Gizmo />
+            <SelectionBoxes />
+            <BoxSelect />
             <Effects />
             <OrbitControls
               makeDefault

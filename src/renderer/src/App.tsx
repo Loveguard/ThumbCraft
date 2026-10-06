@@ -243,7 +243,15 @@ export function App(): ReactNode {
         s.redo()
       } else if ((e.ctrlKey || e.metaKey) && k === 'd') {
         e.preventDefault()
-        if (s.selectedId) s.duplicate(s.selectedId)
+        s.duplicateSelected()
+      } else if ((e.ctrlKey || e.metaKey) && k === 'g') {
+        e.preventDefault()
+        if (e.shiftKey) s.ungroupSelected()
+        else s.groupSelected()
+      } else if ((e.ctrlKey || e.metaKey) && k === 'a') {
+        e.preventDefault()
+        // Everything but the ground, which is almost never meant to move with the rest.
+        s.setSelection(s.objects.filter((o) => !(o.kind === 'terrain' && o.ground)).map((o) => o.id))
       } else if (e.ctrlKey || e.metaKey || e.altKey) return
       else if (k === 'w') s.setTransformMode('translate')
       else if (k === 'e') s.setTransformMode('rotate')
@@ -251,7 +259,7 @@ export function App(): ReactNode {
       else if (k === 'c') {
         if (s.settings.shot) returnToShot()
         else saveShot()
-      } else if ((e.key === 'Delete' || e.key === 'Backspace') && s.selectedId) s.remove(s.selectedId)
+      } else if (e.key === 'Delete' || e.key === 'Backspace') s.removeSelected()
       else if (e.key === 'Escape') {
         if (s.selectedJoint) s.selectJoint(null)
         else s.select(null)

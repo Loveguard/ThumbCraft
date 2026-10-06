@@ -152,16 +152,20 @@ The tool rail on the left opens one panel at a time; the panel on the right edit
 
 ### Shortcuts
 
-| Keys                         | Does                                   |
-| ---------------------------- | -------------------------------------- |
-| **W / E / R**                | Move / rotate / scale the selection    |
-| **Shift** (while moving)     | Snap to surfaces and corners           |
-| **Ctrl+Z / Ctrl+Y**          | Undo / redo (camera moves included)    |
-| **Ctrl+D**                   | Duplicate the selection                |
-| **Delete**                   | Remove the selection                   |
-| **C**                        | Save the camera shot / jump back to it |
-| **Esc**                      | Deselect                               |
-| **Ctrl+N / Ctrl+O / Ctrl+S** | New / open / save project              |
+| Keys                          | Does                                      |
+| ----------------------------- | ----------------------------------------- |
+| **W / E / R**                 | Move / rotate / scale the selection       |
+| **Shift** (while moving)      | Snap to surfaces and corners              |
+| **Ctrl+click / Shift+click**  | Add to the selection (viewport or Layers) |
+| **Shift+drag** on empty space | Box-select everything inside              |
+| **Ctrl+A**                    | Select everything except the ground       |
+| **Ctrl+G / Ctrl+Shift+G**     | Group / ungroup the selection             |
+| **Ctrl+Z / Ctrl+Y**           | Undo / redo (camera moves included)       |
+| **Ctrl+D**                    | Duplicate the selection                   |
+| **Delete**                    | Remove the selection                      |
+| **C**                         | Save the camera shot / jump back to it    |
+| **Esc**                       | Deselect                                  |
+| **Ctrl+N / Ctrl+O / Ctrl+S**  | New / open / save project                 |
 
 _Psst: there's a secret code somewhere. Find it, and three extra scenes unlock._
 

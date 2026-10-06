@@ -21,6 +21,8 @@ interface Base {
   onTop?: boolean
   /** Unlit: its own colours, evenly bright, untouched by the scene's lights and shadows. */
   flat?: boolean
+  /** Objects sharing a group id are selected and moved together. */
+  groupId?: string
 }
 
 export interface TerrainObject extends Base {
@@ -391,7 +393,10 @@ export type TransformMode = 'translate' | 'rotate' | 'scale'
 interface State {
   assets: AssetBundle | null
   objects: SceneObject[]
+  /** The primary selection: the object the inspector shows and the toolbar follows. */
   selectedId: string | null
+  /** Everything selected (Ctrl/Shift+click, box select, groups); includes `selectedId`. Read via `selection()`. */
+  selectedIds: string[]
   /** A player joint picked in the viewport for rotating (only while that player is selected). */
   selectedJoint: PartName | null
   /** Clicking a player's arm or leg gives a handle on the hand/foot that moves the whole limb (IK). */
@@ -414,7 +419,20 @@ interface State {
   duplicate(id: string): void
   update<T extends SceneObject>(id: string, patch: Partial<T>): void
   remove(id: string): void
+  /** Selects one object (and the rest of its group), or nothing. */
   select(id: string | null): void
+  /** Selects just this object, even inside a group (to edit one member). */
+  selectOnly(id: string): void
+  /** Ctrl/Shift+click: adds an object (and its group) to the selection, or takes it out. */
+  toggleSelect(id: string): void
+  /** Replaces the selection (box select, select all, layer ranges). */
+  setSelection(ids: string[], primary?: string | null): void
+  /** Moves, turns or resizes several objects as one undo step. */
+  updateMany(patches: { id: string; patch: Partial<SceneObject> }[]): void
+  removeSelected(): void
+  duplicateSelected(): void
+  groupSelected(): void
+  ungroupSelected(): void
   selectJoint(joint: PartName | null): void
   setIkMode(on: boolean): void
   /** Move an object up/down in the layer stack (later = drawn on top for overlay layers). */
@@ -458,6 +476,7 @@ function applyEntry(s: State, e: HistoryEntry): { reverse: HistoryEntry; patch: 
       patch.selectedId = null
       patch.selectedJoint = null
     }
+    patch.selectedIds = s.selectedIds.filter((id) => e.objects!.some((o) => o.id === id))
   }
   const now = e.camera && cameraBridge.get?.()
   if (e.camera && now) {
@@ -472,6 +491,18 @@ export const newId = (prefix: string): string => `${prefix}-${Date.now().toStrin
 
 // Rapid edits to the same thing (typing a number, dragging a slider) collapse into one undo step.
 let lastCommit = { key: '', at: 0 }
+/** An object and the rest of its group, in layer order. */
+export function groupOf(objects: SceneObject[], id: string): string[] {
+  const g = objects.find((o) => o.id === id)?.groupId
+  return g ? objects.filter((o) => o.groupId === g).map((o) => o.id) : [id]
+}
+
+/** Every selected object id (falls back to the primary selection if the list was never set). */
+export function selection(s: Pick<State, 'selectedId' | 'selectedIds'>): string[] {
+  if (!s.selectedId) return s.selectedIds
+  return s.selectedIds.includes(s.selectedId) ? s.selectedIds : [s.selectedId]
+}
+
 const history = (s: State, key: string): Pick<State, 'past' | 'future'> => {
   const now = Date.now()
   const merge = key === lastCommit.key && now - lastCommit.at < 600
@@ -510,6 +541,7 @@ export const useStore = create<State>((set) => ({
   assets: null,
   objects: [],
   selectedId: null,
+  selectedIds: [],
   selectedJoint: null,
   ikMode: false,
   transformMode: 'translate',
@@ -550,14 +582,21 @@ export const useStore = create<State>((set) => ({
       return { past: [...s.past.slice(-99), { camera: before }], future: [] }
     }),
   setAssets: (assets) => set({ assets }),
-  add: (o) => set((s) => ({ ...history(s, `add:${o.id}`), objects: [...s.objects, o], selectedId: o.id })),
+  add: (o) =>
+    set((s) => ({ ...history(s, `add:${o.id}`), objects: [...s.objects, o], selectedId: o.id, selectedIds: [o.id] })),
   duplicate: (id) =>
     set((s) => {
       const o = s.objects.find((x) => x.id === id)
       if (!o) return s
       const copy = { ...structuredClone(o), id: newId('obj'), name: `${o.name} copy` } as SceneObject
       copy.position = [o.position[0] + 1, o.position[1], o.position[2] + 1]
-      return { ...history(s, `dup:${copy.id}`), objects: [...s.objects, copy], selectedId: copy.id }
+      delete copy.groupId
+      return {
+        ...history(s, `dup:${copy.id}`),
+        objects: [...s.objects, copy],
+        selectedId: copy.id,
+        selectedIds: [copy.id]
+      }
     }),
   update: (id, patch) =>
     set((s) => ({
@@ -571,11 +610,110 @@ export const useStore = create<State>((set) => ({
         ...history(s, `remove:${id}`),
         objects: s.objects.filter((x) => x.id !== id),
         selectedId: s.selectedId === id ? null : s.selectedId,
+        selectedIds: s.selectedIds.filter((x) => x !== id),
         selectedJoint: s.selectedId === id ? null : s.selectedJoint
       }
     }),
   select: (selectedId) =>
-    set((s) => ({ selectedId, selectedJoint: selectedId === s.selectedId ? s.selectedJoint : null })),
+    set((s) => ({
+      selectedId,
+      selectedIds: selectedId ? groupOf(s.objects, selectedId) : [],
+      selectedJoint: selectedId === s.selectedId ? s.selectedJoint : null
+    })),
+  selectOnly: (id) =>
+    set((s) => ({ selectedId: id, selectedIds: [id], selectedJoint: id === s.selectedId ? s.selectedJoint : null })),
+  toggleSelect: (id) =>
+    set((s) => {
+      const current = selection(s)
+      const members = groupOf(s.objects, id)
+      if (current.includes(id)) {
+        const rest = current.filter((x) => !members.includes(x))
+        const primary = s.selectedId && rest.includes(s.selectedId) ? s.selectedId : (rest.at(-1) ?? null)
+        return { selectedIds: rest, selectedId: primary, selectedJoint: null }
+      }
+      return {
+        selectedIds: [...current, ...members.filter((x) => !current.includes(x))],
+        selectedId: id,
+        selectedJoint: null
+      }
+    }),
+  setSelection: (ids, primary) =>
+    set((s) => {
+      const all = [...new Set(ids.flatMap((id) => groupOf(s.objects, id)))]
+      const p = primary && all.includes(primary) ? primary : (all.at(-1) ?? null)
+      return { selectedIds: all, selectedId: p, selectedJoint: p === s.selectedId ? s.selectedJoint : null }
+    }),
+  updateMany: (patches) =>
+    set((s) => {
+      const by = new Map(patches.map((p) => [p.id, p.patch]))
+      return {
+        ...history(s, `many:${patches.map((p) => p.id).join(',')}:${Object.keys(patches[0]?.patch ?? {}).join(',')}`),
+        objects: s.objects.map((o) => (by.has(o.id) ? ({ ...o, ...by.get(o.id) } as SceneObject) : o))
+      }
+    }),
+  removeSelected: () =>
+    set((s) => {
+      const gone = new Set(selection(s))
+      if (!gone.size) return s
+      return {
+        ...history(s, `remove:${[...gone].join(',')}`),
+        objects: s.objects.filter((o) => !gone.has(o.id)),
+        selectedId: null,
+        selectedIds: [],
+        selectedJoint: null
+      }
+    }),
+  duplicateSelected: () =>
+    set((s) => {
+      const ids = new Set(selection(s))
+      if (!ids.size) return s
+      // Copies of a group stay grouped with each other, not with the originals.
+      const groups = new Map<string, string>()
+      const copies = s.objects
+        .filter((o) => ids.has(o.id))
+        .map((o) => {
+          const copy = { ...structuredClone(o), id: newId('obj'), name: `${o.name} copy` } as SceneObject
+          copy.position = [o.position[0] + 1, o.position[1], o.position[2] + 1]
+          if (o.groupId) {
+            if (!groups.has(o.groupId)) groups.set(o.groupId, newId('grp'))
+            copy.groupId = groups.get(o.groupId)
+          }
+          return copy
+        })
+      return {
+        ...history(s, `dup:${copies.map((c) => c.id).join(',')}`),
+        objects: [...s.objects, ...copies],
+        selectedIds: copies.map((c) => c.id),
+        selectedId: copies.at(-1)!.id,
+        selectedJoint: null
+      }
+    }),
+  groupSelected: () =>
+    set((s) => {
+      const ids = new Set(selection(s))
+      if (ids.size < 2) return s
+      const groupId = newId('grp')
+      // Members sit together in the layer list, where the topmost of them was.
+      const members = s.objects.filter((o) => ids.has(o.id)).map((o) => ({ ...o, groupId }) as SceneObject)
+      const top = s.objects.reduce((t, o, i) => (ids.has(o.id) ? i : t), -1)
+      const before = s.objects.slice(0, top + 1).filter((o) => !ids.has(o.id))
+      const after = s.objects.slice(top + 1)
+      return { ...history(s, `group:${groupId}`), objects: [...before, ...members, ...after] }
+    }),
+  ungroupSelected: () =>
+    set((s) => {
+      const ids = new Set(selection(s))
+      if (!s.objects.some((o) => ids.has(o.id) && o.groupId)) return s
+      return {
+        ...history(s, `ungroup:${[...ids].join(',')}`),
+        objects: s.objects.map((o) => {
+          if (!ids.has(o.id) || !o.groupId) return o
+          const rest = { ...o }
+          delete rest.groupId
+          return rest
+        })
+      }
+    }),
   selectJoint: (selectedJoint) => set({ selectedJoint }),
   setIkMode: (ikMode) => set({ ikMode }),
   reorder: (id, delta) =>

@@ -132,7 +132,7 @@ export function ViewportOverlay(): ReactNode {
   const selected = useStore((s) => s.objects.find((o) => o.id === s.selectedId))
   const { showGrid, snap, renderMode, fov, shot } = useStore((s) => s.settings)
   const effectsOn = useStore((s) => hasEffects(s.effects))
-  const { setSettings, duplicate, remove } = useStore.getState()
+  const { setSettings, duplicateSelected, removeSelected } = useStore.getState()
   const [menu, setMenu] = useState(false)
   const closeMenu = useCallback(() => setMenu(false), [])
 
@@ -150,24 +150,16 @@ export function ViewportOverlay(): ReactNode {
       >
         {selected && (
           <>
-            <button className="icon-btn" title="Duplicate (Ctrl+D)" onClick={() => duplicate(selected.id)}>
+            <button className="icon-btn" title="Duplicate (Ctrl+D)" onClick={duplicateSelected}>
               <Copy size={16} />
             </button>
-            <button
-              className="icon-btn"
-              title="Bring forward (toward camera)"
-              onClick={() => pushAlongView(selected, 1)}
-            >
+            <button className="icon-btn" title="Bring forward (toward camera)" onClick={() => pushAlongView(1)}>
               <ArrowUp size={16} />
             </button>
-            <button
-              className="icon-btn"
-              title="Send back (away from camera)"
-              onClick={() => pushAlongView(selected, -1)}
-            >
+            <button className="icon-btn" title="Send back (away from camera)" onClick={() => pushAlongView(-1)}>
               <ArrowDown size={16} />
             </button>
-            <button className="icon-btn danger" title="Delete (Del)" onClick={() => remove(selected.id)}>
+            <button className="icon-btn danger" title="Delete (Del)" onClick={removeSelected}>
               <Trash2 size={16} />
             </button>
           </>

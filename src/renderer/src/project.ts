@@ -189,6 +189,7 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
   useStore.setState({
     objects,
     selectedId: null,
+    selectedIds: [],
     selectedJoint: null,
     past: [],
     future: [],
@@ -227,6 +228,7 @@ export function newProject(): void {
     settings: { ...DEFAULT_SETTINGS, showGrid, snap, exportWidth, exportHeight, exportFormat },
     objects: [],
     selectedId: null,
+    selectedIds: [],
     selectedJoint: null,
     past: [],
     future: [],

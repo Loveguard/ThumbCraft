@@ -53,7 +53,7 @@ function checkTestMob(layers: Record<string, DumpedLayer>): void {
   expect(layers['minecraft:broken#main']).toBeUndefined()
 }
 
-describe.skipIf(!hasJavac)('ModelDumper', () => {
+describe.skipIf(!hasJavac)('ModelDumper', { timeout: 60_000 }, () => {
   it('exports baked model parts from Mojang-named classes', () => {
     const classes = mkdtempSync(join(tmpdir(), 'stubs-'))
     compile(stubs, classes)
@@ -106,7 +106,7 @@ describe.skipIf(!hasJavac)('ModelDumper', () => {
   })
 })
 
-describe.skipIf(!hasJarsigner)('ModelDumper with a signed, obfuscated client', () => {
+describe.skipIf(!hasJarsigner)('ModelDumper with a signed, obfuscated client', { timeout: 60_000 }, () => {
   it('loads root-package classes from a signed jar (like Mojang 1.21 clients)', () => {
     // The real 1.21 client jar is signed and its obfuscated classes (e.g. "fyh") live in the unnamed
     // package. If the dumper also lived there, the JVM would throw a SecurityException

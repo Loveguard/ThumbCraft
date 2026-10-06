@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import * as THREE from 'three'
 import {
   Box,
@@ -18,10 +18,23 @@ import {
   Video,
   Zap,
   Flame,
+  Copy,
+  Folder,
+  Group as GroupIcon,
+  Ungroup,
   type LucideIcon
 } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { fullPose, POSES, type PartName, type Pose } from '@shared/minecraft/playerModel'
-import { useStore, type MirrorObject, type MobObject, type PlayerObject, type SceneObject, type Vec3 } from '../store'
+import {
+  selection,
+  useStore,
+  type MirrorObject,
+  type MobObject,
+  type PlayerObject,
+  type SceneObject,
+  type Vec3
+} from '../store'
 import { Group, Hint, NumberInput, NumberRow, readFlag, ScrubNumber, Toggle, writeFlag } from './controls'
 import { EquipmentProperties } from './EquipmentProperties'
 import { LightProperties } from './LightProperties'
@@ -86,19 +99,43 @@ export function Section({
 }
 
 /** Moves an object toward (+) or away from (−) the camera along the view direction. */
-export function pushAlongView(o: SceneObject, amount: number): void {
+/** Moves the selection toward the camera (positive) or away from it, as one step. */
+export function pushAlongView(amount: number): void {
   const cam = viewport.camera
   if (!cam) return
   const dir = new THREE.Vector3()
   cam.getWorldDirection(dir)
-  const p = new THREE.Vector3(...o.position).addScaledVector(dir, -amount)
-  useStore.getState().update(o.id, { position: [p.x, p.y, p.z] })
+  const s = useStore.getState()
+  const ids = selection(s)
+  s.updateMany(
+    s.objects
+      .filter((o) => ids.includes(o.id))
+      .map((o) => {
+        const p = new THREE.Vector3(...o.position).addScaledVector(dir, -amount)
+        return { id: o.id, patch: { position: [p.x, p.y, p.z] as Vec3 } }
+      })
+  )
 }
 
 function Layers(): ReactNode {
   const objects = useStore((s) => s.objects)
-  const selectedId = useStore((s) => s.selectedId)
-  const { select, update, remove } = useStore.getState()
+  const selected = useStore(useShallow((s) => selection(s)))
+  const { selectOnly, select, toggleSelect, setSelection, update, remove, updateMany } = useStore.getState()
+  const rows = [...objects].reverse()
+  // Click: that layer alone. Ctrl+click: add or remove it. Shift+click: everything from the last pick to here.
+  const pick = (e: MouseEvent, id: string): void => {
+    if (e.ctrlKey || e.metaKey) return toggleSelect(id)
+    const from = useStore.getState().selectedId
+    if (e.shiftKey && from) {
+      const a = rows.findIndex((o) => o.id === from)
+      const b = rows.findIndex((o) => o.id === id)
+      if (a >= 0 && b >= 0) {
+        const range = rows.slice(Math.min(a, b), Math.max(a, b) + 1).map((o) => o.id)
+        return setSelection([...selected, ...range], id)
+      }
+    }
+    selectOnly(id)
+  }
   return (
     <Section id="layers" title={`Layers${objects.length ? ` · ${objects.length}` : ''}`}>
       {objects.length === 0 && (
@@ -108,40 +145,143 @@ function Layers(): ReactNode {
         </div>
       )}
       <ul className="layers">
-        {[...objects].reverse().map((o) => {
+        {rows.map((o, i) => {
           const Icon = KIND_ICON[o.kind]
+          // A group's members sit together; a folder row heads each run of them.
+          const head = !!o.groupId && rows[i - 1]?.groupId !== o.groupId
+          const members = head ? objects.filter((x) => x.groupId === o.groupId) : []
+          const groupSelected = head && members.every((m) => selected.includes(m.id))
+          const groupVisible = members.some((m) => m.visible)
           return (
-            <li
-              key={o.id}
-              className={`${o.id === selectedId ? 'active' : ''} ${o.visible ? '' : 'hidden'}`}
-              onClick={() => select(o.id)}
-            >
-              <Icon size={15} className="kind" />
-              <span className="name">{o.name}</span>
-              <button
-                className="icon-btn sm"
-                title={o.visible ? 'Hide' : 'Show'}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  update(o.id, { visible: !o.visible })
-                }}
+            <Fragment key={o.id}>
+              {head && (
+                <li
+                  className={`group-row ${groupSelected ? 'active' : ''} ${groupVisible ? '' : 'hidden'}`}
+                  title="Click to select the whole group; Ctrl+Shift+G ungroups"
+                  onClick={(e) => (e.ctrlKey || e.metaKey ? toggleSelect(o.id) : select(o.id))}
+                >
+                  <Folder size={15} className="kind" />
+                  <span className="name">Group · {members.length}</span>
+                  <button
+                    className="icon-btn sm"
+                    title={groupVisible ? 'Hide group' : 'Show group'}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      updateMany(members.map((m) => ({ id: m.id, patch: { visible: !groupVisible } })))
+                    }}
+                  >
+                    {groupVisible ? <Eye size={15} /> : <EyeOff size={15} />}
+                  </button>
+                </li>
+              )}
+              <li
+                className={`${o.groupId ? 'in-group' : ''} ${selected.includes(o.id) ? 'active' : ''} ${o.visible ? '' : 'hidden'}`}
+                onClick={(e) => pick(e, o.id)}
               >
-                {o.visible ? <Eye size={15} /> : <EyeOff size={15} />}
-              </button>
-              <button
-                className="icon-btn sm danger"
-                title="Delete (Del)"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  remove(o.id)
-                }}
-              >
-                <Trash2 size={15} />
-              </button>
-            </li>
+                <Icon size={15} className="kind" />
+                <span className="name">{o.name}</span>
+                <button
+                  className="icon-btn sm"
+                  title={o.visible ? 'Hide' : 'Show'}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    update(o.id, { visible: !o.visible })
+                  }}
+                >
+                  {o.visible ? <Eye size={15} /> : <EyeOff size={15} />}
+                </button>
+                <button
+                  className="icon-btn sm danger"
+                  title="Delete (Del)"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    remove(o.id)
+                  }}
+                >
+                  <Trash2 size={15} />
+                </button>
+              </li>
+            </Fragment>
           )
         })}
       </ul>
+      {objects.length > 1 && (
+        <p className="field-note">Ctrl+click or Shift+click to pick several layers; Ctrl+G groups them.</p>
+      )}
+    </Section>
+  )
+}
+
+/** Several objects selected: move them together, group them, or change what they share. */
+function MultiProperties({ ids }: { ids: string[] }): ReactNode {
+  const list = useStore(useShallow((s) => s.objects.filter((o) => ids.includes(o.id))))
+  const { updateMany, groupSelected, ungroupSelected, duplicateSelected, removeSelected } = useStore.getState()
+  const centre = [0, 1, 2].map((a) => list.reduce((t, o) => t + o.position[a], 0) / Math.max(1, list.length)) as Vec3
+  const grouped = list.length > 1 && !!list[0].groupId && list.every((o) => o.groupId === list[0].groupId)
+  const anyGrouped = list.some((o) => o.groupId)
+  const layerable = list.filter((o) => OVERLAY_KINDS.has(o.kind) && !(o.kind === 'terrain' && o.ground))
+  const setAll = (patch: Partial<SceneObject>, of: SceneObject[] = list): void =>
+    updateMany(of.map((o) => ({ id: o.id, patch })))
+  return (
+    <Section id="multi" title={`${list.length} selected${grouped ? ' · group' : ''}`}>
+      <div className="row wrap">
+        {grouped ? (
+          <button onClick={ungroupSelected} title="Ctrl+Shift+G">
+            <Ungroup size={15} /> Ungroup
+          </button>
+        ) : (
+          <button className="primary" onClick={groupSelected} title="Ctrl+G">
+            <GroupIcon size={15} /> Group
+          </button>
+        )}
+        {!grouped && anyGrouped && (
+          <button onClick={ungroupSelected} title="Ctrl+Shift+G">
+            <Ungroup size={15} /> Ungroup
+          </button>
+        )}
+        <button onClick={duplicateSelected} title="Ctrl+D">
+          <Copy size={15} /> Duplicate
+        </button>
+        <button className="danger" onClick={removeSelected} title="Delete">
+          <Trash2 size={15} /> Delete
+        </button>
+      </div>
+      <h4>Position together</h4>
+      <NumberRow
+        label="Centre"
+        value={centre}
+        onChange={(next) =>
+          updateMany(
+            list.map((o) => ({
+              id: o.id,
+              patch: {
+                position: [0, 1, 2].map((a) => o.position[a] + next[a] - centre[a]) as Vec3
+              }
+            }))
+          )
+        }
+      />
+      <Toggle label="Visible" checked={list.every((o) => o.visible)} onChange={(visible) => setAll({ visible })} />
+      {layerable.length > 0 && (
+        <>
+          <Toggle
+            label="Always on top"
+            title="Drawn over everything, even terrain or trees in front of it"
+            checked={layerable.every((o) => o.onTop)}
+            onChange={(onTop) => setAll({ onTop }, layerable)}
+          />
+          <Toggle
+            label="Flat lighting"
+            title="Their own colours, evenly bright: no shading from lights or shadows"
+            checked={layerable.every((o) => o.flat)}
+            onChange={(flat) => setAll({ flat }, layerable)}
+          />
+        </>
+      )}
+      <Hint>
+        Drag the handles in the viewport to move them together; press E to turn or R to resize the whole selection
+        around its centre. Click one layer on its own to edit just that object.
+      </Hint>
     </Section>
   )
 }
@@ -541,10 +681,11 @@ function SceneSettings(): ReactNode {
 
 export function RightPanel(): ReactNode {
   const selected = useStore((s) => s.objects.find((o) => o.id === s.selectedId))
+  const many = useStore(useShallow((s) => selection(s)))
   return (
     <aside className="inspector">
       <Layers />
-      {selected && <Properties key={selected.id} o={selected} />}
+      {many.length > 1 ? <MultiProperties ids={many} /> : selected && <Properties key={selected.id} o={selected} />}
       <SceneSettings />
     </aside>
   )

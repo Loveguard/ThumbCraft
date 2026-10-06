@@ -533,7 +533,7 @@ export async function applyTemplate(t: Template): Promise<void> {
     })
   }
   // A fresh start: nothing to undo back into, nothing unsaved yet.
-  useStore.setState({ selectedId: null, past: [], future: [] })
+  useStore.setState({ selectedId: null, selectedIds: [], past: [], future: [] })
   cameraBridge.set?.(t.camera)
   markClean()
   if (t.mobs?.length) void addTemplateMobs(t.mobs)
@@ -551,7 +551,7 @@ const untouched = (): boolean => useStore.getState().past.length === 0
  */
 function settle(pristine: boolean, deselect = true): void {
   if (!pristine) return
-  useStore.setState({ ...(deselect ? { selectedId: null } : {}), past: [], future: [] })
+  useStore.setState({ ...(deselect ? { selectedId: null, selectedIds: [] } : {}), past: [], future: [] })
   markClean()
 }
 

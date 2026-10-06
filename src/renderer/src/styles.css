@@ -3013,3 +3013,31 @@ textarea:focus {
   color: color-mix(in srgb, var(--section) 80%, white);
   background: color-mix(in srgb, var(--section) 16%, transparent);
 }
+
+/* Shift+drag box select in the viewport. */
+.box-select {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  border: 1px solid #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+  border-radius: 2px;
+}
+
+/* Groups in the layer list: a folder row, members indented under it. */
+.layers li.group-row .name {
+  font-weight: 600;
+}
+.layers li.in-group {
+  padding-left: 28px;
+  position: relative;
+}
+.layers li.in-group::before {
+  content: '';
+  position: absolute;
+  left: 17px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--border-strong);
+}
