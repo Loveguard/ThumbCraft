@@ -166,6 +166,8 @@ export interface LightningObject extends Base {
   brightness: number
   /** A bright flash lighting the ground around the strike. */
   flash: boolean
+  /** Width of the bolt's glow (1 = vanilla's); missing in older projects, which keep vanilla's. */
+  thickness?: number
 }
 
 /** Smoke, fog, fire and other effects placed in the scene (see vfx.ts). */

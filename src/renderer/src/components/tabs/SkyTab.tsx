@@ -1,8 +1,7 @@
 import { useRef, type ReactNode } from 'react'
-import { CloudRain, Snowflake, Sun, Upload, Zap } from 'lucide-react'
-import { placeNew } from '../../placement'
+import { CloudRain, Snowflake, Sun, Upload } from 'lucide-react'
 import { registerMedia } from '../../media'
-import { DAY_LIGHTING, NIGHT_LIGHTING, newId, useStore, type SkyPreset, type WeatherType } from '../../store'
+import { DAY_LIGHTING, NIGHT_LIGHTING, useStore, type SkyPreset, type WeatherType } from '../../store'
 import { sunInView } from '../Effects'
 import { PRESET_SUN } from '../SkyBackdrop'
 import { viewport } from '../Viewport'
@@ -194,7 +193,7 @@ export function WeatherControls(): ReactNode {
   const weather = useStore((s) => s.settings.weather)
   const density = useStore((s) => s.settings.weatherDensity)
   const wind = useStore((s) => s.settings.wind)
-  const { setSettings, setSky, add } = useStore.getState()
+  const { setSettings, setSky } = useStore.getState()
   return (
     <>
       <h4 className="section-label">Weather</h4>
@@ -242,28 +241,9 @@ export function WeatherControls(): ReactNode {
           </label>
         </>
       )}
-      <button
-        title="A vanilla lightning bolt striking where you're looking. Move it with the gizmo."
-        onClick={() =>
-          add({
-            id: newId('obj'),
-            kind: 'lightning',
-            name: 'Lightning',
-            seed: Math.floor(Math.random() * 2 ** 31),
-            color: '#737380', // vanilla's (0.45, 0.45, 0.5)
-            brightness: 1.5,
-            flash: true,
-            visible: true,
-            ...placeNew('ground'),
-            scale: 1
-          })
-        }
-      >
-        <Zap size={15} /> Add lightning strike
-      </button>
       <Hint label="About weather">
-        Rain and snow use the game's own textures and stop on roofs and trees. A lightning bolt is 128 blocks tall like
-        in game; scale it down for a closer strike.
+        Rain and snow use the game's own textures and stop on roofs and trees. Lightning is in the special effects
+        above.
       </Hint>
     </>
   )

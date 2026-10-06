@@ -9,6 +9,7 @@ import {
   SunDim,
   PartyPopper,
   Radar,
+  Zap,
   type LucideIcon
 } from 'lucide-react'
 import { placeNew } from '../../placement'
@@ -50,14 +51,31 @@ function addEffect(p: VfxPreset): void {
     s.setStatus('Tip: switch to Cinematic (Scene & lighting) so the effect lights up its surroundings.')
 }
 
+/** A vanilla-shaped lightning bolt striking where you're looking, slimmer than the game's for a crisp look. */
+function addLightning(): void {
+  useStore.getState().add({
+    id: newId('obj'),
+    kind: 'lightning',
+    name: 'Lightning',
+    seed: Math.floor(Math.random() * 2 ** 31),
+    color: '#737380', // vanilla's (0.45, 0.45, 0.5)
+    brightness: 1.5,
+    thickness: 0.5,
+    flash: true,
+    visible: true,
+    ...placeNew('ground'),
+    scale: 1
+  })
+}
+
 /** Effects placed in the 3D scene: smoke, fog, fire, explosions and more, plus weather. */
 export function VfxTab(): ReactNode {
   return (
     <div className="tab-body">
       <div className="tile-grid cols-3">
-        {VFX_PRESETS.map((p) => {
+        {VFX_PRESETS.filter((p) => !p.retired).map((p) => {
           const Icon = ICONS[p.id]
-          return (
+          const tile = (
             <button key={p.id} title={p.hint} onClick={() => addEffect(p)}>
               <span className="light-dot" style={{ background: p.color }}>
                 <Icon size={14} />
@@ -65,6 +83,21 @@ export function VfxTab(): ReactNode {
               {p.label}
             </button>
           )
+          // Lightning sits after the light beam, before the impact.
+          if (p.id !== 'impact') return tile
+          return [
+            <button
+              key="lightning"
+              title="A vanilla lightning bolt striking where you're looking (128 blocks tall like in game; scale it down for a closer strike)"
+              onClick={addLightning}
+            >
+              <span className="light-dot" style={{ background: '#c7d2fe' }}>
+                <Zap size={14} />
+              </span>
+              Lightning
+            </button>,
+            tile
+          ]
         })}
       </div>
       <Hint>

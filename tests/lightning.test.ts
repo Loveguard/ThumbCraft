@@ -23,4 +23,18 @@ describe('lightning bolt', () => {
     for (let i = 0; i < g.length; i += 3) if (g[i + 1] === 0) nearest = Math.min(nearest, Math.hypot(g[i], g[i + 2]))
     expect(nearest).toBeLessThan(1)
   })
+
+  it('slims the bolt without moving its path', () => {
+    const full = lightningGeometry(777)
+    const slim = lightningGeometry(777, 0.5)
+    expect(slim.length).toBe(full.length)
+    // Heights are identical; the sideways spread around each segment's centre is halved.
+    for (let i = 1; i < full.length; i += 3) expect(slim[i]).toBe(full[i])
+    const spread = (g: Float32Array): number => {
+      let s = 0
+      for (let q = 0; q < g.length; q += 18) s += Math.hypot(g[q] - g[q + 15], g[q + 2] - g[q + 17])
+      return s
+    }
+    expect(spread(slim)).toBeLessThan(spread(full) * 0.8)
+  })
 })

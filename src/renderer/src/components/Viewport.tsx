@@ -402,10 +402,10 @@ function ModelNode({ o }: { o: ModelObject }): ReactNode {
 function LightningNode({ o }: { o: LightningObject }): ReactNode {
   const geometry = useMemo(() => {
     const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.BufferAttribute(lightningGeometry(o.seed), 3))
+    g.setAttribute('position', new THREE.BufferAttribute(lightningGeometry(o.seed, o.thickness ?? 1), 3))
     g.computeBoundingSphere()
     return g
-  }, [o.seed])
+  }, [o.seed, o.thickness])
   useEffect(() => () => geometry.dispose(), [geometry])
   const color = useMemo(() => new THREE.Color(o.color).multiplyScalar(o.brightness), [o.color, o.brightness])
   return (
@@ -422,7 +422,8 @@ function LightningNode({ o }: { o: LightningObject }): ReactNode {
         />
       </mesh>
       {o.flash && (
-        <pointLight position={[0, 3, 0]} color="#d6dcff" intensity={120 * o.brightness} distance={40} decay={2} />
+        // A gentler flash than before: enough to light the ground and nearby players without whiting them out.
+        <pointLight position={[0, 3, 0]} color="#d6dcff" intensity={45 * o.brightness} distance={30} decay={2} />
       )}
     </>
   )

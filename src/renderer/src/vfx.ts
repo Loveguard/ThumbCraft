@@ -13,6 +13,8 @@ export interface VfxPreset {
   density: number
   /** Gives off light in Cinematic mode. */
   glow: boolean
+  /** Still drawn in saved scenes, but no longer offered in the FX panel. */
+  retired?: boolean
 }
 
 export const VFX_PRESETS: VfxPreset[] = [
@@ -64,7 +66,8 @@ export const VFX_PRESETS: VfxPreset[] = [
     hint: 'The green and gold burst of a Totem of Undying saving a player',
     color: '#7be04a',
     density: 0.6,
-    glow: true
+    glow: true,
+    retired: true
   },
   {
     id: 'impact',

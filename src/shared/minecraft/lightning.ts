@@ -6,8 +6,11 @@ import { JavaRandom } from './javaRandom'
 /** Vanilla's per-layer bolt opacity (drawn with additive blending). */
 export const LIGHTNING_ALPHA = 0.3
 
-/** Triangle positions (x, y, z per vertex) of a bolt that strikes the origin, in blocks. */
-export function lightningGeometry(seed: number | bigint): Float32Array {
+/**
+ * Triangle positions (x, y, z per vertex) of a bolt that strikes the origin, in blocks. `thickness` scales the
+ * width of every glow layer (1 = vanilla's); thinner bolts read as a crisp, bright line in a thumbnail.
+ */
+export function lightningGeometry(seed: number | bigint, thickness = 1): Float32Array {
   const xs = new Array<number>(8)
   const zs = new Array<number>(8)
   let x = 0
@@ -59,9 +62,9 @@ export function lightningGeometry(seed: number | bigint): Float32Array {
           h += r.nextInt(31) - 15
           n += r.nextInt(31) - 15
         }
-        let w1 = 0.1 + layer * 0.2
+        let w1 = (0.1 + layer * 0.2) * thickness
         if (branch === 0) w1 *= seg * 0.1 + 1
-        let w2 = 0.1 + layer * 0.2
+        let w2 = (0.1 + layer * 0.2) * thickness
         if (branch === 0) w2 *= (seg - 1) * 0.1 + 1
         quad(h, n, seg, p, q, w1, w2, false, false, true, false)
         quad(h, n, seg, p, q, w1, w2, true, false, true, true)
