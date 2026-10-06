@@ -1,10 +1,16 @@
 name: Release
 
 # Push a version tag (e.g. `npm version minor && git push --follow-tags`) to build the Windows installer,
-# the portable .exe and the macOS app, and publish them as a GitHub release.
+# the portable .exe and the macOS app, and publish them as a GitHub release. It can also be started by hand
+# (Actions → Release → Run workflow) with a tag name; the release then creates that tag on the built commit.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create, e.g. v0.1.0'
+        required: true
 
 # Building runs every npm package's code, so it gets a read-only token; only the small publish job, which
 # runs no npm code at all, may write the release.
@@ -64,6 +70,10 @@ jobs:
           path: dist
           merge-multiple: true
       # latest.yml (Windows) and latest-mac.yml are what installed copies check for updates.
-      - run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "ThumbCraft $GITHUB_REF_NAME" --generate-notes
+      - run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.]+)?$ ]] || { echo "Not a version tag: $TAG"; exit 1; }
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "ThumbCraft $TAG" --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Passed through the environment, never pasted into the script, so a typed tag can't inject commands.
+          TAG: ${{ inputs.tag || github.ref_name }}
