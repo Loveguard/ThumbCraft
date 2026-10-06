@@ -265,6 +265,20 @@ export interface EffectSettings {
   crtAmount: number
   crtCurve: number
   crtOverLayers: boolean
+  /** Lens warp: + curves the image like a curved TV / fisheye, - pinches it; the frame always stays filled. */
+  warp: boolean
+  warpAmount: number
+  /** Speed burst: a radial zoom blur toward a point (x right, y down), clear around it. */
+  burst: boolean
+  burstAmount: number
+  burstClear: number
+  burstX: number
+  burstY: number
+  /** Anamorphic streaks: horizontal light lines from bright spots. */
+  streaks: boolean
+  streakAmount: number
+  streakThreshold: number
+  streakColor: string
   /** The colour look (a 3D LUT): a built-in look's id, 'custom' for an imported .cube file, or null. */
   look: string | null
   /** 0 = original colour … 1 = the full look. */
@@ -306,6 +320,17 @@ export const NO_EFFECTS: EffectSettings = {
   crtAmount: 0.6,
   crtCurve: 0.5,
   crtOverLayers: false,
+  warp: false,
+  warpAmount: 0.5,
+  burst: false,
+  burstAmount: 0.5,
+  burstClear: 0.35,
+  burstX: 0.5,
+  burstY: 0.5,
+  streaks: false,
+  streakAmount: 0.6,
+  streakThreshold: 1.2,
+  streakColor: '#7fb8ff',
   look: null,
   lookIntensity: 1,
   lutMediaId: null,

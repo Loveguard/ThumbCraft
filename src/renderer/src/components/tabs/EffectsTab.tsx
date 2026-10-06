@@ -1,11 +1,12 @@
-import type { ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { useStore, type EffectSettings } from '../../store'
 import { sunInView } from '../Effects'
 import { gradeColor, LOOKS, lookSettings, parseCube, type Grade } from '../../grading'
 import { registerMedia } from '../../media'
 import { errorText } from '../../errors'
 import { viewport } from '../Viewport'
-import { Group, Hint, Slider } from '../controls'
+import { Group, Hint, readFlag, Slider, Toggle, writeFlag } from '../controls'
 
 type NumKey = { [K in keyof EffectSettings]: EffectSettings[K] extends number ? K : never }[keyof EffectSettings]
 type BoolKey = { [K in keyof EffectSettings]: EffectSettings[K] extends boolean ? K : never }[keyof EffectSettings]
@@ -55,11 +56,47 @@ function FxGroup({
   )
 }
 
+/** A colour-coded, collapsible top-level section of the tab (remembers whether it's open). */
+function FxSection({
+  id,
+  title,
+  color,
+  defaultOpen = false,
+  children
+}: {
+  id: string
+  title: string
+  color: string
+  defaultOpen?: boolean
+  children: ReactNode
+}): ReactNode {
+  const [open, setOpen] = useState(() => readFlag(`fx-section:${id}`, defaultOpen))
+  const style = { '--section': color } as CSSProperties
+  return (
+    <section className={`fx-section ${open ? 'open' : ''}`} style={style}>
+      <button
+        className="fx-section-head"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open)
+          writeFlag(`fx-section:${id}`, !open)
+        }}
+      >
+        <span className="fx-section-dot" />
+        <span>{title}</span>
+        <ChevronRight size={14} className="chev" />
+      </button>
+      {open && <div className="fx-section-body">{children}</div>}
+    </section>
+  )
+}
+
 export function EffectsTab(): ReactNode {
   const { sunAzimuth, sunElevation } = useStore((s) => s.settings)
   const setSettings = useStore((s) => s.setSettings)
   const setEffects = useStore((s) => s.setEffects)
-  const { sunColor, shadowTint, highlightTint, showSun } = useStore((s) => s.effects)
+  const { sunColor, shadowTint, highlightTint, showSun, cleanOverlays, crtOverLayers, streakColor, depthOfField } =
+    useStore((s) => s.effects)
   const putSunInView = (): void => {
     const sun = sunInView(viewport.camera)
     if (sun) setSettings(sun)
@@ -72,89 +109,146 @@ export function EffectsTab(): ReactNode {
   }
   return (
     <div className="tab-body">
-      <LookPicker onPick={applyLook} />
+      <Toggle
+        label="Keep titles clean"
+        title="Always-on-top layers (titles) are drawn after the effects, so blur, grain, looks and lens effects skip them"
+        checked={cleanOverlays}
+        onChange={(on) => setEffects({ cleanOverlays: on })}
+      />
 
-      <h4>Adjust</h4>
-      <FxSlider k="exposure" label="Exposure" min={-2} max={2} step={0.05} />
-      <FxSlider k="contrast" label="Contrast" min={-0.6} max={0.6} step={0.01} />
-      <FxSlider k="saturation" label="Saturation" min={-1} max={1} step={0.01} />
-      <FxSlider k="temperature" label="Warmth" min={-1} max={1} step={0.01} />
-      <FxSlider k="tint" label="Tint" min={-1} max={1} step={0.01} />
-      <Group id="fx-split" title="Split toning">
-        <div className="row">
+      <FxSection id="look" title="Look" color="#b48cff" defaultOpen>
+        <LookPicker onPick={applyLook} />
+      </FxSection>
+
+      <FxSection id="adjust" title="Adjust" color="#60a5fa">
+        <FxSlider k="exposure" label="Exposure" min={-2} max={2} step={0.05} />
+        <FxSlider k="contrast" label="Contrast" min={-0.6} max={0.6} step={0.01} />
+        <FxSlider k="saturation" label="Saturation" min={-1} max={1} step={0.01} />
+        <FxSlider k="temperature" label="Warmth" min={-1} max={1} step={0.01} />
+        <FxSlider k="tint" label="Tint" min={-1} max={1} step={0.01} />
+        <Group id="fx-split" title="Split toning">
+          <div className="row">
+            <label className="field">
+              <span>Shadows</span>
+              <input type="color" value={shadowTint} onChange={(e) => setEffects({ shadowTint: e.target.value })} />
+            </label>
+            <label className="field">
+              <span>Highlights</span>
+              <input
+                type="color"
+                value={highlightTint}
+                onChange={(e) => setEffects({ highlightTint: e.target.value })}
+              />
+            </label>
+          </div>
+          <FxSlider k="split" label="Strength" min={0} max={1} step={0.01} />
+        </Group>
+      </FxSection>
+
+      <FxSection id="focus" title="Focus" color="#5eead4" defaultOpen={depthOfField}>
+        <FxGroup k="depthOfField" label="Focus blur (depth of field)">
+          <FxSlider k="dofBlur" label="Blur" min={0.5} max={10} step={0.1} />
+          <FxSlider k="dofRange" label="In-focus depth" min={0.5} max={40} step={0.5} />
+          <button onClick={() => setEffects({ focusPoints: [{ x: 0.5, y: 0.55 }] })}>Reset focus points</button>
+          <Hint>
+            Drag the focus point in the viewport onto what should be sharp: whatever is under it stays in focus. Use the
+            + on its edge to add more points for several subjects.
+          </Hint>
+        </FxGroup>
+      </FxSection>
+
+      <FxSection id="lens" title="Lens" color="#fbbf24">
+        <FxGroup k="warp" label="Lens warp">
+          <FxSlider k="warpAmount" label="Pinch ↔ Bulge" min={-1} max={1} step={0.01} />
+          <Hint>
+            Right curves the picture like a curved TV or fisheye; left pinches it. The frame always stays full.
+          </Hint>
+        </FxGroup>
+        <FxGroup k="burst" label="Speed burst">
+          <FxSlider k="burstAmount" label="Strength" min={0} max={1} step={0.01} />
+          <FxSlider k="burstClear" label="Clear centre" min={0} max={1} step={0.01} />
+          <FxSlider k="burstX" label="Centre left ↔ right" min={0} max={1} step={0.01} />
+          <FxSlider k="burstY" label="Centre top ↔ bottom" min={0} max={1} step={0.01} />
+        </FxGroup>
+        <FxGroup k="streaks" label="Anamorphic streaks">
+          <FxSlider k="streakAmount" label="Strength" min={0} max={2} step={0.01} />
+          <FxSlider k="streakThreshold" label="Threshold" min={0.6} max={3} step={0.05} />
           <label className="field">
-            <span>Shadows</span>
-            <input type="color" value={shadowTint} onChange={(e) => setEffects({ shadowTint: e.target.value })} />
+            <span>Colour</span>
+            <input type="color" value={streakColor} onChange={(e) => setEffects({ streakColor: e.target.value })} />
           </label>
+        </FxGroup>
+        <FxGroup k="chromatic" label="Chromatic aberration">
+          <FxSlider k="chromaticAmount" label="Amount" min={0} max={0.01} step={0.0005} />
+        </FxGroup>
+      </FxSection>
+
+      <FxSection id="overlays" title="Overlays" color="#f472b6">
+        <FxGroup k="vignette" label="Vignette">
+          <FxSlider k="vignetteDarkness" label="Darkness" min={0} max={1} step={0.01} />
+          <FxSlider k="vignetteOffset" label="Size" min={0} max={1} step={0.01} />
+        </FxGroup>
+        <FxGroup k="grain" label="Film grain">
+          <FxSlider k="grainAmount" label="Amount" min={0} max={0.6} step={0.01} />
+        </FxGroup>
+        <FxGroup k="crt" label="CRT TV">
+          <FxSlider k="crtAmount" label="Scanlines & mask" min={0} max={1} step={0.01} />
+          <FxSlider k="crtCurve" label="Screen curve" min={0} max={1} step={0.01} />
+          <Toggle
+            label="Also over titles"
+            title="Off: titles and other always-on-top layers stay clean on top of the CRT"
+            checked={crtOverLayers}
+            onChange={(on) => setEffects({ crtOverLayers: on, ...(on && { cleanOverlays: true }) })}
+          />
+        </FxGroup>
+      </FxSection>
+
+      <FxSection id="light" title="Light & sun" color="#fb923c">
+        <FxGroup k="bloom" label="Bloom (glow)">
+          <FxSlider k="bloomIntensity" label="Intensity" min={0} max={3} step={0.05} />
+          <FxSlider k="bloomThreshold" label="Threshold" min={0} max={1} step={0.01} />
+        </FxGroup>
+        <FxGroup k="godRays" label="God rays" onEnable={putSunInView}>
+          <FxSlider k="godRaysIntensity" label="Intensity" min={0} max={1.5} step={0.01} />
           <label className="field">
-            <span>Highlights</span>
-            <input type="color" value={highlightTint} onChange={(e) => setEffects({ highlightTint: e.target.value })} />
+            <span>Sun colour</span>
+            <input type="color" value={sunColor} onChange={(e) => setEffects({ sunColor: e.target.value })} />
           </label>
-        </div>
-        <FxSlider k="split" label="Strength" min={0} max={1} step={0.01} />
-      </Group>
-
-      <h4>Lens</h4>
-      <FxGroup k="vignette" label="Vignette">
-        <FxSlider k="vignetteDarkness" label="Darkness" min={0} max={1} step={0.01} />
-        <FxSlider k="vignetteOffset" label="Size" min={0} max={1} step={0.01} />
-      </FxGroup>
-      <FxGroup k="grain" label="Film grain">
-        <FxSlider k="grainAmount" label="Amount" min={0} max={0.6} step={0.01} />
-      </FxGroup>
-      <FxGroup k="chromatic" label="Chromatic aberration">
-        <FxSlider k="chromaticAmount" label="Amount" min={0} max={0.01} step={0.0005} />
-      </FxGroup>
-      <FxGroup k="depthOfField" label="Depth of field (focus on orbit point)">
-        <FxSlider k="dofBlur" label="Blur" min={0.5} max={10} step={0.1} />
-        <FxSlider k="dofRange" label="Focus range" min={1} max={40} step={0.5} />
-      </FxGroup>
-
-      <h4>Light</h4>
-      <FxGroup k="bloom" label="Bloom (glow)">
-        <FxSlider k="bloomIntensity" label="Intensity" min={0} max={3} step={0.05} />
-        <FxSlider k="bloomThreshold" label="Threshold" min={0} max={1} step={0.01} />
-      </FxGroup>
-      <FxGroup k="godRays" label="God rays" onEnable={putSunInView}>
-        <FxSlider k="godRaysIntensity" label="Intensity" min={0} max={1.5} step={0.01} />
-        <label className="field">
-          <span>Sun colour</span>
-          <input type="color" value={sunColor} onChange={(e) => setEffects({ sunColor: e.target.value })} />
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={showSun} onChange={(e) => setEffects({ showSun: e.target.checked })} />
-          <span>Show the sun disc</span>
-        </label>
-      </FxGroup>
-      <Group id="fx-sun" title="Sun position" defaultOpen>
-        <button onClick={putSunInView}>Put sun in view</button>
-        <label className="field slider">
-          <span>Sun direction</span>
-          <input
-            type="range"
-            min={-180}
-            max={180}
-            value={sunAzimuth}
-            onChange={(e) => setSettings({ sunAzimuth: Number(e.target.value) })}
-          />
-          <em>{sunAzimuth}°</em>
-        </label>
-        <label className="field slider">
-          <span>Sun height</span>
-          <input
-            type="range"
-            min={2}
-            max={89}
-            value={sunElevation}
-            onChange={(e) => setSettings({ sunElevation: Number(e.target.value) })}
-          />
-          <em>{sunElevation}°</em>
-        </label>
-        <Hint>
-          The sun aims the scene's main light (and shadows in Cinematic mode) and the god rays: put it just behind a
-          tree, player or build for the strongest rays. Effects are included in the export.
-        </Hint>
-      </Group>
+          <label className="check">
+            <input type="checkbox" checked={showSun} onChange={(e) => setEffects({ showSun: e.target.checked })} />
+            <span>Show the sun disc</span>
+          </label>
+        </FxGroup>
+        <Group id="fx-sun" title="Sun position" defaultOpen>
+          <button onClick={putSunInView}>Put sun in view</button>
+          <label className="field slider">
+            <span>Sun direction</span>
+            <input
+              type="range"
+              min={-180}
+              max={180}
+              value={sunAzimuth}
+              onChange={(e) => setSettings({ sunAzimuth: Number(e.target.value) })}
+            />
+            <em>{sunAzimuth}°</em>
+          </label>
+          <label className="field slider">
+            <span>Sun height</span>
+            <input
+              type="range"
+              min={2}
+              max={89}
+              value={sunElevation}
+              onChange={(e) => setSettings({ sunElevation: Number(e.target.value) })}
+            />
+            <em>{sunElevation}°</em>
+          </label>
+          <Hint>
+            The sun aims the scene's main light (and shadows in the lit modes) and the god rays: put it just behind a
+            tree, player or build for the strongest rays. Effects are included in the export.
+          </Hint>
+        </Group>
+      </FxSection>
     </div>
   )
 }
@@ -194,7 +288,6 @@ function LookPicker({ onPick }: { onPick: (id: string | null) => void }): ReactN
   }
   return (
     <>
-      <h4>Look</h4>
       <div className="look-grid">
         <button className={`look-card ${!look ? 'active' : ''}`} onClick={() => onPick(null)} title="No look">
           <span className="look-strip" style={{ background: strip(null) }} />

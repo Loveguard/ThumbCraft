@@ -1,6 +1,6 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { Bloom, ChromaticAberration, EffectComposer, GodRays, Noise, SMAA, Vignette } from '@react-three/postprocessing'
-import { BlendFunction, LUT3DEffect, Pass, type EffectComposer as Composer } from 'postprocessing'
+import { BlendFunction, Effect, LUT3DEffect, Pass, type EffectComposer as Composer } from 'postprocessing'
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import * as THREE from 'three'
 import { useStore, type EffectSettings, type SceneSettings } from '../store'
@@ -9,6 +9,7 @@ import { withShaderLook } from '../renderModes'
 import { Cartoon } from './cartoon'
 import { FocusBlurEffect } from './focusBlur'
 import { CrtEffect } from './retro'
+import { AnamorphicEffect, LensWarpEffect, SpeedBurstEffect } from './lens'
 import { OVERLAY_LAYER } from '../overlay'
 import { lookLut, parseCube } from '../grading'
 import { mediaStore } from '../media'
@@ -39,7 +40,18 @@ const hasGrade = (e: EffectSettings): boolean =>
   e.exposure !== 0 || e.contrast !== 0 || e.saturation !== 0 || e.temperature !== 0 || e.tint !== 0 || e.split !== 0
 
 export const hasEffects = (e: EffectSettings): boolean =>
-  hasGrade(e) || !!e.look || e.vignette || e.grain || e.bloom || e.godRays || e.chromatic || e.depthOfField || e.crt
+  hasGrade(e) ||
+  !!e.look ||
+  e.vignette ||
+  e.grain ||
+  e.bloom ||
+  e.godRays ||
+  e.chromatic ||
+  e.depthOfField ||
+  e.crt ||
+  e.warp ||
+  e.burst ||
+  e.streaks
 
 /** What the effect chain covers this frame (set while rendering the Effects component). */
 const chain = { active: false, includesOverlays: false }
@@ -111,6 +123,14 @@ function OverlayPass(): ReactNode {
   const { scene, camera } = useThree()
   const pass = useMemo(() => new OverlayLayerPass(scene, camera), [scene, camera])
   return <primitive object={pass} dispose={null} />
+}
+
+/** A custom effect as a step in the chain, kept across renders and updated as its settings change. */
+function CustomEffect<T extends Effect>({ make, apply }: { make: () => T; apply: (effect: T) => void }): ReactNode {
+  const [effect] = useState(make)
+  useEffect(() => apply(effect))
+  useEffect(() => () => effect.dispose(), [effect])
+  return <primitive object={effect} dispose={null} />
 }
 
 /** CRT as a step in the effect chain. */
@@ -247,6 +267,22 @@ export function Effects(): ReactNode {
         blur
       />
     )
+  if (e.burst)
+    effects.push(
+      <CustomEffect
+        key="burst"
+        make={() => new SpeedBurstEffect()}
+        apply={(x) => x.setBurst(e.burstX, e.burstY, e.burstAmount, e.burstClear)}
+      />
+    )
+  if (e.streaks)
+    effects.push(
+      <CustomEffect
+        key="streaks"
+        make={() => new AnamorphicEffect()}
+        apply={(x) => x.setStreaks(e.streakAmount, e.streakThreshold, e.streakColor)}
+      />
+    )
   if (e.bloom)
     effects.push(
       <Bloom key="bloom" intensity={e.bloomIntensity} luminanceThreshold={e.bloomThreshold} mipmapBlur radius={0.7} />
@@ -277,6 +313,8 @@ export function Effects(): ReactNode {
       />
     )
   // CRT before the always-on-top layers keeps titles clean; "over everything" moves it after them (below).
+  if (e.warp)
+    effects.push(<CustomEffect key="warp" make={() => new LensWarpEffect()} apply={(x) => x.setAmount(e.warpAmount)} />)
   const crtOverLayers = e.crt && e.crtOverLayers && e.cleanOverlays
   if (e.crt && !crtOverLayers) effects.push(<CrtPass key="crt" amount={e.crtAmount} curve={e.crtCurve} />)
   if (e.vignette)

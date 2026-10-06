@@ -2936,3 +2936,62 @@ textarea:focus {
 .focus-point:hover .focus-remove {
   opacity: 1;
 }
+
+/* Look tab: colour-coded collapsible sections (each accent subtle, on the same glass panels). */
+.fx-section {
+  --section: var(--accent);
+  margin: 8px 0;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-left: 3px solid color-mix(in srgb, var(--section) 70%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--section) 7%, rgba(255, 255, 255, 0.025)),
+    rgba(255, 255, 255, 0.015)
+  );
+  overflow: hidden;
+}
+.fx-section-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: auto;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-weight: 650;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  text-align: left;
+}
+.fx-section-head:hover {
+  background: color-mix(in srgb, var(--section) 8%, transparent);
+}
+.fx-section-head .chev {
+  margin-left: auto;
+  opacity: 0.6;
+  transition: transform 0.15s;
+}
+.fx-section.open .fx-section-head .chev {
+  transform: rotate(90deg);
+}
+.fx-section-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--section);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--section) 60%, transparent);
+}
+.fx-section-body {
+  padding: 2px 12px 12px;
+}
+.fx-section .group.fx.open .fx-head,
+.fx-section .fx-head input:checked {
+  accent-color: var(--section);
+}
+.fx-section .group.fx.open {
+  border-color: color-mix(in srgb, var(--section) 35%, rgba(255, 255, 255, 0.08));
+}
