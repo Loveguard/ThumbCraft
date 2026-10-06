@@ -7,7 +7,7 @@ import { readSchematic, structureToTerrain } from '@shared/minecraft/schematics'
 import type { Dimension, GenerateRequest, WorldImportRequest } from '@shared/types'
 import { cacheDir, currentVersion, loadJar, newestJars, readAsset, readStructure } from './assets'
 import { installJava } from './javaInstall'
-import { loadMobModels } from './mobs'
+import { loadMobModels, stopMobExport } from './mobs'
 import {
   autosave,
   forgetRecent,
@@ -218,9 +218,9 @@ function registerIpc(): void {
     updateSettings({ lastJar: jarPath })
     return bundle
   })
-  const javaInfo = (): { path: string; version: string; enough: boolean; need: number } | null => {
+  const javaInfo = async (): Promise<{ path: string; version: string; enough: boolean; need: number } | null> => {
     const need = requiredJava(currentVersion())
-    const j = findJava(need) ?? findJava()
+    const j = (await findJava(need)) ?? (await findJava())
     return j ? { path: j.path, version: j.version, enough: j.major >= need, need } : null
   }
   ipcMain.handle('mc:findJava', () => javaInfo())
@@ -365,5 +365,5 @@ app.on('before-quit', (e) => {
   if (quitting) return
   quitting = true
   e.preventDefault()
-  void shutdownGenerator().finally(() => app.quit())
+  void Promise.allSettled([shutdownGenerator(true), stopMobExport()]).finally(() => app.quit())
 })

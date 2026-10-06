@@ -146,6 +146,8 @@ export class AssetContext {
     texture.needsUpdate = true
     texture.anisotropy = 4
     texture.colorSpace = THREE.SRGBColorSpace
+    // Cached and shared by every terrain and held block that uses this set: never disposed with one of them.
+    texture.userData.shared = true
     return { texture, slots }
   }
 }

@@ -116,7 +116,9 @@ const disposeTerrain = (g: THREE.Object3D): void => disposeObject(g, false)
 
 function TerrainNode({ o }: { o: TerrainObject }): ReactNode {
   const assets = useStore((s) => s.assets)
-  const { renderMode, ambientOcclusion, waterReflections } = useStore((s) => s.settings)
+  const { ambientOcclusion, waterReflections } = useStore((s) => s.settings)
+  // Terrain only cares whether the mode is lit, so switching between lit looks doesn't rebuild it.
+  const lit = useStore((s) => isLit(s.settings.renderMode))
   const group = useAsync(
     async () => {
       const ctx = assetContext(assets)
@@ -126,7 +128,7 @@ function TerrainNode({ o }: { o: TerrainObject }): ReactNode {
       try {
         const group = await buildTerrain(ctx, t, {
           ambientOcclusion,
-          cinematic: isLit(renderMode),
+          cinematic: lit,
           waterReflections
         })
         if (!group.children.length)
@@ -146,7 +148,7 @@ function TerrainNode({ o }: { o: TerrainObject }): ReactNode {
         throw e
       }
     },
-    [assets, o.terrainId, renderMode, ambientOcclusion, waterReflections],
+    [assets, o.terrainId, lit, ambientOcclusion, waterReflections],
     disposeTerrain
   )
   return group ? <primitive object={group} /> : null
@@ -302,7 +304,8 @@ function TextNode({ o, order }: { o: TextObject; order: number }): ReactNode {
 function PixelTextNode({ o }: { o: PixelTextObject }): ReactNode {
   const g = useAsync(
     () => buildPixelText(o.text, o.color, o.depth, o.shadow, o.style),
-    [o.text, o.color, o.depth, o.shadow, o.style]
+    [o.text, o.color, o.depth, o.shadow, o.style],
+    disposeObject
   )
   return g ? <primitive object={g} /> : null
 }

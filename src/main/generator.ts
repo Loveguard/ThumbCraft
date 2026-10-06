@@ -1,6 +1,6 @@
 // Generates real Minecraft terrain by running the official dedicated server headlessly:
 // the vanilla world generator places every block, and we read the result from its region files.
-import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
@@ -26,11 +26,13 @@ import { readSettings, updateSettings } from './settings'
 
 type Progress = (p: GenerateProgress) => void
 
-function javaMajor(path: string): (JavaInfo & { major: number }) | null {
-  // `java -version` writes to stderr, so read both streams.
-  const r = spawnSync(path, ['-version'], { encoding: 'utf8', timeout: 10000 })
-  if (r.error) return null
-  return parseJavaVersion(path, `${r.stderr ?? ''}\n${r.stdout ?? ''}`)
+function javaMajor(path: string): Promise<(JavaInfo & { major: number }) | null> {
+  // `java -version` writes to stderr, so read both streams. Async, so probing never freezes the app.
+  return new Promise((resolve) =>
+    execFile(path, ['-version'], { encoding: 'utf8', timeout: 10000, windowsHide: true }, (err, stdout, stderr) =>
+      resolve(err && !stderr ? null : parseJavaVersion(path, `${stderr ?? ''}\n${stdout ?? ''}`))
+    )
+  )
 }
 
 function parseJavaVersion(path: string, text: string): (JavaInfo & { major: number }) | null {
@@ -41,7 +43,7 @@ function parseJavaVersion(path: string, text: string): (JavaInfo & { major: numb
   return { path, version: m[1], major }
 }
 
-let javas: (JavaInfo & { major: number })[] | null = null
+let javas: Promise<(JavaInfo & { major: number })[]> | null = null
 
 /** Forget the probed runtimes (after installing one). */
 export function rescanJava(): void {
@@ -73,13 +75,12 @@ function javaOnPath(): string[] {
     .slice(0, 1)
 }
 
-/** The newest Java at least `minMajor`. Runtimes are probed once per app run (each probe starts a JVM). */
-export function findJava(minMajor = 0): (JavaInfo & { major: number }) | null {
-  javas ??= [...launcherJavaCandidates(), ...javaOnPath()]
-    .map((p) => javaMajor(p))
-    .filter((j): j is JavaInfo & { major: number } => !!j)
-    .sort((a, b) => b.major - a.major)
-  return javas.find((j) => j.major >= minMajor) ?? null
+/** The newest Java at least `minMajor`. Runtimes are probed once per app run, in parallel (each probe starts a JVM). */
+export async function findJava(minMajor = 0): Promise<(JavaInfo & { major: number }) | null> {
+  javas ??= Promise.all([...launcherJavaCandidates(), ...javaOnPath()].map((p) => javaMajor(p))).then((all) =>
+    all.filter((j): j is JavaInfo & { major: number } => !!j).sort((a, b) => b.major - a.major)
+  )
+  return (await javas).find((j) => j.major >= minMajor) ?? null
 }
 
 const freePort = (): Promise<number> =>
@@ -138,10 +139,18 @@ class ServerSession {
     }
     this.proc.stdout.on('data', feed)
     this.proc.stderr.on('data', feed)
-    this.proc.on('exit', () => {
+    const ended = (): void => {
+      if (this.exited) return
       this.exited = true
       this.listeners.forEach((l) => l('__EXIT__'))
+    }
+    this.proc.on('exit', ended)
+    // A Java that fails to start, or a write after the server quit, must not crash the app.
+    this.proc.on('error', (e) => {
+      this.tail.push(`ERROR: ${e.message}`)
+      ended()
     })
+    this.proc.stdin.on('error', () => undefined)
   }
 
   /** The most telling recent server lines (errors and warnings first), for error messages. */
@@ -157,6 +166,7 @@ class ServerSession {
   }
 
   send(command: string): void {
+    if (this.exited || this.proc.stdin.destroyed) return
     this.proc.stdin.write(`${command}\n`)
   }
 
@@ -183,6 +193,7 @@ class ServerSession {
         if (line === '__EXIT__') {
           clearTimeout(timer)
           this.listeners.delete(listener)
+          signal?.removeEventListener('abort', onAbort)
           reject(new Error(`Minecraft server exited while waiting to ${what}${this.why()}`))
           return
         }
@@ -192,6 +203,7 @@ class ServerSession {
         } catch (e) {
           clearTimeout(timer)
           this.listeners.delete(listener)
+          signal?.removeEventListener('abort', onAbort)
           reject(e)
           return
         }
@@ -210,10 +222,11 @@ class ServerSession {
     if (!this.exited) this.proc.kill()
   }
 
-  async stop(): Promise<void> {
+  /** An orderly stop; after `graceMs` the server is killed (its world is only a disposable cache). */
+  async stop(graceMs = 20000): Promise<void> {
     if (this.exited) return
     this.send('stop')
-    await this.waitFor((l) => l === '__EXIT__', 20000, 'stop').catch(() => this.proc.kill())
+    await this.waitFor((l) => l === '__EXIT__', graceMs, 'stop').catch(() => this.proc.kill())
   }
 
   world(): string {
@@ -226,12 +239,17 @@ class ServerSession {
 }
 
 let session: ServerSession | null = null
+/** A server still starting up (not yet `session`), so quitting mid-start never leaves its JVM running. */
+let pending: ServerSession | null = null
 let starting: Promise<ServerSession> | null = null
 let idleTimer: NodeJS.Timeout | null = null
 
-export async function shutdownGenerator(): Promise<void> {
+/** Stops the server. `quick` (on quit) gives it a few seconds to save before killing it. */
+export async function shutdownGenerator(quick = false): Promise<void> {
   if (idleTimer) clearTimeout(idleTimer)
-  await session?.stop()
+  pending?.kill()
+  pending = null
+  await session?.stop(quick ? 3000 : 20000)
   session = null
 }
 
@@ -285,7 +303,7 @@ async function ensureSession(version: string, seed: string, progress: Progress):
     progress({ stage: 'download', message: 'Checking official server jar…' })
     const vj = await ensureServerJar(version, jar, (m) => progress({ stage: 'download', message: m }))
     const need = vj.javaVersion?.majorVersion ?? 17
-    const java = findJava(need)
+    const java = await findJava(need)
     if (!java)
       throw new Error(
         `Java ${need}+ is required. Use "Install Java" in the Biomes tab (one click), or launch this version once in the official launcher.`
@@ -298,7 +316,16 @@ async function ensureSession(version: string, seed: string, progress: Progress):
       if (/Preparing spawn area|Preparing level/.test(line))
         progress({ stage: 'start', message: line.replace(/^\[.*?\]: /, '') })
     })
-    await s.waitFor(isServerReady, 10 * 60 * 1000, 'finish starting')
+    pending = s
+    try {
+      await s.waitFor(isServerReady, 10 * 60 * 1000, 'finish starting')
+    } catch (e) {
+      s.kill()
+      throw e
+    } finally {
+      if (pending === s) pending = null
+    }
+    if (s.exited) throw new Error('The world generator was stopped while starting')
     // Nothing needs to tick in this world: no fire spreading through the captured trees, no mobs, no weather.
     for (const rule of SERVER_GAMERULES) s.send(`gamerule ${rule}`)
     session = s
@@ -368,7 +395,9 @@ async function generateNow(job: Job, progress: Progress, signal?: AbortSignal): 
   progress({ stage: 'generate', message: `Generating chunks around ${found.x}, ${found.z}…` })
   s.send(`execute in ${dim} run forceload add ${x1} ${z1} ${x2} ${z2}`)
 
-  const cache = (): ChunkCache => new ChunkCache(s.regionSource(job.dimension))
+  // A fresh cache per check (region files change while the server saves); the last one that passed is reused.
+  let lastCache: ChunkCache | null = null
+  const cache = (): ChunkCache => (lastCache = new ChunkCache(s.regionSource(job.dimension)))
   const deadline = Date.now() + 90 * 1000
   let saves = 0
   // One cheap question instead of saving the whole world over and over: "is every chunk of the area loaded?"
@@ -436,7 +465,7 @@ async function generateNow(job: Job, progress: Progress, signal?: AbortSignal): 
 
   progress({ stage: 'extract', message: 'Reading blocks…' })
   const underground = job.dimension === 'the_nether' || CAVE_BIOMES.includes(biome.replace('minecraft:', ''))
-  const terrain = extractTerrain(cache(), {
+  const terrain = extractTerrain(lastCache ?? cache(), {
     centerX: found.x,
     centerZ: found.z,
     size: job.size,

@@ -4,7 +4,7 @@ import { BlendFunction, Effect, LUT3DEffect, Pass, type EffectComposer as Compos
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import * as THREE from 'three'
 import { useStore, type EffectSettings, type SceneSettings } from '../store'
-import { ColorGrade } from './colorGrade'
+import { ColorGradeEffect } from './colorGrade'
 import { withShaderLook } from '../renderModes'
 import { Cartoon } from './cartoon'
 import { FocusBlurEffect } from './focusBlur'
@@ -231,12 +231,11 @@ export function Effects(): ReactNode {
   const cartoon = renderMode === 'cartoon'
   const active = hasEffects(e) || cartoon
 
-  useEffect(() => {
-    composerHandle.current = active ? ref.current : null
-  })
-
   // Runs before the composer renders (priority 0 < 1): keep every pass on the composer's current depth.
   useFrame(() => {
+    // Set here, not in an effect: the composer fills `ref` in its own later render, and an export taken in
+    // between would otherwise skip every effect.
+    composerHandle.current = active ? ref.current : null
     // The scene's depth lives on the composer's input buffer (the RenderPass target). The composer's own
     // `depthTexture` field (internal, untyped) can be left null after a rebuild, so prefer the buffer's.
     const c = ref.current as (Composer & { depthTexture?: THREE.DepthTexture | null }) | null
@@ -289,16 +288,21 @@ export function Effects(): ReactNode {
     )
   if (hasGrade(e))
     effects.push(
-      <ColorGrade
+      <CustomEffect
         key="grade"
-        exposure={e.exposure}
-        contrast={e.contrast}
-        saturation={e.saturation}
-        temperature={e.temperature}
-        tint={e.tint}
-        shadowTint={e.shadowTint}
-        highlightTint={e.highlightTint}
-        split={e.split}
+        make={() => new ColorGradeEffect()}
+        apply={(g) =>
+          g.set({
+            exposure: e.exposure,
+            contrast: e.contrast,
+            saturation: e.saturation,
+            temperature: e.temperature,
+            tint: e.tint,
+            shadowTint: e.shadowTint,
+            highlightTint: e.highlightTint,
+            split: e.split
+          })
+        }
       />
     )
   // The look comes after the manual adjustments, like a creative LUT after primary correction.

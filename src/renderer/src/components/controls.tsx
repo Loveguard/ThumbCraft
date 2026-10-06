@@ -112,6 +112,8 @@ export function ScrubNumber({
         if (drag.current && !drag.current.moved) setEditing(true)
         drag.current = null
       }}
+      onPointerCancel={() => (drag.current = null)}
+      onLostPointerCapture={() => (drag.current = null)}
     >
       {label && <em className={axis ? `axis-${axis}` : undefined}>{label}</em>}
       {shown}

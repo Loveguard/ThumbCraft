@@ -1,4 +1,3 @@
-import { wrapEffect } from '@react-three/postprocessing'
 import { Effect } from 'postprocessing'
 import * as THREE from 'three'
 
@@ -58,6 +57,17 @@ export class ColorGradeEffect extends Effect {
       ])
     })
   }
-}
 
-export const ColorGrade = wrapEffect(ColorGradeEffect)
+  /** Updates the grade in place (no shader rebuild, so dragging a slider stays smooth). */
+  set(o: ColorGradeOptions): void {
+    const u = (name: string): THREE.Uniform => this.uniforms.get(name)!
+    u('exposure').value = o.exposure ?? 0
+    u('contrast').value = o.contrast ?? 0
+    u('saturation').value = o.saturation ?? 0
+    u('temperature').value = o.temperature ?? 0
+    u('tint').value = o.tint ?? 0
+    ;(u('shadowTint').value as THREE.Color).set(o.shadowTint ?? '#808080').convertLinearToSRGB()
+    ;(u('highlightTint').value as THREE.Color).set(o.highlightTint ?? '#808080').convertLinearToSRGB()
+    u('split').value = o.split ?? 0
+  }
+}

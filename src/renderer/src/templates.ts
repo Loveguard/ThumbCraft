@@ -542,14 +542,29 @@ export async function applyTemplate(t: Template): Promise<void> {
   for (const p of t.players) if (p.username) void wearSkin(p.name, p.username)
 }
 
+/** True while the user hasn't edited the freshly applied template (its late loads keep it that way). */
+const untouched = (): boolean => useStore.getState().past.length === 0
+
+/**
+ * After a template's late load (skins, pieces, models, mobs): if the user hadn't touched the scene yet, it is
+ * still a fresh start with nothing to undo or save. Once they have, their history and unsaved state stay.
+ */
+function settle(pristine: boolean, deselect = true): void {
+  if (!pristine) return
+  useStore.setState({ ...(deselect ? { selectedId: null } : {}), past: [], future: [] })
+  markClean()
+}
+
 /** Puts an account's skin on the template player of that name, if Mojang knows the account. */
 async function wearSkin(name: string, username: string): Promise<void> {
+  const projectId = useStore.getState().project.id
   try {
     const skin = await window.blockframe.fetchSkin(username)
+    if (useStore.getState().project.id !== projectId) return
+    const pristine = untouched()
     const o = useStore.getState().objects.find((x) => x.kind === 'player' && x.name === name)
     if (o) useStore.getState().update(o.id, { skinUrl: skin.skinDataUrl, slim: skin.model === 'slim' })
-    useStore.setState({ past: [], future: [] })
-    markClean()
+    settle(pristine, false)
   } catch {
     /* offline, or no such account: the default skin stays */
   }
@@ -558,6 +573,7 @@ async function wearSkin(name: string, username: string): Promise<void> {
 /** Loads a template's structure pieces from the game (remixing them if asked) once the scene is up. */
 async function addTemplatePieces(pieces: PieceSpec[]): Promise<void> {
   const projectId = useStore.getState().project.id
+  let pristine = true
   for (const [i, p] of pieces.entries()) {
     let t: TerrainData
     try {
@@ -566,19 +582,20 @@ async function addTemplatePieces(pieces: PieceSpec[]): Promise<void> {
       continue // this version doesn't have the piece
     }
     if (useStore.getState().project.id !== projectId) return
+    pristine &&= untouched()
     if (p.remix === 'scramble') t = scrambleBlocks(t, i + 1)
     if (p.remix === 'ruin') t = ruinBlocks(t, i + 1)
     addTerrain(t, p.id.split('/').pop()!.replace(/_/g, ' '), p.at)
     const added = useStore.getState().objects.at(-1)
     if (added) useStore.getState().update(added.id, { rotation: p.rotation ?? [0, 0, 0], scale: p.scale ?? 1 })
   }
-  useStore.setState({ selectedId: null, past: [], future: [] })
-  markClean()
+  settle(pristine)
 }
 
 /** Loads a template's Blender models (shipped next to the app) and places them where they were built. */
 async function addTemplateModels(models: ModelSpec[]): Promise<void> {
   const projectId = useStore.getState().project.id
+  let pristine = true
   for (const m of models) {
     let bytes: Uint8Array
     try {
@@ -590,6 +607,7 @@ async function addTemplateModels(models: ModelSpec[]): Promise<void> {
       continue
     }
     if (useStore.getState().project.id !== projectId) return
+    pristine &&= untouched()
     const media = registerMedia(`${m.file}.glb`, 'model/gltf-binary', bytes)
     const anchor = SECRET_ANCHORS[m.file] as Vec3
     const o = m.offset ?? [0, 0, 0]
@@ -605,8 +623,7 @@ async function addTemplateModels(models: ModelSpec[]): Promise<void> {
       scale: 1
     })
   }
-  useStore.setState({ selectedId: null, past: [], future: [] })
-  markClean()
+  settle(pristine)
 }
 
 /** Adds a template's mobs once the game's mob models are ready (they are read from the jar on first use). */
@@ -621,6 +638,7 @@ async function addTemplateMobs(mobs: MobSpec[]): Promise<void> {
   }
   const s = useStore.getState()
   if (s.project.id !== projectId) return // the user moved on to another scene meanwhile
+  const pristine = untouched()
   for (const m of mobs) {
     const key = [m.mob, m.fallback].map((id) => `minecraft:${id}#main`).find((k) => models.layers[k])
     if (!key) continue
@@ -642,6 +660,5 @@ async function addTemplateMobs(mobs: MobSpec[]): Promise<void> {
     })
   }
   // Mobs arriving later aren't an edit to undo, and none of them should end up selected.
-  useStore.setState({ selectedId: null, past: [], future: [] })
-  markClean()
+  settle(pristine)
 }

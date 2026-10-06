@@ -419,6 +419,8 @@ kbd {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  /* Above the focus points, so menus and bars stay clickable while depth of field is on. */
+  z-index: 5;
 }
 .overlay > * {
   pointer-events: auto;

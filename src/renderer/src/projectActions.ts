@@ -59,7 +59,9 @@ function afterOpen(opened: { name: string; minecraftVersion: string | null }): v
 export async function openProjectFile(): Promise<void> {
   try {
     const r = await window.blockframe.openProject()
-    if (r) afterOpen(loadProject(r.bytes, r.path))
+    if (!r) return
+    await flushAutosave()
+    afterOpen(loadProject(r.bytes, r.path))
   } catch (e) {
     report(e)
   }
@@ -68,6 +70,7 @@ export async function openProjectFile(): Promise<void> {
 export async function openRecentProject(id: string): Promise<void> {
   try {
     const r = await window.blockframe.openRecent(id)
+    await flushAutosave()
     afterOpen(loadProject(r.bytes, r.path))
   } catch (e) {
     report(e)
@@ -87,12 +90,13 @@ let autosaveDirty = false
 let lastChange = 0
 let saving: Promise<void> | null = null
 
-/** Writes the recovery copy now if anything changed. */
-export function flushAutosave(): Promise<void> {
+/** Writes the recovery copy now if anything changed (waiting out a save already running, which may be stale). */
+export async function flushAutosave(): Promise<void> {
+  while (saving) await saving
   const s = useStore.getState()
   pruneMedia()
-  if (!autosaveDirty || s.objects.length === 0) return Promise.resolve()
-  saving ??= (async () => {
+  if (!autosaveDirty || s.objects.length === 0) return
+  saving = (async () => {
     autosaveDirty = false
     try {
       await window.blockframe.autosaveProject(serializeProject(), meta(true))

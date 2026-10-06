@@ -66,7 +66,7 @@ export function disposeObject(root: THREE.Object3D, textures = true): void {
     const mesh = o as THREE.Mesh
     mesh.geometry?.dispose()
     for (const m of ([] as THREE.Material[]).concat(mesh.material ?? [])) {
-      if (textures) for (const v of Object.values(m)) if (v instanceof THREE.Texture) v.dispose()
+      if (textures) for (const v of Object.values(m)) if (v instanceof THREE.Texture && !v.userData.shared) v.dispose()
       m.dispose()
     }
     const target = (o as { getRenderTarget?: () => THREE.WebGLRenderTarget }).getRenderTarget
@@ -586,6 +586,7 @@ function stoneMap(): Promise<THREE.Texture | null> {
     }
     c.getContext('2d')!.putImageData(out, 0, 0)
     const t = new THREE.CanvasTexture(c)
+    t.userData.shared = true
     t.magFilter = THREE.NearestFilter
     t.minFilter = THREE.NearestFilter
     t.generateMipmaps = false

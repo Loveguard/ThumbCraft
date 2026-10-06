@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import * as THREE from 'three'
 import {
   ArrowDown,
@@ -79,7 +79,9 @@ function CameraMenu({ onClose }: { onClose: () => void }): ReactNode {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const away = (e: MouseEvent): void => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+      // The whole anchor counts as inside, so pressing the Camera button toggles the menu shut.
+      const anchor = ref.current?.closest('.menu-anchor') ?? ref.current
+      if (anchor && !anchor.contains(e.target as Node)) onClose()
     }
     window.addEventListener('mousedown', away)
     return () => window.removeEventListener('mousedown', away)
@@ -132,6 +134,7 @@ export function ViewportOverlay(): ReactNode {
   const effectsOn = useStore((s) => hasEffects(s.effects))
   const { setSettings, duplicate, remove } = useStore.getState()
   const [menu, setMenu] = useState(false)
+  const closeMenu = useCallback(() => setMenu(false), [])
 
   return (
     <div className="overlay">
@@ -177,7 +180,7 @@ export function ViewportOverlay(): ReactNode {
             <Camera size={16} />
             Camera
           </button>
-          {menu && <CameraMenu onClose={() => setMenu(false)} />}
+          {menu && <CameraMenu onClose={closeMenu} />}
         </div>
         <button
           className={`tool ${shot ? 'shot-set' : ''}`}

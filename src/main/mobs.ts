@@ -1,6 +1,6 @@
 // Exports the game's own mob models by running tools/model-dumper against the user's client jar.
 import { app } from 'electron'
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative } from 'node:path'
 import { namesFromMappings, type MobModels } from '@shared/minecraft/entityModels'
@@ -93,9 +93,18 @@ async function mappingsFor(id: string, url: string | undefined, want?: string): 
   return text
 }
 
+/** The model exporter while it runs, so quitting the app stops it too. */
+const exporters = new Set<ChildProcess>()
+
+/** Kills any running model export (on quit). */
+export async function stopMobExport(): Promise<void> {
+  exporters.forEach((p) => p.kill())
+}
+
 function run(java: string, args: string[], cwd: string, log: (line: string) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     const p = spawn(java, args, { cwd, windowsHide: true })
+    exporters.add(p)
     let all = ''
     let err = ''
     const timer = setTimeout(() => {
@@ -111,11 +120,20 @@ function run(java: string, args: string[], cwd: string, log: (line: string) => v
       err += d.toString()
       log(d.toString())
     })
-    p.on('error', reject)
+    p.on('error', (e) => {
+      exporters.delete(p)
+      clearTimeout(timer)
+      reject(e)
+    })
     p.on('exit', (code) => {
+      exporters.delete(p)
       clearTimeout(timer)
       const logFile = join(cwd, 'dumper.log')
-      writeFileSync(logFile, all)
+      try {
+        writeFileSync(logFile, all)
+      } catch {
+        // the log is only a diagnostic
+      }
       if (code === 0) return resolve()
       // Prefer the dumper's own ERROR/Caused by lines; otherwise the last lines Java printed.
       const lines = err.trim().split(/\r?\n/)
@@ -144,7 +162,7 @@ export function loadMobModels(log: (line: string) => void): Promise<MobModels> {
     const { json, root, libraries } = readVersion(version, jar)
     // The model reader is compiled for Java 17, whatever the game version needs.
     const need = Math.max(17, json.javaVersion?.majorVersion ?? 17)
-    const java = findJava(need)
+    const java = await findJava(need)
     if (!java) throw new Error(`Java ${need}+ is required to read mob models`)
 
     const work = cacheDir('mobs', `${version}-work`)
