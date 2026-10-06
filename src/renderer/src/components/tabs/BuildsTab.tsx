@@ -1,0 +1,191 @@
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { searchStructures } from '@shared/minecraft/schematics'
+import { assetContext } from '../../minecraft/assets'
+import { structureThumbnail } from '../../minecraft/thumbnails'
+import { placeNew } from '../../placement'
+import { addTerrain } from '../../sceneActions'
+import { useStore } from '../../store'
+import { errorText } from '../../errors'
+import { groupStructures, structureCategories, VILLAGE_BIOMES, type PieceKind } from '../../structureGroups'
+import { Hint, Toggle } from '../controls'
+
+const pretty = (id: string): string => {
+  const parts = id.split('/')
+  return parts[parts.length - 1].replace(/_/g, ' ')
+}
+
+/** The piece rendered isometrically from the game's own blocks, once it scrolls into view. */
+function StructureIcon({ id }: { id: string }): ReactNode {
+  const assets = useStore((s) => s.assets)
+  const ref = useRef<HTMLSpanElement>(null)
+  const [src, setSrc] = useState<string | null>(null)
+  useEffect(() => {
+    const el = ref.current
+    const ctx = assetContext(assets)
+    if (!el || !ctx) return
+    let alive = true
+    setSrc(null)
+    const io = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting) return
+      io.disconnect()
+      void structureThumbnail(ctx, id).then((u) => alive && setSrc(u))
+    })
+    io.observe(el)
+    return () => {
+      alive = false
+      io.disconnect()
+    }
+  }, [assets, id])
+  return (
+    <span ref={ref} className="asset-thumb">
+      {src && <img src={src} alt="" />}
+    </span>
+  )
+}
+
+/** One piece; its numbered variants are stepped through with the arrows instead of listed. */
+function PieceCard({ kind, busy, onAdd }: { kind: PieceKind; busy: string; onAdd: (id: string) => void }): ReactNode {
+  const [v, setV] = useState(0)
+  const n = kind.ids.length
+  const id = kind.ids[v % n]
+  const name = `${kind.label}${n > 1 ? ` · ${(v % n) + 1}/${n}` : ''}`
+  return (
+    <div className="piece-card">
+      <button className="asset-card" disabled={!!busy} onClick={() => onAdd(id)} title={name} aria-label={name}>
+        <StructureIcon id={id} />
+        <span className="asset-name">{busy === id ? 'Adding…' : name}</span>
+      </button>
+      {n > 1 && (
+        <>
+          <button className="piece-step prev" title="Previous variant" onClick={() => setV((v + n - 1) % n)}>
+            <ChevronLeft size={13} />
+          </button>
+          <button className="piece-step next" title="Next variant" onClick={() => setV((v + 1) % n)}>
+            <ChevronRight size={13} />
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+export function BuildsTab(): ReactNode {
+  const assets = useStore((s) => s.assets)!
+  const [query, setQuery] = useState('')
+  const [category, setCategory] = useState('village')
+  const [biome, setBiome] = useState<(typeof VILLAGE_BIOMES)[number]>('plains')
+  const [zombie, setZombie] = useState(false)
+  const [busy, setBusy] = useState('')
+  const categories = useMemo(() => structureCategories(assets.structures), [assets])
+  const buildings = useMemo(() => categories.flatMap((c) => c.ids), [categories])
+  const shown = useMemo(() => {
+    if (query.trim()) return searchStructures(buildings, query)
+    const ids = categories.find((c) => c.id === category)?.ids ?? []
+    if (category !== 'village') return ids
+    return ids.filter((id) => id.startsWith(`village/${biome}/`) && id.includes('/zombie/') === zombie)
+  }, [categories, buildings, query, category, biome, zombie])
+  const sections = useMemo(() => groupStructures(shown), [shown])
+  const setStatus = useStore.getState().setStatus
+
+  const addStructure = async (id: string): Promise<void> => {
+    setBusy(id)
+    try {
+      const t = await window.blockframe.loadStructure(id)
+      addTerrain(t, pretty(id), placeNew('grid', Math.max(t.sizeX, t.sizeZ) / 2).position)
+    } catch (e) {
+      setStatus(errorText(e))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const importFile = async (): Promise<void> => {
+    try {
+      const r = await window.blockframe.importSchematic()
+      if (r) addTerrain(r.terrain, r.name, placeNew('grid', Math.max(r.terrain.sizeX, r.terrain.sizeZ) / 2).position)
+    } catch (e) {
+      setStatus(errorText(e))
+    }
+  }
+
+  const q = encodeURIComponent(query || 'minecraft build')
+  return (
+    <div className="tab-body">
+      <label className="field">
+        <span>Search</span>
+        <input value={query} placeholder="house, portal, ship…" onChange={(e) => setQuery(e.target.value)} />
+      </label>
+      <div className="chips">
+        {categories.map((c) => (
+          <button
+            key={c.id}
+            className={`chip ${!query && category === c.id ? 'active' : ''}`}
+            onClick={() => {
+              setCategory(c.id)
+              setQuery('')
+            }}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+      {!query && category === 'village' && (
+        <div className="village-filter">
+          <div className="segmented">
+            {VILLAGE_BIOMES.map((b) => (
+              <button key={b} className={biome === b ? 'active' : ''} onClick={() => setBiome(b)}>
+                {b.charAt(0).toUpperCase() + b.slice(1)}
+              </button>
+            ))}
+          </div>
+          <Toggle label="Zombie village" checked={zombie} onChange={setZombie} />
+        </div>
+      )}
+      {sections.map((section) => (
+        <div key={section.label} className="piece-section">
+          {(sections.length > 1 || query) && <h4>{section.label}</h4>}
+          <div className="card-grid">
+            {section.kinds.map((k) => (
+              <PieceCard key={k.ids[0]} kind={k} busy={busy} onAdd={addStructure} />
+            ))}
+          </div>
+        </div>
+      ))}
+      {shown.length === 0 && <p className="hint">{query ? `No buildings match “${query}”.` : 'Nothing here.'}</p>}
+      <Hint label="About these buildings">
+        Pieces from Minecraft {assets.version}, exactly as the game stores them. Use the arrows on a tile to step
+        through its variants. Village pieces appear before the game's random block swaps (mossy, cracked…).
+      </Hint>
+      <hr />
+      <button className="primary" onClick={importFile}>
+        Import schematic file…
+      </button>
+      <Hint label="Supported files">
+        Supports .schem (WorldEdit/Sponge), .litematic (Litematica) and structure-block .nbt files.
+      </Hint>
+      <div className="links">
+        <a href={`https://www.planetminecraft.com/projects/?keywords=${q}`} target="_blank" rel="noreferrer">
+          Planet Minecraft
+        </a>
+        <a
+          href={`https://www.google.com/search?q=site%3Aminecraft-schematics.com+${q}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          minecraft-schematics.com
+        </a>
+        <a
+          href={`https://www.google.com/search?q=${q}+schematic+.schem+OR+.litematic`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Web search
+        </a>
+      </div>
+      <Hint label="About these sites">
+        These sites have no public API, so they open in your browser. Download a file, then import it here.
+      </Hint>
+    </div>
+  )
+}

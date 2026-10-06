@@ -1,0 +1,65 @@
+appId: com.thumbcraft.app
+productName: ThumbCraft
+directories:
+  output: release
+  # icon.png (1024²) here becomes the Windows .ico and macOS .icns.
+  buildResources: build
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: resources/
+    to: model-dumper/
+    filter: ['**/*.class']
+  # On-device background removal (MediaPipe, Apache 2.0): its WebAssembly runtime and the selfie model.
+  - from: node_modules/@mediapipe/tasks-vision/wasm/
+    to: mediapipe/
+    filter: ['vision_wasm_internal.js', 'vision_wasm_internal.wasm']
+  - from: resources/models/
+    to: mediapipe/
+  # Licences of everything bundled (fonts, MediaPipe, libraries).
+  - from: THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
+  - from: LICENSE
+    to: LICENSE.txt
+# Lock down the Electron binary: it can't be run as plain Node, take NODE_OPTIONS or a debugger flag,
+# or load app code that was changed after packaging.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  enableCookieEncryption: true
+# Releases (and the Windows auto-updater's feed) live on GitHub.
+publish:
+  provider: github
+  owner: Loveguard
+  repo: ThumbCraft
+  releaseType: release
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-Setup-${version}.${ext}
+  shortcutName: ThumbCraft
+  # Removes settings, recovery copies and the generator cache (server jars, worlds) on a real uninstall.
+  deleteAppDataOnUninstall: true
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
+mac:
+  target:
+    - target: dmg
+      arch: [universal]
+  category: public.app-category.graphics-design
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Not notarised: an ad-hoc signature, which Apple Silicon needs to run the app at all. First launch is
+  # right-click > Open (see README).
+  identity: '-'

@@ -1,0 +1,69 @@
+name: Release
+
+# Push a version tag (e.g. `npm version minor && git push --follow-tags`) to build the Windows installer,
+# the portable .exe and the macOS app, and publish them as a GitHub release.
+on:
+  push:
+    tags: ['v*']
+
+# Building runs every npm package's code, so it gets a read-only token; only the small publish job, which
+# runs no npm code at all, may write the release.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win
+          - os: macos-latest
+            target: --mac
+    runs-on: ${{ matrix.os }}
+    steps:
+      # Actions are pinned to exact commits (tags can be moved); the comment says which release.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm test
+      # The mob-model helper ships compiled from its source here, never from a committed binary.
+      - run: npm run build:dumper
+      - run: npx electron-vite build
+      - run: npx electron-builder ${{ matrix.target }} --publish never
+        env:
+          # No paid signing certificate: Windows builds are unsigned, macOS ones ad-hoc signed.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.blockmap
+            release/latest*.yml
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: dist
+          merge-multiple: true
+      # latest.yml (Windows) and latest-mac.yml are what installed copies check for updates.
+      - run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "ThumbCraft $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
