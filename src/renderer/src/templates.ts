@@ -439,7 +439,8 @@ const focusOn = (x: number, y: number, blur = 3): Partial<EffectSettings> => ({
   dofRange: 0.35,
   focusPoints: [{ x, y }]
 })
-const DIAMOND_KIT: Partial<Equipment> = { head: 'diamond', chest: 'diamond', legs: 'diamond', feet: 'diamond' }
+/** Diamond armour, helmet left off so the face shows. */
+const DIAMOND_KIT: Partial<Equipment> = { chest: 'diamond', legs: 'diamond', feet: 'diamond' }
 
 /**
  * Draft layouts for reworking the presets: two very different takes on each (A: tight close-up of the hero with a big
@@ -456,7 +457,7 @@ export const TEMPLATE_DRAFTS: Template[] = [
     look: 'teal-orange',
     effects: { bloom: true, bloomIntensity: 1, bloomThreshold: 0.6, vignette: true, ...focusOn(0.3, 0.45) },
     settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.4, fog: false },
-    players: [{ name: 'Steve', pose: 'Shocked', at: [-0.9, 0, 0.5], yaw: 22 }],
+    players: [{ name: 'Steve', pose: 'Pointing', at: [-0.9, 0, 0.5], yaw: 55 }],
     vfx: [{ effect: 'shine', at: [0.35, 0.2, -0.6], color: '#9ff3ff', density: 0.4, scale: 0.6 }],
     texts: [{ text: 'DIAMONDS?!', color: '#7df9ff', style: 'Diamond', screen: [0.4, 0.42], height: 0.2 }],
     lights: [
@@ -516,7 +517,7 @@ export const TEMPLATE_DRAFTS: Template[] = [
     name: '100 days stranded · B',
     hint: 'Worm’s-eye victory into the setting sun, title across the top',
     backdrop: 'island',
-    sky: 'golden',
+    sky: 'clear',
     look: 'golden',
     effects: {
       bloom: true,
@@ -526,7 +527,7 @@ export const TEMPLATE_DRAFTS: Template[] = [
       godRaysIntensity: 0.35,
       vignette: true
     },
-    settings: { ...DAY, sunAzimuth: 180, sunElevation: 18 },
+    settings: { ...DAY, sunAzimuth: 180, sunElevation: 30 },
     players: [
       {
         name: 'Steve',
@@ -548,7 +549,7 @@ export const TEMPLATE_DRAFTS: Template[] = [
     backdrop: 'meadow',
     sky: 'sunset',
     look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 0.6, bloomThreshold: 0.85, vignette: true, ...focusOn(0.5, 0.4, 2.5) },
+    effects: { bloom: false, vignette: true, ...focusOn(0.5, 0.4, 2.5) },
     settings: { ...DAY, sunAzimuth: 0, sunElevation: 10 },
     players: [
       {
@@ -556,7 +557,7 @@ export const TEMPLATE_DRAFTS: Template[] = [
         pose: 'Blocking',
         at: [-0.8, 0, 0.6],
         yaw: 90,
-        equipment: { ...DIAMOND_KIT, mainHand: 'diamond_sword', offHand: 'shield' }
+        equipment: { chest: 'diamond', mainHand: 'diamond_sword', offHand: 'shield' }
       },
       {
         name: 'Alex',
@@ -616,12 +617,12 @@ export const TEMPLATE_DRAFTS: Template[] = [
     players: [{ name: 'Steve', pose: 'Leaping', at: [0, 1.4, 1.2], yaw: 40 }],
     mobs: [{ mob: 'ghast', at: [-3, 7, -8], yaw: 20 }],
     vfx: [{ effect: 'embers', at: [0, -2, 0], color: '#ff9c3a', density: 0.7, scale: 1.4 }],
-    texts: [{ text: 'ESCAPE?!', color: RED, style: 'Fire', screen: [0.42, 0.55], height: 0.22 }],
+    texts: [{ text: 'ESCAPE?!', color: RED, style: 'Fire', screen: [-0.42, 0.6], height: 0.22 }],
     lights: [
       { at: [0, -2.5, 1.2], color: '#ff6a1f', intensity: 120, range: 14 },
       { at: [2, 3, 5], aim: [0, 2, 1.2], color: '#ffd2a1', intensity: 60, range: 12 }
     ],
-    camera: { position: [1.3, 0.6, 4.6], target: [-0.3, 2.3, 1.2] },
+    camera: { position: [2.6, 3.4, 5.6], target: [-0.2, 0.6, 0.6] },
     fov: 46
   },
   {
@@ -655,7 +656,7 @@ export const TEMPLATE_DRAFTS: Template[] = [
     effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, ...focusOn(0.28, 0.42, 3.5) },
     settings: { renderMode: 'cinematic', sunStrength: 0.15, ambientStrength: 0.35, fog: true },
     players: [
-      { name: 'Steve', pose: 'Shocked', at: [-0.95, 0, 2.6], yaw: 25, equipment: { mainHand: 'iron_sword' } },
+      { name: 'Steve', pose: 'Blocking', at: [-0.95, 0, 2.6], yaw: 30, equipment: { mainHand: 'iron_sword' } },
       ...(
         [
           ['Kai', 'kai', false, [1.0, 0, -1.0], 'Sprinting', 'netherite_sword'],
@@ -721,9 +722,9 @@ export const TEMPLATE_DRAFTS: Template[] = [
     hint: 'Mid-shot of you, zombies pressing in from both sides',
     backdrop: 'forest',
     sky: 'night',
-    look: 'night',
+    look: 'teal-orange',
     effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, ...focusOn(0.5, 0.42, 3) },
-    settings: { renderMode: 'cinematic', ...NIGHT_LIGHTING, fog: true },
+    settings: { renderMode: 'cinematic', sunStrength: 0.25, ambientStrength: 0.55, fog: true },
     players: [{ name: 'Steve', pose: 'Blocking', at: [0, 0, 1.4], yaw: 0, equipment: { mainHand: 'diamond_sword' } }],
     mobs: [
       horde('zombie', [-1.5, 0, 2.2]),
@@ -749,9 +750,9 @@ export const TEMPLATE_DRAFTS: Template[] = [
     hint: 'From inside the horde, a zombie looming in front of you',
     backdrop: 'forest',
     sky: 'night',
-    look: 'night',
+    look: 'teal-orange',
     effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, ...focusOn(0.62, 0.48, 3.5) },
-    settings: { renderMode: 'cinematic', ...NIGHT_LIGHTING, fog: true },
+    settings: { renderMode: 'cinematic', sunStrength: 0.25, ambientStrength: 0.55, fog: true },
     players: [{ name: 'Steve', pose: 'Blocking', at: [0.6, 0, 0.4], yaw: 0, equipment: { mainHand: 'diamond_sword' } }],
     mobs: [
       { mob: 'zombie', at: [-0.75, 0, 4.0], yaw: 165, parts: ARMS_OUT },
@@ -762,10 +763,11 @@ export const TEMPLATE_DRAFTS: Template[] = [
     texts: [{ text: '1 VS 100', color: '#ffffff', style: 'Bold white', screen: [0.45, 0.62], height: 0.2 }],
     lights: [
       { at: [0.6, 4, -1.5], aim: [0.6, 1.4, 0.4], color: '#8fe8ff', intensity: 160, range: 12 },
-      { at: [1.6, 2, 3], aim: [0.6, 1.4, 0.4], color: '#cfe6ff', intensity: 60, range: 8 }
+      { at: [1.6, 2, 3], aim: [0.6, 1.4, 0.4], color: '#cfe6ff', intensity: 90, range: 8 },
+      { at: [-0.2, 3, 2.5], color: '#7fd0ff', intensity: 40, range: 4 }
     ],
-    camera: { position: [-0.45, 1.7, 5.6], target: [0.6, 1.25, 0.4] },
-    fov: 42
+    camera: { position: [-0.35, 1.7, 5.2], target: [0.6, 1.3, 0.4] },
+    fov: 38
   }
 ]
 
