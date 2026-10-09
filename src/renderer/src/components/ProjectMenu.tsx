@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronDown, FilePlus2, FolderOpen, History, Save, SaveAll } from 'lucide-react'
+import { ChevronDown, FilePlus2, FolderOpen, History, Info, Save, SaveAll } from 'lucide-react'
 import type { RecentProject } from '@shared/api'
 import { openProjectFile, openRecentProject, saveProject, startNewProject } from '../projectActions'
 import { useStore } from '../store'
+import { AboutDialog } from './AboutDialog'
 
 export const timeAgo = (t: number): string => {
   const s = Math.round((Date.now() - t) / 1000)
@@ -18,6 +19,7 @@ export function ProjectMenu(): ReactNode {
   const setProject = useStore((s) => s.setProject)
   const [open, setOpen] = useState(false)
   const [recent, setRecent] = useState<RecentProject[]>([])
+  const [about, setAbout] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -86,8 +88,15 @@ export function ProjectMenu(): ReactNode {
               ))}
             </>
           )}
+          <div className="menu-sep" />
+          <button onClick={() => run(() => setAbout(true))}>
+            <strong>
+              <Info size={14} /> About & licences
+            </strong>
+          </button>
         </div>
       )}
+      {about && <AboutDialog onClose={() => setAbout(false)} />}
     </div>
   )
 }

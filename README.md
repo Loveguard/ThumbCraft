@@ -52,7 +52,10 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 | 💡 **Lighting & looks** | Four render modes: Vanilla, Cinematic, Soft and Cartoon (the bright cel-shaded style of Minecraft's key art). Coloured lights, bloom, god rays and a movable sun. Film-style colour looks built as real 3D LUTs, plus your own `.cube` LUTs from DaVinci Resolve or Premiere.                                                                                                        |
 | 🎯 **Focus & lens**     | Drag a focus point onto anything and it stays sharp while the rest blurs; add more points for several subjects. Lens warp (curved-TV bulge or pinch, never black corners), speed burst, anamorphic streaks, chromatic aberration, vignette, film grain and a CRT TV look.                                                                                                            |
 | 🔤 **Text & media**     | Thumbnail-style outlined text with gradients and glow, 3D text in the Minecraft font, carved **stone titles** in any colour and front-on **Hardcore titles** (every O becomes the hardcore heart). Your own images, videos and 3D models, and one-click background removal. Anything can be set **always on top** with **flat lighting**, so a title never disappears behind a tree. |
-| 📤 **Export**           | JPG or PNG at 1280×720, 1080p, 4K or Shorts size, or several at once. What you see in the viewport is exactly what you export.                                                                                                                                                                                                                                                       |
+| 🅰️ **Shots A/B/C**      | Up to three versions of a thumbnail in one project, ready for YouTube's **Test & Compare**. Each shot has its own camera and layers; a new shot copies, links or leaves out each layer, and can have its own colour look. Export all of them in one go, or two side by side as a split image.                                                                                        |
+| 🏷️ **Thumbnail kit**    | Bold arrows, circles, crosses, ticks, bursts and boxes in any colour, with outline and glow. Split images ("Day 1 vs Day 100") with a straight, torn-paper or lightning divider.                                                                                                                                                                                                     |
+| 📺 **YouTube preview**  | See every shot in a mock home feed, search results, the "up next" list and on a phone, in dark or light mode, before you upload.                                                                                                                                                                                                                                                     |
+| 📤 **Export**           | JPG or PNG at 1280×720, 1080p, 4K or Shorts size, or several at once, every shot included. What you see in the viewport is exactly what you export.                                                                                                                                                                                                                                  |
 | 💾 **Projects**         | Save and reopen scenes, with autosave and crash recovery. Projects carry everything they need, so they open the same on any PC.                                                                                                                                                                                                                                                      |
 
 [Full feature reference →](docs/FEATURES.md)
@@ -147,26 +150,37 @@ The tool rail on the left opens one panel at a time; the panel on the right edit
   on its edge adds another point.
 - **Always on top & flat lighting:** any object (a title, a player, a build) can be set to draw over everything
   and to ignore the scene's lights, so it's never hidden by a tree or half in shadow.
+- **Shots A/B/C** (bar above the viewport): **+** makes a new shot from the current one. For each layer choose
+  **Copy** (its own copy, the default), **Link** (the same layer in both: edit once, it changes in both) or
+  **Leave out**. Move the camera and change what you like; the other shots stay as they were. The A/B/C chips in
+  Layers put a layer in or out of a shot, and ⋯ gives a shot its own look. Keys **1 / 2 / 3** switch shots.
+- **Arrows & shapes** (Text panel): stickers that sit flat on the thumbnail. Drag to move, the corner handle to
+  resize, the top handle to turn.
+- **Split image** (the split button on the shot bar): two shots side by side with a straight, torn-paper or
+  lightning divider. Lean and position are adjustable.
+- **YouTube preview** (the screen button in the top bar): every shot in the home feed, search, "up next" and on a
+  phone. The video length sits in the bottom-right corner, so keep faces and text clear of it.
 - **Render mode** (Scene & lighting, right panel): Vanilla is exactly the game's look; Cinematic, Soft and
   Cartoon add a real sun with shadows.
 
 ### Shortcuts
 
-| Keys                          | Does                                      |
-| ----------------------------- | ----------------------------------------- |
-| **W / E / R**                 | Move / rotate / scale the selection       |
-| **Shift** (while moving)      | Snap to surfaces and corners              |
-| **Ctrl+click / Shift+click**  | Add to the selection (viewport or Layers) |
-| **Shift+drag** on empty space | Box-select everything inside              |
-| **Ctrl+A**                    | Select everything except the ground       |
-| **Ctrl+G / Ctrl+Shift+G**     | Group / ungroup the selection             |
-| **Shift+R**                   | Rulers and centre guides                  |
-| **Ctrl+Z / Ctrl+Y**           | Undo / redo (camera moves included)       |
-| **Ctrl+D**                    | Duplicate the selection                   |
-| **Delete**                    | Remove the selection                      |
-| **C**                         | Save the camera shot / jump back to it    |
-| **Esc**                       | Deselect                                  |
-| **Ctrl+N / Ctrl+O / Ctrl+S**  | New / open / save project                 |
+| Keys                          | Does                                         |
+| ----------------------------- | -------------------------------------------- |
+| **W / E / R**                 | Move / rotate / scale the selection          |
+| **Shift** (while moving)      | Snap to surfaces and corners                 |
+| **Ctrl+click / Shift+click**  | Add to the selection (viewport or Layers)    |
+| **Shift+drag** on empty space | Box-select everything inside                 |
+| **Ctrl+A**                    | Select everything in the shot but the ground |
+| **Ctrl+G / Ctrl+Shift+G**     | Group / ungroup the selection                |
+| **Shift+R**                   | Rulers and centre guides                     |
+| **Ctrl+Z / Ctrl+Y**           | Undo / redo (camera moves included)          |
+| **Ctrl+D**                    | Duplicate the selection                      |
+| **Delete**                    | Remove the selection                         |
+| **C**                         | Save the view / jump back to it              |
+| **1 / 2 / 3**                 | Switch to shot A / B / C                     |
+| **Esc**                       | Deselect                                     |
+| **Ctrl+N / Ctrl+O / Ctrl+S**  | New / open / save project                    |
 
 _Psst: there's a secret code somewhere. Find it, and three extra scenes unlock._
 

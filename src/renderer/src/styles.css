@@ -3414,7 +3414,8 @@ textarea:focus {
 }
 
 /* "How it looks on YouTube" preview: a mock feed in YouTube-like light/dark colours. */
-.ytp-backdrop {
+.ytp-backdrop,
+.about-backdrop {
   position: fixed;
   inset: 0;
   z-index: 100;
@@ -3669,4 +3670,78 @@ textarea:focus {
   margin: 0;
   font-size: 12.5px;
   color: var(--yt-sub);
+}
+
+/* About & licences */
+.menu-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
+}
+.about {
+  width: min(520px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 18px 22px 20px;
+  border-radius: 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-float);
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.about header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.about header strong {
+  font-size: 16px;
+  color: var(--text);
+}
+.about p {
+  margin: 0 0 10px;
+}
+.about h4 {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.about a {
+  color: var(--accent);
+}
+.about-notice {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-raised, rgba(255, 255, 255, 0.04));
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.about-fonts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+.about-fonts li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.about-fonts span {
+  color: var(--text);
+  font-size: 15px;
+}
+.about-fonts em {
+  font-style: normal;
+  color: var(--text-3);
+  font-size: 12px;
 }
