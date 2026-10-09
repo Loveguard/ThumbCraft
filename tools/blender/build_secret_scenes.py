@@ -1,4 +1,5 @@
-"""Builds the secret Loveguard scenes as .glb files with Blender (run headless):
+"""Builds the secret Loveguard scenes (thumbnail ideas for the ThumbCraft launch video) as .glb files with
+Blender (run headless):
 
     python -m venv .bpyenv && .bpyenv/bin/pip install bpy==4.2.0
     .bpyenv/bin/python tools/blender/build_secret_scenes.py [--preview DIR]
@@ -6,7 +7,7 @@
 Scenes are written in ThumbCraft's coordinates (1 unit = 1 block, y up) and exported to
 resources/secret/ (shipped next to the app and served to the page on tcres://secret/). Each file's anchor (bottom-centre of its bounds, where ThumbCraft places an
 imported model's origin) is printed so the templates can put it back exactly where it was built.
-All textures come from textures.py (original pixel art); no Minecraft files are used.
+All textures come from textures.py and artwork.py (original pixel art); no Minecraft files are used.
 """
 
 import json
@@ -18,6 +19,7 @@ import bpy
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
+import artwork as A  # noqa: E402
 import textures as T  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -178,339 +180,296 @@ def box(name, lo, hi, material):
     return o
 
 
-# ---------------------------------------------------------------- shared builders
+# ---------------------------------------------------------------- props shared by the scenes
 
 
-def noise2(x, z, seed=0):
-    return (
-        math.sin(x * 0.11 + seed) * math.cos(z * 0.09 + seed * 0.7)
-        + 0.5 * math.sin(x * 0.27 + z * 0.19 + seed * 1.3)
-        + 0.25 * math.cos(x * 0.53 - z * 0.41 + seed * 2.1)
-    )
+def metal_material(name, colour, roughness=0.35, metallic=0.8):
+    m = plain_material(name, colour, roughness)
+    m.node_tree.nodes["Principled BSDF"].inputs["Metallic"].default_value = metallic
+    return m
 
 
-def hash01(*v):
-    h = 2166136261
-    for n in v:
-        h = (h ^ (int(n) & 0xFFFFFFFF)) * 16777619 & 0xFFFFFFFF
-    h ^= h >> 13
-    h = (h * 1274126177) & 0xFFFFFFFF
-    return (h ^ (h >> 16)) / 4294967296
+def image_material(name, pixels, emission=0.0, repeat=False):
+    """A material showing one of artwork.py's pictures, pixel-sharp; `emission` makes it glow like a screen."""
+    h, w = pixels.shape[:2]
+    img = bpy.data.images.new(name, w, h, alpha=True)
+    img.pixels.foreach_set(pixels[::-1].ravel())
+    img.pack()
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    bsdf.inputs["Roughness"].default_value = 0.6
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = img
+    tex.interpolation = "Closest"
+    tex.extension = "REPEAT" if repeat else "EXTEND"
+    nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    if emission:
+        nt.links.new(tex.outputs["Color"], bsdf.inputs["Emission Color"])
+        bsdf.inputs["Emission Strength"].default_value = emission
+    return m
 
 
-def oak(blocks, x, y, z, height=6, radius=3):
-    for i in range(height):
-        blocks[(x, y + i, z)] = "oak_log"
-    top = y + height
-    for dy in range(-2, 2):
-        r = radius - (1 if dy == 1 else 0)
-        for dx in range(-r, r + 1):
-            for dz in range(-r, r + 1):
-                if dx * dx + dz * dz <= r * r + 1 and hash01(x + dx, top + dy, z + dz) > 0.06:
-                    blocks.setdefault((x + dx, top + dy, z + dz), "oak_leaves")
+def quad(name, corners, material, repeat=(1, 1)):
+    """One flat face through four ThumbCraft points (bottom-left, bottom-right, top-right, top-left as seen from
+    the front), showing the whole picture (or `repeat` copies of it)."""
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata([to_blender(c) for c in corners], [], [(0, 1, 2, 3)])
+    mesh.update()
+    uv = mesh.uv_layers.new(name="UVMap")
+    ru, rv = repeat
+    for i, (u, v) in enumerate([(0, 0), (ru, 0), (ru, rv), (0, rv)]):
+        uv.data[i].uv = (u, v)
+    mesh.materials.append(material)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
 
 
-def pine(blocks, x, y, z, height=9):
-    for i in range(height):
-        blocks[(x, y + i, z)] = "spruce_log"
-    for i in range(2, height + 2):
-        r = max(0, (height + 1 - i) // 3) + (1 if i % 2 == 0 and i < height else 0)
-        r = min(r, 3)
-        for dx in range(-r, r + 1):
-            for dz in range(-r, r + 1):
-                if abs(dx) + abs(dz) <= r + (1 if r > 1 else 0):
-                    blocks.setdefault((x + dx, y + i, z + dz), "spruce_leaves")
-    blocks[(x, y + height + 1, z)] = "spruce_leaves"
+def front_quad(name, x0, x1, y0, y1, z, material, repeat=(1, 1)):
+    """A picture facing the camera (+z) at depth z."""
+    return quad(name, [(x0, y0, z), (x1, y0, z), (x1, y1, z), (x0, y1, z)], material, repeat)
 
 
-# ---------------------------------------------------------------- scene 1: "Seeing Minecraft through AI"
+def cyl(name, a, b, radius, material, verts=16, radius2=None):
+    """A cylinder (or cone with `radius2`) from ThumbCraft point a to point b."""
+    import mathutils
+
+    pa, pb = mathutils.Vector(to_blender(a)), mathutils.Vector(to_blender(b))
+    d = pb - pa
+    if radius2 is None:
+        bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=radius, depth=d.length, location=(pa + pb) / 2)
+    else:
+        bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=radius, radius2=radius2, depth=d.length, location=(pa + pb) / 2)
+    o = bpy.context.active_object
+    o.name = name
+    o.rotation_euler = d.to_track_quat("Z", "Y").to_euler()
+    o.data.materials.append(material)
+    return o
 
 
-def scene_vision():
-    """A vivid valley seen from a grassy ledge: a river winding to a snowy peak, pine forests, two big oaks."""
-    land = {}
-    river_x = lambda z: -8 + 6 * math.sin(z * 0.05)  # noqa: E731
-    # Only what the camera sees: a wedge widening with distance in front of the ledge.
-    for z in range(-90, 8):
-        half = 14 + max(0, -z) * 0.75
-        for x in range(int(-6 - half), int(-6 + half * 0.55) + 1):
-            d_river = abs(x - river_x(z))
-            ledge = z > -6
-            # The ledge, then a drop into the valley floor; gentle hills rise either side of the river.
-            floor = -7 + 3.5 * max(0, d_river - 6) / 14 + 1.2 * noise2(x, z, 3)
-            h = 0 + 0.6 * noise2(x, z, 1) if ledge else floor
-            h = int(round(h))
-            land[(x, h, z)] = "grass"
-            land[(x, h - 1, z)] = "dirt"
-            if ledge and z <= -4:
-                # The ledge's face down to the valley.
-                for y in range(int(floor) - 1, h - 1):
-                    land[(x, y, z)] = "dirt" if hash01(x, y, z) < 0.7 else "stone"
-            if not ledge and d_river <= 3:
-                for y in range(h + 1, -5):
-                    land[(x, y, z)] = "water"
-            elif hash01(x, z, 11) < 0.02 and z > -45:
-                land[(x, h + 1, z)] = "red_flower" if hash01(x, z, 5) < 0.5 else "yellow_flower"
-            elif not ledge and d_river > 9 and z < -16 and hash01(x, z, 7) < 0.022:
-                pine(land, x, h + 1, z, 7 + int(hash01(x, z, 9) * 5))
-    oak(land, -17, 1, -1, 8, 3)
-    valley = voxel_object("Valley", land)
-
-    # A snow-capped peak at the end of the valley, from 3-unit blocks so it stays light.
-    mountain = {}
-    for gx in range(-30, 18):
-        for gz in range(-46, -32):
-            x, z = gx * 3, gz * 3
-            peak = max(0.0, 1 - math.hypot(x + 12, (z + 118) * 1.2) / 46)
-            side = max(0.0, 1 - math.hypot(x - 30, (z + 125) * 1.4) / 40) * 0.55
-            other = max(0.0, 1 - math.hypot(x + 60, (z + 122) * 1.4) / 38) * 0.6
-            h = int((max(peak, side, other) ** 1.25) * 26 + noise2(gx, gz, 5) * 1.2)
-            if h < 1:
-                continue
-            for gy in range(-3, h + 1):
-                snow_line = 13 + int(noise2(gx, gz, 8) * 1.8)
-                mountain[(gx, gy, gz)] = "snow" if gy >= snow_line else "stone"
-    peaks = voxel_object("Mountains", mountain, unit=3)
-    return [valley, peaks]
+def place(objs, at=(0, 0, 0), yaw=0.0, tilt=0.0, roll=0.0):
+    """Joins parts built around the origin into one object, then turns (degrees: yaw about y, tilt about x, roll
+    about z) and moves it to `at`, all in ThumbCraft terms."""
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    # Bake every part's own placement into its mesh first, so the joined object starts from no transform at all.
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    if len(objs) > 1:
+        bpy.ops.object.join()
+    o = bpy.context.active_object
+    # ThumbCraft y (up) is Blender z; ThumbCraft x tilt is Blender x; ThumbCraft z roll is Blender -y.
+    o.rotation_euler = (math.radians(tilt), math.radians(-roll), math.radians(yaw))
+    o.location = to_blender(at)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return o
 
 
-def scene_glasses():
-    """Black-framed glasses, sized for a player's head (0.5 blocks wide), facing +z."""
-    frame = plain_material("glasses_frame", (0.02, 0.02, 0.02), 0.35)
-    lens = plain_material("glasses_lens", (0.6, 0.75, 0.85), 0.05, alpha=0.25)
-    parts = []
-    t = 0.035
-    for side in (-1, 1):
-        cx = side * 0.13
-        x0, x1, y0, y1 = cx - 0.1, cx + 0.1, -0.07, 0.07
-        parts += [
-            box("rim_top", (x0, y1 - t, -t / 2), (x1, y1, t / 2), frame),
-            box("rim_bottom", (x0, y0, -t / 2), (x1, y0 + t, t / 2), frame),
-            box("rim_left", (x0, y0, -t / 2), (x0 + t, y1, t / 2), frame),
-            box("rim_right", (x1 - t, y0, -t / 2), (x1, y1, t / 2), frame),
-            box("lens", (x0 + t, y0 + t, -0.004), (x1 - t, y1 - t, 0.004), lens),
-            box("arm", (side * 0.255 - t / 2, y1 - t * 1.6, -0.32), (side * 0.255 + t / 2, y1 - t * 0.6, 0), frame),
-        ]
-    parts.append(box("bridge", (-0.03, 0.01, -t / 2), (0.03, 0.01 + t, t / 2), frame))
+def picture_frame(art, width, height, border, frame_mat):
+    """A framed picture standing on its bottom edge, centred on x = 0, facing +z."""
+    hw = width / 2
+    parts = [
+        front_quad("picture", -hw, hw, border, height + border, 0.06, art),
+        box("frame_back", (-hw - border, 0, -0.08), (hw + border, height + 2 * border, 0.05), frame_mat),
+        box("frame_top", (-hw - border, height + border, 0.05), (hw + border, height + 2 * border, 0.16), frame_mat),
+        box("frame_bottom", (-hw - border, 0, 0.05), (hw + border, border, 0.16), frame_mat),
+        box("frame_left", (-hw - border, 0, 0.05), (-hw, height + 2 * border, 0.16), frame_mat),
+        box("frame_right", (hw, 0, 0.05), (hw + border, height + 2 * border, 0.16), frame_mat),
+    ]
     return parts
 
 
-# ---------------------------------------------------------------- scene 2: "Who builds best?"
+# ---------------------------------------------------------------- scene 1: "It makes thumbnails?!"
 
 
-def cottage(blocks, ox, oz, swaps=None, ruin=0.0, seed=0):
-    """A small cottage (9×9 footprint). swaps(block) can replace blocks; ruin removes upper parts."""
-    put = {}
-    for x in range(9):
-        for z in range(9):
-            put[(x, 0, z)] = "cobble"
-    for y in range(1, 5):
-        for x in range(9):
-            for z in range(9):
-                edge = x in (0, 8) or z in (0, 8)
-                if not edge:
-                    continue
-                corner = x in (0, 8) and z in (0, 8)
-                window = y in (2, 3) and ((z in (0, 8) and x in (2, 3, 5, 6)) or (x in (0, 8) and z in (3, 5)))
-                door = z == 8 and x == 4 and y in (1, 2)
-                if door:
-                    continue
-                put[(x, y, z)] = "oak_log" if corner else "glass" if window else "oak_planks"
-    # Pitched roof running along x.
-    for step in range(5):
-        y = 5 + step
-        for x in range(-1, 10):
-            for z in (step - 1, 9 - step):
-                put[(x, y, z)] = "spruce_planks"
-        for x in (0, 8):
-            for z in range(step, 9 - step):
-                put[(x, y, z)] = "oak_planks"
-    for x in range(-1, 10):
-        put[(x, 9, 4)] = "spruce_planks"
-    for y in range(6, 11):
-        put[(6, y, 2)] = "cobble"
-    top = max(y for (_, y, _) in put)
-    for (x, y, z), b in put.items():
-        if ruin and y > 1:
-            gone = hash01(x, y, z, seed) < ruin * (0.35 + y / top) + (0.4 if x > 4 and y > 2 else 0) * ruin
-            if gone:
-                if hash01(x, z, seed + 3) < 0.35:
-                    rx, rz = x + int(hash01(x, y, seed) * 5) - 2, z + int(hash01(z, y, seed) * 5) - 2
-                    blocks.setdefault((ox + rx, 1, oz + rz), "cobble" if b == "cobble" else "oak_planks")
-                continue
-        blocks[(ox + x, y, oz + z)] = swaps(b, x, y, z) if swaps else b
+def scene_machine():
+    """A blocky thumbnail machine: cobblestone rides a conveyor in, a glowing framed thumbnail comes out."""
+    body = metal_material("machine_body", (0.55, 0.58, 0.62), 0.38, 0.75)
+    trim = metal_material("machine_trim", (0.16, 0.17, 0.19), 0.45, 0.6)
+    red = plain_material("button_red", (0.85, 0.08, 0.06), 0.35, emission=(1, 0.1, 0.05), strength=1.5)
+    hole = plain_material("intake", (0.01, 0.01, 0.01), 1.0)
+    gold = metal_material("gold", (1.0, 0.72, 0.18), 0.28, 1.0)
+    floor = plain_material("studio_floor", (0.07, 0.075, 0.09), 0.65)
+    stripes = image_material("hazard", A.hazard(), repeat=True)
+    rubber = image_material("belt", A.belt(), repeat=True)
+    screen = image_material("screen", A.screen(), emission=2.5)
+    art = image_material("thumbnail_art", A.epic(), emission=2.2)
+    lamp = plain_material("lamp", (0.4, 1, 0.5), 0.3, emission=(0.3, 1, 0.45), strength=4)
+
+    objs = [box("Floor", (-40, -0.2, -40), (40, 0, 20), floor)]
+
+    # The machine: a steel cabinet on a dark plinth, a funnel on top, chimneys at the back.
+    m = [
+        box("plinth", (-3.4, 0, -7.4), (3.4, 0.5, -1.6), trim),
+        box("cabinet", (-3, 0.5, -7), (3, 6.6, -2), body),
+        box("cap", (-3.2, 6.6, -7.2), (3.2, 7.0, -1.8), trim),
+        front_quad("hazard_band", -3, 3, 0.55, 1.25, -1.99, stripes, repeat=(9, 1)),
+        box("screen_bezel", (-2.5, 2.9, -2.02), (2.5, 5.95, -1.9), trim),
+        front_quad("screen", -2.25, 2.25, 3.1, 5.75, -1.89, screen),
+        cyl("button", (2.3, 1.8, -2.0), (2.3, 1.8, -1.6), 0.32, red),
+        cyl("lamp", (-2.3, 1.8, -2.0), (-2.3, 1.8, -1.75), 0.22, lamp),
+        cyl("funnel", (0, 7.0, -4.5), (0, 9.4, -4.5), 1.2, body, verts=4, radius2=2.8),
+        cyl("chimney_1", (-2, 7.0, -6.2), (-2, 10.5, -6.2), 0.45, trim),
+        cyl("chimney_2", (-0.6, 7.0, -6.4), (-0.6, 9.4, -6.4), 0.35, trim),
+    ]
+    for x in (-3.0, 3.0):
+        for y in (1.4, 6.2):
+            m.append(box("bolt", (x - 0.12 if x < 0 else x - 0.02, y, -2.12), (x + 0.02 if x < 0 else x + 0.12, y + 0.14, -1.98), trim))
+    # The intake on the left and the chute on the right.
+    m.append(quad("intake", [(-3.01, 1.4, -3.4), (-3.01, 1.4, -5.6), (-3.01, 3.2, -5.6), (-3.01, 3.2, -3.4)], hole))
+    m.append(box("intake_rim", (-3.25, 3.2, -5.8), (-2.95, 3.5, -3.2), trim))
+    m.append(place([box("chute", (0, -0.15, -1.1), (3.2, 0.15, 1.1), trim)], at=(3.0, 2.6, -4.2), roll=-28))
+    objs += m
+
+    # The lever on the machine's left side.
+    objs.append(box("lever_base", (-3.5, 2.0, -2.6), (-3.0, 2.6, -2.2), trim))
+    objs.append(cyl("lever", (-3.3, 2.3, -2.4), (-4.4, 3.9, -2.2), 0.08, trim))
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.28, location=to_blender((-4.45, 4.0, -2.2)), segments=16, ring_count=8)
+    knob = bpy.context.active_object
+    knob.data.materials.append(red)
+    objs.append(knob)
+
+    # The conveyor feeding the intake, with legs and rollers, carrying plain cobblestone.
+    belt_top = 1.55
+    objs += [
+        box("conveyor_frame", (-15, belt_top - 0.45, -5.7), (-3.0, belt_top - 0.05, -3.3), trim),
+        quad("belt", [(-15, belt_top, -3.4), (-3.0, belt_top, -3.4), (-3.0, belt_top, -5.6), (-15, belt_top, -5.6)], rubber, repeat=(16, 3)),
+    ]
+    for x in (-14.5, -10.5, -6.5):
+        for z in (-5.5, -3.5):
+            objs.append(box("leg", (x - 0.12, 0, z - 0.12), (x + 0.12, belt_top - 0.45, z + 0.12), trim))
+    for x in range(-15, -3, 2):
+        objs.append(cyl("roller", (x + 0.5, belt_top - 0.25, -5.75), (x + 0.5, belt_top - 0.25, -3.25), 0.2, body, verts=10))
+    cubes = {}
+    for x in (-13, -10, -7):
+        cubes[(x, 0, 0)] = "cobble"
+    objs.append(voxel_object("Cobblestone", cubes, unit=1.1, origin=(0.2, belt_top, -5.05)))
+
+    # What comes out: a big framed thumbnail, glowing, flying off the chute.
+    frame = picture_frame(art, 6.4, 3.6, 0.28, gold)
+    objs.append(place(frame, at=(8.2, 0.9, -3.0), yaw=-22, roll=6))
+    return objs
 
 
-def scene_builds():
-    """The judging table with four small builds, and dark pillars in the distance."""
-    objects = []
-    # Table: 16×4 top, 3 high, legs at the corners (same footprint as the in-app table template).
-    table = {}
-    for x in range(-8, 8):
-        for z in range(-2, 2):
-            table[(x, 2, z)] = "spruce_planks"
-    for x in (-7, 6):
-        for z in (-2, 1):
-            for y in range(2):
-                table[(x, y, z)] = "spruce_log"
-    objects.append(voxel_object("Table", table))
+# ---------------------------------------------------------------- scene 2: "How I fake my thumbnails"
 
-    # A dark floor under everything, fading into the night.
-    floor = {}
-    for x in range(-10, 10):
-        for z in range(-15, 4):
-            floor[(x, -1, z)] = "obsidian"
-    objects.append(voxel_object("Floor", floor, unit=4))
 
-    # Four builds at a quarter of block size, standing on the table top (y = 3).
-    s = 0.25
-    def build(name, ox, rotate=0.0, tilt=0.0, **kw):  # noqa: E306
-        blocks = {}
-        cottage(blocks, 0, 0, **kw)
-        o = voxel_object(name, blocks, unit=s, origin=(-4.5 * s, 0, -4.5 * s))
-        o.location = to_blender((ox, 3.0, 0.1))
-        o.rotation_euler = (math.radians(tilt), 0, math.radians(rotate))
-        return o
+def scene_studio():
+    """A film set: green screen, softbox lights on stands, a cinema camera on a tripod and a boom mic."""
+    green = plain_material("green_screen", (0.05, 0.62, 0.2), 0.9, emission=(0.04, 0.5, 0.15), strength=0.12)
+    floor = plain_material("studio_floor", (0.2, 0.2, 0.22), 0.55)
+    black = plain_material("matte_black", (0.025, 0.025, 0.028), 0.5)
+    steel = metal_material("steel", (0.6, 0.62, 0.66), 0.3, 0.9)
+    soft = plain_material("softbox", (1, 1, 1), 0.5, emission=(1, 0.97, 0.9), strength=9)
+    glass = plain_material("lens_glass", (0.05, 0.1, 0.2), 0.05, emission=(0.2, 0.5, 1.0), strength=0.6)
+    red = plain_material("rec_light", (1, 0.05, 0.05), 0.3, emission=(1, 0.05, 0.05), strength=6)
+    fuzz = plain_material("mic_fuzz", (0.32, 0.32, 0.34), 1.0)
+    objs = [box("Floor", (-40, -0.2, -40), (40, 0, 20), floor)]
 
-    rainbow = lambda b, x, y, z: b if b in ("glass", "red_flower", "yellow_flower") else f"wool_{int(hash01(x, y, z) * 10)}"  # noqa: E731
-    wonky = lambda b, x, y, z: ("cobble" if hash01(x, y, z, 4) < 0.15 else "dark_planks") if b == "oak_planks" and hash01(x, y, z, 2) < 0.4 else b  # noqa: E731
-    objects += [
-        build("Build 1", -5.6, rotate=-12),
-        build("Build 2", -1.9, rotate=18, tilt=-5, swaps=wonky, ruin=0.12, seed=2),
-        build("Build 3", 1.9, rotate=-8, swaps=rainbow),
-        build("Build 4", 5.6, rotate=10, ruin=0.55, seed=7),
+    # Green screen: back wall, floor and a stepped cove between them so there's no visible corner.
+    objs += [
+        box("screen_wall", (-11, 0, -13.2), (11, 11, -13), green),
+        box("screen_floor", (-11, 0, -13), (11, 0.03, -3.5), green),
+    ]
+    for i in range(6):
+        a = (i + 0.5) / 6 * math.pi / 2
+        r = 1.6
+        y = r - r * math.cos(a)
+        z = -13 + r - r * math.sin(a)
+        objs.append(box("cove", (-11, 0, -13), (11, y + 0.05, z), green))
+
+    def stand(height):
+        parts = [cyl("pole", (0, 0.9, 0), (0, height, 0), 0.06, steel)]
+        for k in range(3):
+            a = math.radians(k * 120 + 30)
+            parts.append(cyl("leg", (0, 0.95, 0), (math.cos(a) * 0.9, 0.02, math.sin(a) * 0.9), 0.045, steel))
+        return parts
+
+    # Two big softboxes aimed at the set.
+    for x, z, yaw in ((-7.2, -3.2, -62), (7.6, -2.6, 60)):
+        parts = stand(4.6)
+        parts += [
+            box("softbox_body", (-1.3, 4.2, -0.9), (1.3, 6.0, 0.3), black),
+            cyl("softbox_neck", (0, 5.1, 0.3), (0, 5.1, 0.9), 0.25, black),
+        ]
+        parts.append(front_quad("softbox_face", -1.2, 1.2, 4.3, 5.9, -0.91, soft))
+        # Built facing -z (toward the set), then turned toward the middle.
+        objs.append(place(parts, at=(x, 0, z), yaw=yaw))
+
+    # The cinema camera on its tripod in the foreground, pointed at the set.
+    cam = stand(2.2)
+    cam += [
+        box("head", (-0.3, 2.15, -0.35), (0.3, 2.35, 0.35), black),
+        box("body", (-0.45, 2.35, -1.1), (0.45, 3.25, 0.9), black),
+        cyl("lens", (0, 2.8, -1.1), (0, 2.8, -2.1), 0.32, black, verts=20),
+        cyl("lens_ring", (0, 2.8, -1.7), (0, 2.8, -1.85), 0.36, steel, verts=20),
+        box("matte_box", (-0.6, 2.38, -2.45), (0.6, 3.22, -2.1), black),
+        cyl("eyepiece", (-0.55, 3.0, 0.6), (-0.55, 3.0, 1.15), 0.12, black),
+        cyl("handle", (0.3, 2.6, 0.9), (0.3, 2.6, 1.9), 0.05, steel),
+        box("monitor", (0.5, 3.0, -0.4), (0.56, 3.55, 0.4), black),
+        cyl("reel_front", (-0.12, 3.75, -0.55), (0.12, 3.75, -0.55), 0.55, black, verts=24),
+        cyl("reel_back", (-0.12, 3.75, 0.5), (0.12, 3.75, 0.5), 0.55, black, verts=24),
+        cyl("rec", (0.3, 3.15, -1.12), (0.3, 3.15, -1.16), 0.06, red),
+    ]
+    lens_face = cyl("lens_glass", (0, 2.8, -2.1), (0, 2.8, -2.12), 0.27, glass, verts=20)
+    cam.append(lens_face)
+    objs.append(place(cam, at=(-3.4, 0, 1.2), yaw=-24))
+
+    # A boom mic hanging over the set from the right.
+    boom = [
+        cyl("boom_pole", (6.5, 6.4, -3.5), (1.2, 5.6, -7.0), 0.06, steel),
+        cyl("mic", (1.4, 5.5, -7.1), (0.2, 5.3, -7.5), 0.22, fuzz, verts=12),
+    ]
+    objs += boom
+    return objs
+
+
+# ---------------------------------------------------------------- scene 3: "$1,000 vs $0"
+
+
+def scene_gallery():
+    """Two easels in a gallery: a crude doodle on the left, a glowing epic picture in a gold frame on the right."""
+    wall = plain_material("gallery_wall", (0.32, 0.05, 0.09), 0.85)
+    floor = plain_material("gallery_floor", (0.16, 0.09, 0.05), 0.65)
+    wood = plain_material("easel_wood", (0.55, 0.36, 0.18), 0.7)
+    gold = metal_material("gold", (1.0, 0.72, 0.18), 0.25, 1.0)
+    white = plain_material("canvas_edge", (0.95, 0.94, 0.9), 0.9)
+    doodle = image_material("doodle_art", A.doodle())
+    art = image_material("epic_art", A.epic(), emission=1.6)
+    objs = [
+        box("Floor", (-30, -0.2, -30), (30, 0, 20), floor),
+        box("Wall", (-30, 0, -8.2), (30, 14, -8), wall),
+        box("Rail", (-30, 8.0, -8.0), (30, 8.25, -7.85), gold),
+        box("Skirting", (-30, 0, -8.0), (30, 0.4, -7.85), gold),
     ]
 
-    pillars = {}
-    for i, (px, pz, h) in enumerate([(-30, -36, 34), (-17, -44, 40), (-6, -52, 30), (9, -46, 44), (22, -38, 36), (33, -50, 32)]):
-        w = 3 + i % 2
-        for y in range(-12, h):
-            for dx in range(w):
-                for dz in range(w):
-                    pillars[(px + dx, y, pz + dz)] = "obsidian"
-    objects.append(voxel_object("Pillars", pillars))
-    return objects
+    def easel(canvas_parts):
+        lean = 10
+        legs = [
+            cyl("leg_l", (-1.1, 0, 0.4), (-0.25, 5.6, -0.4), 0.08, wood, verts=8),
+            cyl("leg_r", (1.1, 0, 0.4), (0.25, 5.6, -0.4), 0.08, wood, verts=8),
+            cyl("leg_back", (0, 0, -1.6), (0, 5.3, -0.45), 0.07, wood, verts=8),
+            box("ledge", (-1.6, 1.05, 0.05), (1.6, 1.2, 0.45), wood),
+        ]
+        canvas = place(canvas_parts, at=(0, 1.2, 0.2), tilt=-lean)
+        return legs + [canvas]
 
-
-# ---------------------------------------------------------------- scene 3: "Bosses coded by AI"
-
-
-def scene_boss():
-    """A hulking spiked boss in a bright white hall: a skin-modifier body (one connected mesh) plus spikes."""
-    skin_mat = plain_material("boss_skin", (0.045, 0.05, 0.055), 0.6)
-
-    # Skeleton: (point, radius) joints and the bones between them, in ThumbCraft coordinates.
-    joints = []
-    bones = []
-
-    def chain(points, radii, start=None):
-        idx = []
-        for p, r in zip(points, radii):
-            joints.append((p, r))
-            idx.append(len(joints) - 1)
-        if start is not None:
-            bones.append((start, idx[0]))
-        bones.extend(zip(idx, idx[1:]))
-        return idx
-
-    lerp = lambda a, b, t: tuple(a[i] + (b[i] - a[i]) * t for i in range(3))  # noqa: E731
-    # Hunched spine from hips to neck, leaning toward the camera (+z); head thrust forward and low.
-    spine = chain(
-        [(0, 6.0, -7.0), (0, 8.2, -6.8), (0, 10.4, -6.0), (0, 12.0, -4.6), (0, 12.6, -3.0), (0, 12.2, -1.6)],
-        [2.0, 2.4, 2.8, 2.6, 1.6, 1.7],
-    )
-    for side in (-1, 1):
-        # Legs: wide, bent, heavy.
-        chain(
-            [(side * 1.8, 5.2, -7.0), (side * 2.8, 3.0, -6.0), (side * 3.0, 0.9, -7.2), (side * 3.2, 0.25, -6.4)],
-            [1.3, 1.05, 0.8, 0.7],
-            start=spine[0],
-        )
-        # Long arms from huge shoulders, reaching forward and down toward the camera.
-        arm = chain(
-            [
-                (side * 3.3, 11.4, -4.4),
-                (side * 4.6, 9.2, -2.6),
-                (side * 5.2, 6.6, -0.6),
-                (side * 5.0, 4.6, 1.4),
-            ],
-            [1.9, 1.25, 0.95, 0.75],
-            start=spine[3],
-        )
-        # Clawed fingers spread out from the wrist.
-        for k in (-1, 0, 1):
-            chain(
-                [lerp((side * 5.0, 4.6, 1.4), (side * (5.4 + 0.5 * k), 3.4, 2.8 + 0.3 * k), t) for t in (0.4, 1.0)]
-                + [(side * (5.6 + 0.8 * k), 2.4, 3.6 + 0.4 * k)],
-                [0.45, 0.3, 0.12],
-                start=arm[-1],
-            )
-
-    verts = [to_blender(p) for p, _ in joints]
-    mesh = bpy.data.meshes.new("boss")
-    mesh.from_pydata(verts, bones, [])
-    obj = bpy.data.objects.new("Boss", mesh)
-    bpy.context.scene.collection.objects.link(obj)
-    bpy.context.view_layer.objects.active = obj
-    obj.select_set(True)
-    skin = obj.modifiers.new("skin", "SKIN")
-    skin.use_smooth_shade = True
-    for i, (_, r) in enumerate(joints):
-        mesh.skin_vertices[0].data[i].radius = (r, r)
-    mesh.skin_vertices[0].data[0].use_root = True
-    sub = obj.modifiers.new("smooth", "SUBSURF")
-    sub.levels = 2
-    # Rough, lumpy hide.
-    tex = bpy.data.textures.new("lumps", "CLOUDS")
-    tex.noise_scale = 0.55
-    disp = obj.modifiers.new("lumps", "DISPLACE")
-    disp.texture = tex
-    disp.strength = 0.6
-    for m in ("skin", "smooth", "lumps"):
-        bpy.ops.object.modifier_apply(modifier=m)
-    body = obj
-    body.data.materials.append(skin_mat)
-
-    # Spikes along the back, shoulders and head.
-    spikes = []
-    def spike(p, length, tilt_x, tilt_y, radius=0.4):  # noqa: E306
-        bpy.ops.mesh.primitive_cone_add(vertices=6, radius1=radius, depth=length, location=to_blender(p))
-        c = bpy.context.active_object
-        c.rotation_euler = (math.radians(tilt_x), math.radians(tilt_y), 0)
-        c.data.materials.append(skin_mat)
-        spikes.append(c)
-
-    for i in range(14):
-        t = i / 13
-        p = lerp((0, 8.0, -9.0), (0, 13.6, -4.4), t)
-        off = math.sin(i * 2.3) * 1.3
-        spike((off, p[1], p[2]), 1.3 + hash01(i) * 1.6, -40 - t * 40, off * 18)
-    for side in (-1, 1):
-        for i in range(5):
-            spike((side * (2.4 + i * 0.7), 13.2 - i * 0.45, -4.6 + i * 0.25), 2.2 + hash01(i, side) * 1.4, -5, -side * (20 + i * 10), 0.48)
-    for i in range(4):
-        spike(((i - 1.5) * 0.7, 13.9, -2.4), 1.3, -25, (i - 1.5) * 22, 0.26)
-
-    bpy.ops.object.select_all(action="DESELECT")
-    for o in spikes + [body]:
-        o.select_set(True)
-    bpy.context.view_layer.objects.active = body
-    bpy.ops.object.join()
-    dec = body.modifiers.new("decimate", "DECIMATE")
-    dec.ratio = 0.5
-    bpy.ops.object.modifier_apply(modifier="decimate")
-
-    # The hall: floor, walls and ceiling, with a blinding white end wall behind the boss.
-    hall = plain_material("hall", (0.82, 0.82, 0.84), 0.5)
-    glow = plain_material("glow", (1, 1, 1), 0.5, emission=(1, 1, 1), strength=6.0)
-    parts = [
-        box("Floor", (-10, -0.2, -36), (10, 0, 6), hall),
-        box("Wall L", (-10.4, 0, -36), (-10, 20, 6), hall),
-        box("Wall R", (10, 0, -36), (10.4, 20, 6), hall),
-        box("Ceiling", (-10.4, 20, -36), (10.4, 20.4, -16), hall),
-        box("Light", (-10, 0, -36.4), (10, 20, -36), glow),
+    hw, h = 2.4, 2.7
+    left_canvas = [
+        front_quad("doodle", -hw, hw, 0.05, h - 0.05, 0.07, doodle),
+        box("stretcher", (-hw, 0, -0.05), (hw, h, 0.06), white),
     ]
-    return [body] + parts
+    right_canvas = picture_frame(art, 2 * hw - 0.4, h - 0.4, 0.2, gold)
+    objs.append(place(easel(left_canvas), at=(-3.9, 0, -2.4), yaw=14))
+    objs.append(place(easel(right_canvas), at=(3.9, 0, -2.4), yaw=-14))
+
+    # Velvet rope posts in front, like a museum piece.
+    for x in (-6.6, 6.6):
+        objs.append(cyl("post", (x, 0, 1.6), (x, 1.5, 1.6), 0.1, gold, verts=12))
+    return objs
 
 
 # ---------------------------------------------------------------- export
@@ -600,25 +559,19 @@ def main():
     info = {}
 
     reset()
-    objs = scene_vision()
-    info["vision"] = export("vision", objs, normals=False)
+    info["machine"] = export("machine", scene_machine())
     if preview_dir:
-        preview(os.path.join(preview_dir, "vision.png"), (-3, 5.0, 6.0), (-9, -5, -40), 60, (0.45, 0.7, 1.0), (-0.5, -0.8, -0.4))
+        preview(os.path.join(preview_dir, "machine.png"), (0.5, 2.4, 13.5), (0.5, 3.4, -3), 50, (0.02, 0.03, 0.06), (0.4, -0.7, -0.6), sun=2.0)
 
     reset()
-    info["glasses"] = export("glasses", scene_glasses())
+    info["studio"] = export("studio", scene_studio())
+    if preview_dir:
+        preview(os.path.join(preview_dir, "studio.png"), (-0.6, 2.9, 7.5), (0.8, 1.9, -7), 52, (0.05, 0.05, 0.06), (0.2, -0.8, -0.5), sun=2.5)
 
     reset()
-    objs = scene_builds()
-    info["builds"] = export("builds", objs, normals=False)
+    info["gallery"] = export("gallery", scene_gallery())
     if preview_dir:
-        preview(os.path.join(preview_dir, "builds.png"), (0, 5.6, 9.5), (0, 3.4, 0), 50, (0.12, 0.06, 0.25), (0.3, -0.8, -0.5))
-
-    reset()
-    objs = scene_boss()
-    info["boss"] = export("boss", objs)
-    if preview_dir:
-        preview(os.path.join(preview_dir, "boss.png"), (0.4, 0.6, 7.5), (0, 6.5, -4), 72, (1, 1, 1), (0, -0.3, 1), sun=0.5)
+        preview(os.path.join(preview_dir, "gallery.png"), (0, 2.7, 10.5), (0, 2.4, -2), 50, (0.05, 0.03, 0.04), (0.1, -0.8, -0.6), sun=2.5)
 
     with open(os.path.join(OUT, "anchors.json"), "w") as f:
         json.dump({k: v["anchor"] for k, v in info.items()}, f, indent=2)

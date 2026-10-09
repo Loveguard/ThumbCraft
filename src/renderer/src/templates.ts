@@ -2,7 +2,7 @@
 // framed by a saved camera shot. Everything is a normal scene object afterwards, so users just edit the text
 // and swap in their own skin.
 import { buildTower, buildTrunk, TOWER_TOP, type BackdropId } from '@shared/minecraft/backdrops'
-import { buildGlassPane, ruinBlocks, scrambleBlocks } from '@shared/minecraft/props'
+import { ruinBlocks, scrambleBlocks } from '@shared/minecraft/props'
 import type { TerrainData } from '@shared/types'
 import { VFX_PRESETS, type VfxType } from './vfx'
 import * as THREE from 'three'
@@ -35,10 +35,8 @@ import {
   type Vec3
 } from './store'
 import { FONTS, TEXT_STYLES } from './textStyles'
+import { STICKERS, type StickerShape } from './stickers'
 import SECRET_ANCHORS from '../../../resources/secret/anchors.json'
-
-/** Where Loveguard stands on the valley ledge in the vision scene (on top of the ledge's blocks). */
-const LG_VISION: Vec3 = [1.2, 2, 1.6]
 
 interface PlayerSpec {
   name: string
@@ -103,6 +101,19 @@ interface LightSpec {
   aim?: Vec3
 }
 
+/** A thumbnail-kit sticker: `at` is its centre in the frame (0…1 from the top left), `size` its height share. */
+interface StickerSpec {
+  shape: StickerShape
+  color: string
+  at: [number, number]
+  size: number
+  turn?: number
+  weight?: number
+  stretch?: number
+  glow?: boolean
+  flip?: boolean
+}
+
 interface TextSpec {
   text: string
   color: string
@@ -142,6 +153,7 @@ export interface Template {
   props?: PropSpec[]
   pieces?: PieceSpec[]
   vfx?: VfxSpec[]
+  stickers?: StickerSpec[]
   /** Models built in Blender (tools/blender), placed where they were built (plus an optional offset). */
   models?: ModelSpec[]
   camera: CameraState
@@ -158,21 +170,6 @@ interface ModelSpec {
   /** Or puts its anchor (bottom centre) at an exact spot instead. */
   at?: Vec3
   rotation?: Vec3
-}
-
-/**
- * Glasses on a player's face: the frames sit just in front of the eyes, turned with the player.
- * (Built facing +z with their lenses 0.07 above the model's bottom and 0.15 in front of its centre.)
- */
-function glassesOn(at: Vec3, yaw: number, scale = 1): { at: Vec3; rotation: Vec3 } {
-  const r = THREE.MathUtils.degToRad(yaw)
-  const fwd = [Math.sin(r), 0, Math.cos(r)]
-  const eye = 1.71 * scale
-  const front = 0.27 * scale - 0.151
-  return {
-    at: [at[0] + fwd[0] * front, at[1] + eye - 0.07, at[2] + fwd[2] * front],
-    rotation: [0, yaw, 0]
-  }
 }
 
 const YELLOW = '#ffe14d'
@@ -358,77 +355,91 @@ export const TEMPLATES: Template[] = [
     camera: { position: [0, 1.3, 6], target: [0, 1.3, -1] },
     fov: 55
   },
-  // ---- Unlocked with the secret code: recreations of Loveguard's latest thumbnails.
+  // ---- Unlocked with the secret code: three thumbnail ideas for Loveguard's ThumbCraft launch video.
   {
-    id: 'lg-ai-vision',
+    id: 'lg-machine',
     secret: true,
-    name: 'Seeing Minecraft through AI',
-    hint: 'Loveguard, in glasses, gazes across a vivid valley through a hazy pane',
-    backdrop: null,
-    sky: 'clear',
-    look: 'pop',
-    effects: { bloom: true, bloomIntensity: 0.6, bloomThreshold: 0.75 },
-    settings: { ...DAY, sunAzimuth: 215, sunElevation: 30, fog: false },
-    players: [{ name: 'Loveguard', username: 'Loveguard', pose: 'Standing', at: LG_VISION, yaw: -78 }],
-    props: [
-      // The hazy "AI view": a tall pane cutting diagonally across the right of the frame.
-      { name: 'Glass pane', build: () => buildGlassPane(16, 18), at: [3.4, -2, -4], rotation: [0, 62, 0] }
-    ],
-    models: [
-      { file: 'vision', name: 'Valley (Blender)' },
-      { file: 'glasses', name: 'Glasses', ...glassesOn(LG_VISION, -78) }
-    ],
-    texts: [],
-    camera: { position: [-1.4, 3.7, 6.4], target: [-7.5, 0.5, -30] },
-    fov: 62
-  },
-  {
-    id: 'lg-build-off',
-    secret: true,
-    name: 'Who builds best?',
-    hint: 'A giant Loveguard judges four tiny builds on a table',
-    backdrop: null,
-    sky: 'night',
-    look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6 },
-    settings: {
-      renderMode: 'cinematic',
-      sunStrength: 0.7,
-      ambientStrength: 0.85,
-      fog: false,
-      sunAzimuth: 160,
-      sunElevation: 35
-    },
-    players: [{ name: 'Loveguard', username: 'Loveguard', pose: 'Pointing', at: [0.8, -3.2, -5.2], yaw: 12, scale: 7 }],
-    models: [{ file: 'builds', name: 'Table and builds (Blender)' }],
-    texts: [],
-    lights: [
-      { at: [-6, 7, 5], aim: [-2, 3, 0], color: '#ffd9a8', intensity: 260, range: 30 },
-      { at: [7, 6, 4], color: '#b48cff', intensity: 60, range: 20 }
-    ],
-    camera: { position: [0, 5.6, 11.5], target: [0, 6.2, -2] },
-    fov: 56
-  },
-  {
-    id: 'lg-boss',
-    secret: true,
-    name: 'Bosses coded by AI',
-    hint: 'From behind Loveguard, a giant spiked boss looms against blinding light',
+    name: 'It makes thumbnails?!',
+    hint: 'Cobblestone rides into a giant machine and comes out as a glowing epic thumbnail; Loveguard is stunned',
     backdrop: null,
     sky: 'color',
-    skyColor: '#f2f2f2',
-    look: 'cinema-cool',
-    effects: { bloom: true, bloomIntensity: 1.3, bloomThreshold: 0.6, vignette: true, vignetteDarkness: 0.6 },
-    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.18, fog: true },
-    players: [{ name: 'Loveguard', username: 'Loveguard', pose: 'Waving', at: [0.3, 0, 2.2], yaw: 180 }],
-    models: [{ file: 'boss', name: 'Boss and hall (Blender)', offset: [0, 0, -2.5] }],
-    texts: [],
-    lights: [
-      { at: [0, 14, -30], aim: [0, 4, 4], color: '#ffffff', intensity: 1600, range: 60 },
-      { at: [0, 4, -14], color: '#ffffff', intensity: 260, range: 24 }
+    skyColor: '#0b0f1c',
+    look: 'teal-orange',
+    effects: { bloom: true, bloomIntensity: 1.1, bloomThreshold: 0.55, vignette: true, vignetteDarkness: 0.55 },
+    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.75, fog: false, sunAzimuth: 140 },
+    players: [{ name: 'Loveguard', username: 'Loveguard', pose: 'Shocked', at: [-3.4, 0, 6.6], yaw: 24 }],
+    models: [{ file: 'machine', name: 'Thumbnail machine (Blender)' }],
+    vfx: [
+      { effect: 'shine', at: [10.2, 2.4, -2.2], color: '#fff2c4', density: 0.35, scale: 1 },
+      { effect: 'smoke', at: [-2, 10.4, -6.2], color: '#8d939b', density: 0.4, scale: 0.45 }
     ],
-    camera: { position: [0.6, 0.5, 5.6], target: [0, 6.5, -6] },
-    fov: 74
+    lights: [
+      { at: [3, 9, 9], aim: [-2.5, 1.5, 0], color: '#ffe3b8', intensity: 380, range: 34 },
+      { at: [-7, 6, -11], color: '#36c8ff', intensity: 140, range: 26 },
+      { at: [8, 2.5, -0.8], color: '#ff7ad1', intensity: 90, range: 12 }
+    ],
+    texts: [{ text: 'IT MAKES\nTHUMBNAILS?!', color: YELLOW, screen: [-0.45, 0.6], height: 0.32, style: 'Gold' }],
+    stickers: [{ shape: 'arrow', color: '#ff2a2a', at: [0.66, 0.3], size: 0.17, turn: 38, stretch: 1.3 }],
+    camera: { position: [0.5, 2.4, 13.5], target: [0.5, 3.4, -3] },
+    fov: 50
+  },
+  {
+    id: 'lg-studio',
+    secret: true,
+    name: 'How I fake my thumbnails',
+    hint: 'Behind the scenes: a creeper "explodes" on a green screen set, filmed by a cinema camera under softboxes',
+    backdrop: null,
+    sky: 'color',
+    skyColor: '#141418',
+    look: 'cinema-cool',
+    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, vignetteDarkness: 0.5 },
+    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.8, fog: false, sunAzimuth: 200 },
+    players: [{ name: 'Loveguard', username: 'Loveguard', pose: 'Shocked', at: [-0.2, 0.03, -3.2], yaw: 22 }],
+    mobs: [{ mob: 'creeper', at: [2.7, 0.03, -5.0], yaw: -62 }],
+    models: [{ file: 'studio', name: 'Film set (Blender)' }],
+    vfx: [{ effect: 'explosion', at: [3.6, 0, -8.8], color: '#ffa53a', density: 0.5, scale: 0.5 }],
+    lights: [
+      { at: [-7.2, 5.1, -3.2], aim: [0.2, 1.2, -4.6], color: '#fff6e8', intensity: 280, range: 22 },
+      { at: [7.6, 5.1, -2.6], aim: [1.6, 1.2, -4.9], color: '#fff6e8', intensity: 220, range: 22 },
+      { at: [3.2, 2.2, -7.2], color: '#ff9a3c', intensity: 70, range: 7 },
+      { at: [-0.5, 2.5, 1], color: '#ffffff', intensity: 40, range: 8 }
+    ],
+    texts: [
+      { text: 'HOW I FAKE MY\nTHUMBNAILS', color: '#ffffff', screen: [0.3, 0.66], height: 0.3, style: 'Bold white' }
+    ],
+    stickers: [{ shape: 'circle', color: '#ff2a2a', at: [0.6, 0.6], size: 0.52, stretch: 1.85, weight: 1.2 }],
+    camera: { position: [-0.6, 2.6, 7.5], target: [0.8, 1.6, -6] },
+    fov: 48
+  },
+  {
+    id: 'lg-gallery',
+    secret: true,
+    name: '$1,000 thumbnail vs $0',
+    hint: "A pricey designer's doodle next to an epic glowing picture made for free; Loveguard can't believe it",
+    backdrop: null,
+    sky: 'color',
+    skyColor: '#1a0a10',
+    look: 'pop',
+    effects: { bloom: true, bloomIntensity: 0.8, bloomThreshold: 0.6, vignette: true, vignetteDarkness: 0.6 },
+    settings: { renderMode: 'cinematic', sunStrength: 0.3, ambientStrength: 0.6, fog: false, sunAzimuth: 180 },
+    players: [{ name: 'Loveguard', username: 'Loveguard', pose: 'Pointing', at: [0.2, 0, 3.6], yaw: 62 }],
+    models: [{ file: 'gallery', name: 'Gallery and easels (Blender)' }],
+    vfx: [{ effect: 'shine', at: [5.6, 2.2, -1.9], color: '#fff4cf', density: 0.3, scale: 0.8 }],
+    lights: [
+      { at: [-3.9, 8, 2], aim: [-3.9, 2.6, -2.4], color: '#ffe8c8', intensity: 200, range: 18 },
+      { at: [3.9, 8, 2], aim: [3.9, 2.6, -2.4], color: '#ffe8c8', intensity: 260, range: 18 },
+      { at: [-1.5, 3.5, 6.5], color: '#ffd9b0', intensity: 45, range: 9 }
+    ],
+    texts: [
+      { text: '$1,000', color: '#ffffff', screen: [-0.5, 0.74], height: 0.17, style: 'Bold white' },
+      { text: '$0', color: '#43e97b', screen: [0.52, 0.74], height: 0.22, style: 'Toxic' }
+    ],
+    stickers: [
+      { shape: 'cross', color: '#ff2a2a', at: [0.25, 0.47], size: 0.2, weight: 0.8 },
+      { shape: 'circle', color: '#43e97b', at: [0.75, 0.5], size: 0.42, stretch: 1.6, glow: true }
+    ],
+    camera: { position: [0, 2.7, 10.5], target: [0, 2.4, -2] },
+    fov: 50
   }
 ]
 
@@ -511,6 +522,23 @@ export async function applyTemplate(t: Template): Promise<void> {
       onTop: true,
       visible: true,
       ...TEXT_STYLES.find((st) => st.name === x.style)?.style
+    })
+  for (const st of t.stickers ?? [])
+    s.add({
+      id: newId('obj'),
+      kind: 'sticker',
+      name: STICKERS.find((x) => x.id === st.shape)?.label ?? 'Sticker',
+      shape: st.shape,
+      color: st.color,
+      outline: true,
+      glow: !!st.glow,
+      flip: st.flip,
+      weight: st.weight,
+      stretch: st.stretch,
+      visible: true,
+      position: [st.at[0], st.at[1], 0],
+      rotation: [0, 0, st.turn ?? 0],
+      scale: st.size
     })
   for (const spec of t.lights ?? []) {
     const l: LightSpec = Array.isArray(spec) ? { at: spec } : spec
