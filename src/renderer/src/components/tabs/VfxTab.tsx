@@ -9,6 +9,7 @@ import {
   SunDim,
   PartyPopper,
   Radar,
+  Gem,
   Zap,
   type LucideIcon
 } from 'lucide-react'
@@ -27,6 +28,7 @@ const ICONS: Record<VfxType, LucideIcon> = {
   embers: Sparkle,
   magic: Sparkles,
   beam: SunDim,
+  shine: Gem,
   totem: PartyPopper,
   impact: Radar
 }
@@ -83,8 +85,8 @@ export function VfxTab(): ReactNode {
               {p.label}
             </button>
           )
-          // Lightning sits after the light beam, before the impact.
-          if (p.id !== 'impact') return tile
+          // Lightning sits after the light beam, before the shine.
+          if (p.id !== 'shine') return tile
           return [
             <button
               key="lightning"

@@ -1,9 +1,10 @@
-// Special effects placed in the 3D scene: smoke, fog, fire, explosions, embers, magic, light beams, totem
-// bursts and ground impacts.
+// Special effects placed in the 3D scene: smoke, fog, fire, explosions, embers, magic, light beams and shine
+// (twinkling glints), plus the retired totem burst and ground impact that older projects still use.
 // Each is a deterministic cloud of camera-facing puffs (same seed, same look), so the viewport and the
 // exported image always match.
 
-export type VfxType = 'smoke' | 'fog' | 'fire' | 'explosion' | 'embers' | 'magic' | 'beam' | 'totem' | 'impact'
+export type VfxType =
+  'smoke' | 'fog' | 'fire' | 'explosion' | 'embers' | 'magic' | 'beam' | 'shine' | 'totem' | 'impact'
 
 export interface VfxPreset {
   id: VfxType
@@ -61,6 +62,14 @@ export const VFX_PRESETS: VfxPreset[] = [
   },
   { id: 'beam', label: 'Light beam', hint: 'A shaft of light from above', color: '#fff2c4', density: 0.5, glow: true },
   {
+    id: 'shine',
+    label: 'Shine',
+    hint: 'Twinkling star glints that make diamonds, loot, armour or a whole build look valuable',
+    color: '#fff6dc',
+    density: 0.5,
+    glow: false
+  },
+  {
     id: 'totem',
     label: 'Totem pop',
     hint: 'The green and gold burst of a Totem of Undying saving a player',
@@ -75,7 +84,8 @@ export const VFX_PRESETS: VfxPreset[] = [
     hint: 'A ground shockwave of dust and flying bits, for a hard landing or a big hit',
     color: '#b8a284',
     density: 0.6,
-    glow: false
+    glow: false,
+    retired: true
   }
 ]
 
@@ -92,7 +102,7 @@ export interface Puff {
 }
 
 export interface PuffLayer {
-  texture: 'puff' | 'spark'
+  texture: 'puff' | 'spark' | 'star'
   blending: 'normal' | 'additive'
   /** Overrides the effect's colour for this layer (the grey smoke above an explosion). */
   color?: string
@@ -249,6 +259,30 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
       }
       return [{ texture: 'spark', blending: 'additive', puffs: dust }]
     }
+    case 'shine': {
+      // A few big twinkles and a scatter of small ones in a loose ball, each over a soft glow, standing upright
+      // (a twinkle on its side reads as an X). Place it on an item or build and scale it to fit.
+      const glints = (n: number, lo: number, hi: number, tilt: number): Puff[] => {
+        const out: Puff[] = []
+        for (let i = 0; i < n; i++) {
+          const u = rnd() * 2 - 1
+          const a = rnd() * Math.PI * 2
+          const r = 1.3 * Math.sqrt(rnd())
+          const s = Math.sqrt(1 - u * u)
+          const p = puff(Math.cos(a) * s * r, 1 + u * r * 0.8, Math.sin(a) * s * r, lo + rnd() * (hi - lo), 1, 1.4)
+          p.rot = (rnd() - 0.5) * tilt
+          out.push(p)
+        }
+        return out
+      }
+      const big = glints(count(3, 8), 0.7, 1.4, 0.25)
+      const small = glints(count(8, 26), 0.25, 0.6, 0.5)
+      const halo = [...big, ...small].map((p) => ({ ...p, size: p.size * 0.22, alpha: 0.45, shade: 0.9 }))
+      return [
+        { texture: 'spark', blending: 'additive', puffs: halo },
+        { texture: 'star', blending: 'additive', puffs: [...big, ...small] }
+      ]
+    }
     case 'totem': {
       // Sparks thrown out in every direction from about chest height, thickest near the player.
       const burst = (n: number): Puff[] => {
@@ -318,6 +352,8 @@ export function vfxBounds(effect: VfxType): [number, number] {
       return [1.4, 2.8]
     case 'beam':
       return [1.6, 10]
+    case 'shine':
+      return [1.4, 2.4]
     case 'totem':
       return [2.4, 3.6]
     case 'impact':

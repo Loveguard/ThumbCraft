@@ -4,7 +4,7 @@ import { assetUrl, loadImage } from '../minecraft/assets'
 import type { VfxObject } from '../store'
 import { vfxBounds, vfxLayers, type PuffLayer } from '../vfx'
 
-/** Soft, slightly ragged round puff (smoke, fog, flame) or a sharp glowing dot (sparks), drawn once. */
+/** Soft, slightly ragged round puff (smoke, fog, flame), a sharp glowing dot (sparks) or a twinkle, drawn once. */
 const textures: Partial<Record<PuffLayer['texture'], THREE.Texture>> = {}
 function puffTexture(kind: PuffLayer['texture']): THREE.Texture {
   const cached = textures[kind]
@@ -14,7 +14,39 @@ function puffTexture(kind: PuffLayer['texture']): THREE.Texture {
   c.width = c.height = size
   const g = c.getContext('2d')!
   const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
-  if (kind === 'spark') {
+  if (kind === 'star') {
+    // A four-point twinkle: two thin streaks crossing over a small soft core, like light catching a gem.
+    const mid = size / 2
+    const core = g.createRadialGradient(mid, mid, 0, mid, mid, size * 0.22)
+    core.addColorStop(0, 'rgba(255,255,255,1)')
+    core.addColorStop(0.3, 'rgba(255,255,255,0.55)')
+    core.addColorStop(1, 'rgba(255,255,255,0)')
+    g.fillStyle = core
+    g.fillRect(0, 0, size, size)
+    g.globalCompositeOperation = 'lighter'
+    for (const [w, h] of [
+      [size, size * 0.07],
+      [size * 0.07, size]
+    ]) {
+      const streak = g.createRadialGradient(mid, mid, 0, mid, mid, mid)
+      streak.addColorStop(0, 'rgba(255,255,255,1)')
+      streak.addColorStop(0.35, 'rgba(255,255,255,0.5)')
+      streak.addColorStop(1, 'rgba(255,255,255,0)')
+      g.fillStyle = streak
+      g.beginPath()
+      // A spindle: wide in the middle, pointed at both ends.
+      if (w > h) {
+        g.moveTo(0, mid)
+        g.quadraticCurveTo(mid, mid - h, size, mid)
+        g.quadraticCurveTo(mid, mid + h, 0, mid)
+      } else {
+        g.moveTo(mid, 0)
+        g.quadraticCurveTo(mid + w, mid, mid, size)
+        g.quadraticCurveTo(mid - w, mid, mid, 0)
+      }
+      g.fill()
+    }
+  } else if (kind === 'spark') {
     grad.addColorStop(0, 'rgba(255,255,255,1)')
     grad.addColorStop(0.25, 'rgba(255,255,255,0.8)')
     grad.addColorStop(1, 'rgba(255,255,255,0)')
