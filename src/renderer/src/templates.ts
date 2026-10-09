@@ -1,7 +1,7 @@
 // Ready-made thumbnail layouts: an instant backdrop, posed players, title text, sky, lighting and a look,
 // framed by a saved camera shot. Everything is a normal scene object afterwards, so users just edit the text
 // and swap in their own skin.
-import { buildTower, buildTrunk, TOWER_TOP, type BackdropId } from '@shared/minecraft/backdrops'
+import { buildTower, buildTrunk, type BackdropId } from '@shared/minecraft/backdrops'
 import { buildGlassPane, ruinBlocks, scrambleBlocks } from '@shared/minecraft/props'
 import type { TerrainData } from '@shared/types'
 import { VFX_PRESETS, type VfxType } from './vfx'
@@ -22,7 +22,6 @@ import { addTerrain, applyReadyMadeBiome } from './sceneActions'
 import {
   cameraBridge,
   DEFAULT_SKY,
-  NIGHT_LIGHTING,
   NO_EQUIPMENT,
   NO_EFFECTS,
   newId,
@@ -188,175 +187,180 @@ const toward = (from: Vec3, to: Vec3): number =>
 /** Zombies and skeletons hold their arms out in front, like in game. */
 const ARMS_OUT: Record<string, Vec3> = { right_arm: [-90, 0, 0], left_arm: [-85, 0, 0] }
 
-const HERO: Vec3 = [0, 0, 1.6]
-const horde = (mob: string, at: Vec3, extra: Partial<MobSpec> = {}): MobSpec => ({
-  mob,
-  at,
-  yaw: toward(at, HERO),
-  ...(/zombie|husk|drowned|skeleton|stray/.test(mob) && { parts: ARMS_OUT }),
-  ...extra
+/** Shallow depth of field focused on a point of the frame (x right, y down). */
+const focusOn = (x: number, y: number, blur = 3): Partial<EffectSettings> => ({
+  depthOfField: true,
+  dofBlur: blur,
+  dofRange: 0.35,
+  focusPoints: [{ x, y }]
 })
-
-const TOWER_AT: Vec3 = [4.5, -1, -7]
-const TOWER_HERO: Vec3 = [-0.8, 0, 1.6]
-const LOOKOUT: Vec3 = [4.5, TOWER_TOP - 1, -7]
+/** Diamond armour, helmet left off so the face shows. */
+const DIAMOND_KIT: Partial<Equipment> = { chest: 'diamond', legs: 'diamond', feet: 'diamond' }
 
 export const TEMPLATES: Template[] = [
   {
     id: 'reaction',
     name: 'Shocked find',
-    hint: 'Deep in a torch-lit cave, staring at diamonds',
+    hint: 'Over the shoulder at a glowing diamond vein deep in the cave',
     backdrop: 'cave',
     sky: 'night',
     look: 'teal-orange',
-    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.35, fog: false },
-    players: [{ name: 'Steve', pose: 'Shocked', at: [-0.6, 0, 0.8], yaw: 150 }],
-    texts: [{ text: 'DIAMONDS?!', color: '#7df9ff', style: 'Diamond', screen: [0.42, 0.55], height: 0.24 }],
-    lights: [
-      { at: [-3.2, 2.2, -3.5], color: '#ffb35c', intensity: 45, range: 12 },
-      { at: [3, 1.5, -1], color: '#ffb35c', intensity: 30, range: 10 },
-      { at: [5, 0.5, -9], color: '#ff6a1f', intensity: 60, range: 14 },
-      { at: [1.5, 2.5, 4.5], aim: [-0.6, 1.4, 0.8], color: '#bfe4ff', intensity: 70, range: 10 }
+    effects: { bloom: true, bloomIntensity: 1.3, bloomThreshold: 0.5, vignette: true, vignetteDarkness: 0.6 },
+    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.25, fog: true },
+    players: [{ name: 'Steve', pose: 'Pointing', at: [-0.95, 0, 2.3], yaw: 165 }],
+    vfx: [
+      { effect: 'shine', at: [0.6, 0, -4.5], color: '#8ff0ff', density: 0.8, scale: 2.2 },
+      { effect: 'embers', at: [0.6, -0.5, -4.5], color: '#7df9ff', density: 0.4, scale: 0.8 }
     ],
-    camera: { position: [1.4, 1.1, 4.2], target: [-2.2, 1.6, -3] },
-    fov: 55
+    texts: [{ text: 'I FOUND IT...', color: '#ffffff', style: 'Bold white', screen: [0.1, 0.66], height: 0.16 }],
+    lights: [
+      { at: [0.6, 1.2, -4], color: '#5fe8ff', intensity: 160, range: 14 },
+      { at: [-2, 2, 4], color: '#ffb35c', intensity: 25, range: 7 }
+    ],
+    camera: { position: [0.1, 1.65, 4.3], target: [0.2, 1.0, -4] },
+    fov: 46
   },
   {
     id: 'survival',
     name: '100 days stranded',
-    hint: 'Victory on a desert island, shot low from the sea',
+    hint: 'Worm’s-eye victory into the setting sun, title across the top',
     backdrop: 'island',
-    sky: 'golden',
-    look: 'pop',
-    settings: { ...DAY, sunAzimuth: 300, sunElevation: 14 },
-    players: [{ name: 'Steve', pose: 'Victory', at: [-0.8, 0, 0.6], yaw: 25 }],
-    texts: [{ text: 'I SURVIVED\n100 DAYS', color: YELLOW, style: 'Gold', screen: [0.42, 0.42], height: 0.38 }],
-    camera: { position: [1.9, 0.45, 4.6], target: [-0.7, 1.9, 0] },
-    fov: 55
+    sky: 'clear',
+    look: 'golden',
+    effects: {
+      bloom: true,
+      bloomIntensity: 0.6,
+      bloomThreshold: 0.75,
+      godRays: true,
+      godRaysIntensity: 0.35,
+      vignette: true
+    },
+    settings: { ...DAY, sunAzimuth: 180, sunElevation: 30 },
+    players: [
+      {
+        name: 'Steve',
+        pose: 'Victory',
+        at: [0, 0, 0.8],
+        yaw: 0,
+        equipment: { ...DIAMOND_KIT, mainHand: 'diamond_sword' }
+      }
+    ],
+    texts: [{ text: '100 DAYS', color: YELLOW, style: 'Gold', screen: [0, 0.68], height: 0.26 }],
+    camera: { position: [0.2, 0.25, 3.6], target: [0, 1.55, 0.8] },
+    fov: 50
   },
   {
     id: 'versus',
     name: 'Versus showdown',
-    hint: 'Low angle over your shoulder at a rival on a tower',
+    hint: 'Face-off: two fighters nose to nose, VS between them',
     backdrop: 'meadow',
     sky: 'sunset',
     look: 'teal-orange',
-    settings: { ...DAY, sunAzimuth: 20, sunElevation: 8 },
+    effects: { bloom: false, vignette: true, ...focusOn(0.5, 0.4, 2.5) },
+    settings: { ...DAY, sunAzimuth: 0, sunElevation: 10 },
     players: [
       {
         name: 'Steve',
         pose: 'Blocking',
-        at: TOWER_HERO,
-        yaw: toward(TOWER_HERO, LOOKOUT),
-        equipment: { mainHand: 'diamond_sword', offHand: 'shield' }
+        at: [-0.8, 0, 0.6],
+        yaw: 90,
+        equipment: { chest: 'diamond', mainHand: 'diamond_sword', offHand: 'shield' }
       },
       {
         name: 'Alex',
-        pose: 'Bow aim',
-        at: LOOKOUT,
-        yaw: toward(LOOKOUT, TOWER_HERO),
-        equipment: { mainHand: 'bow' }
+        pose: 'Sword swing',
+        at: [0.8, 0, 0.6],
+        yaw: -90,
+        equipment: { chest: 'netherite', legs: 'netherite', mainHand: 'netherite_sword' }
       }
     ],
-    towers: [TOWER_AT],
-    texts: [{ text: 'VS', color: RED, style: 'Fire', screen: [-0.45, 0.45], height: 0.32 }],
-    camera: { position: [-2.9, 0.5, 5.2], target: [3.6, 6.2, -6.5] },
-    fov: 60
+    texts: [{ text: 'VS', color: RED, style: 'Fire', screen: [0, 0.48], height: 0.32 }],
+    lights: [
+      { at: [-2.5, 2.5, 2.5], color: '#4fb8ff', intensity: 60, range: 8 },
+      { at: [2.5, 2.5, 2.5], color: '#ff5a3c', intensity: 60, range: 8 }
+    ],
+    camera: { position: [0, 1.25, 3.6], target: [0, 1.2, 0] },
+    fov: 40
   },
   {
     id: 'nether',
     name: 'Nether leap',
-    hint: 'Side shot of a leap across a lava ravine, piglins behind',
+    hint: 'Low angle as you leap over the lava, ghast overhead',
     backdrop: 'ravine',
     sky: 'nether',
     look: 'teal-orange',
+    effects: { bloom: true, bloomIntensity: 1.1, bloomThreshold: 0.55, vignette: true },
     settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.45, fog: true },
-    players: [{ name: 'Steve', pose: 'Leaping', at: [-0.4, 1.4, 0], yaw: 90 }],
-    mobs: [
-      { mob: 'zombified_piglin', at: [-6.5, 0, -0.6], yaw: 90, parts: ARMS_OUT },
-      { mob: 'zombified_piglin', at: [-8.5, 0, 1.2], yaw: 80, parts: ARMS_OUT },
-      { mob: 'ghast', at: [9, 9, -16], yaw: -30 }
-    ],
-    texts: [{ text: 'ESCAPE?!', color: RED, style: 'Fire', screen: [0, 0.6], height: 0.24 }],
+    players: [{ name: 'Steve', pose: 'Leaping', at: [0, 1.4, 1.2], yaw: 40 }],
+    mobs: [{ mob: 'ghast', at: [-3, 7, -8], yaw: 20 }],
+    vfx: [{ effect: 'embers', at: [0, -2, 0], color: '#ff9c3a', density: 0.7, scale: 1.4 }],
+    texts: [{ text: 'ESCAPE?!', color: RED, style: 'Fire', screen: [-0.42, 0.6], height: 0.22 }],
     lights: [
-      { at: [0, -3, 0], color: '#ff6a1f', intensity: 90, range: 18 },
-      { at: [0, -3, -7], color: '#ff6a1f', intensity: 70, range: 16 },
-      { at: [-2, 4, 5], aim: [-0.4, 2, 0], color: '#ffd2a1', intensity: 70, range: 12 }
+      { at: [0, -2.5, 1.2], color: '#ff6a1f', intensity: 120, range: 14 },
+      { at: [2, 3, 5], aim: [0, 2, 1.2], color: '#ffd2a1', intensity: 60, range: 12 }
     ],
-    camera: { position: [-0.2, 1.4, 9.5], target: [-0.2, 0.6, 0] },
-    fov: 55
+    camera: { position: [2.6, 3.4, 5.6], target: [-0.2, 0.6, 0.6] },
+    fov: 46
   },
   {
     id: 'squad',
     name: 'Squad incoming',
-    hint: 'You peek from behind a tree as an armed squad charges in',
+    hint: 'Close on your worried face as the squad charges in behind',
     backdrop: 'forest',
     sky: 'night',
     look: 'teal-orange',
+    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, ...focusOn(0.28, 0.42, 3.5) },
     settings: { renderMode: 'cinematic', sunStrength: 0.15, ambientStrength: 0.35, fog: true },
     players: [
-      { name: 'Steve', pose: 'Blocking', at: [-1.35, 0, 2.4], yaw: 40, equipment: { mainHand: 'iron_sword' } },
+      { name: 'Steve', pose: 'Blocking', at: [-0.95, 0, 2.6], yaw: 30, equipment: { mainHand: 'iron_sword' } },
       ...(
         [
-          ['Kai', 'kai', false, [1.3, 0, -0.6], 'Sprinting', 'netherite_sword'],
-          ['Noor', 'noor', true, [2.7, 0, -2.2], 'Sword swing', 'diamond_sword'],
-          ['Efe', 'efe', true, [0.3, 0, -3.4], 'Sprinting', 'netherite_sword'],
-          ['Makena', 'makena', true, [3.7, 0, -4.6], 'Lunge', 'diamond_sword'],
-          ['Sunny', 'sunny', false, [1.7, 0, -6.2], 'Sprinting', 'netherite_sword']
+          ['Kai', 'kai', false, [1.0, 0, -1.0], 'Sprinting', 'netherite_sword'],
+          ['Noor', 'noor', true, [2.4, 0, -2.6], 'Sword swing', 'diamond_sword'],
+          ['Efe', 'efe', true, [0.1, 0, -3.6], 'Sprinting', 'netherite_sword']
         ] as const
       ).map(([name, skin, slim, at, pose, sword]) => ({
         name,
         skin,
         slim,
         at: [...at] as Vec3,
-        // Charging at the hero.
-        yaw: toward([...at] as Vec3, [-1.35, 0, 2.4]),
+        yaw: toward([...at] as Vec3, [-0.95, 0, 2.6]),
         pose,
-        // Purple-dyed leather reads like the enchanted gear in squad thumbnails.
         equipment: { chest: 'leather', legs: 'leather', feet: 'leather', leatherColor: '#7d3fd8', mainHand: sword }
       }))
     ],
-    texts: [],
-    trunks: [[-2.75, -1, 3.2]],
+    texts: [{ text: 'HUNTED', color: '#ff3b3b', style: 'Horror', screen: [0.42, 0.58], height: 0.27 }],
     lights: [
-      { at: [2.2, 7, 1.5], aim: [2, 0.5, -2.5], color: '#d9c4ff', intensity: 420, range: 30 },
-      { at: [1.2, 3, 4.5], aim: [-1.3, 1.4, 2.4], color: '#ffd9a8', intensity: 90, range: 14 }
+      { at: [2.2, 7, 1.5], aim: [1.5, 0.5, -2.5], color: '#d9c4ff', intensity: 380, range: 30 },
+      { at: [0.8, 2.2, 5], aim: [-0.95, 1.5, 2.6], color: '#ffd9a8', intensity: 70, range: 9 }
     ],
-    camera: { position: [0.2, 1.5, 5.4], target: [0.8, 1.3, -1] },
-    fov: 50
+    camera: { position: [0.2, 1.55, 5.6], target: [-0.35, 1.45, 1.4] },
+    fov: 36
   },
   {
     id: 'horde',
     name: 'Mob horde',
-    hint: 'Surrounded in a dark forest as the horde closes in',
+    hint: 'From inside the horde, a zombie looming in front of you',
     backdrop: 'forest',
     sky: 'night',
-    look: 'night',
-    settings: { renderMode: 'cinematic', ...NIGHT_LIGHTING, fog: true },
-    players: [{ name: 'Steve', pose: 'Blocking', at: HERO, yaw: 0, equipment: { mainHand: 'diamond_sword' } }],
+    look: 'teal-orange',
+    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, ...focusOn(0.62, 0.48, 3.5) },
+    settings: { renderMode: 'cinematic', sunStrength: 0.25, ambientStrength: 0.55, fog: true },
+    players: [{ name: 'Steve', pose: 'Blocking', at: [0.6, 0, 0.4], yaw: 0, equipment: { mainHand: 'diamond_sword' } }],
     mobs: [
-      horde('wolf', [-2.4, 0, 1.6], { texture: 'entity/wolf/wolf_angry' }),
-      horde('wolf', [2.5, 0, 1.2], { texture: 'entity/wolf/wolf_angry' }),
-      horde('zombie', [-1.6, 0, -0.8]),
-      horde('zombie', [1.4, 0, -1.4]),
-      horde('husk', [-3.4, 0, -2.4]),
-      horde('zombie', [3.2, 0, -3]),
-      horde('skeleton', [0.2, 0, -3.2]),
-      horde('skeleton', [-1.8, 0, -4.6]),
-      horde('spider', [2.4, 0, -5.2]),
-      horde('creeper', [-0.6, 0, -6]),
-      horde('zombie', [4.6, 0, -6.4]),
-      horde('creeper', [-4.4, 0, -6.8])
+      { mob: 'zombie', at: [-0.75, 0, 4.0], yaw: 165, parts: ARMS_OUT },
+      { mob: 'zombie', at: [2.3, 0, 2.0], yaw: -120, parts: ARMS_OUT },
+      { mob: 'skeleton', at: [-1.6, 0, 1.0], yaw: 120, parts: ARMS_OUT },
+      { mob: 'creeper', at: [2.0, 0, -1.4], yaw: -100 }
     ],
-    texts: [],
+    texts: [{ text: '1 VS 100', color: '#ffffff', style: 'Bold white', screen: [0.45, 0.62], height: 0.2 }],
     lights: [
-      { at: [-2.4, 1.2, 2.4], color: '#3fe0d0', intensity: 25, range: 7 },
-      { at: [2.5, 1.2, 2], color: '#3fe0d0', intensity: 25, range: 7 },
-      { at: [0, 4, -2.5], aim: [0, 1.6, 1.6], color: '#8fe8ff', intensity: 220, range: 16 },
-      { at: [0, 2.5, 5], aim: [0, 1.4, 1.6], color: '#cfe6ff', intensity: 60, range: 10 }
+      { at: [0.6, 4, -1.5], aim: [0.6, 1.4, 0.4], color: '#8fe8ff', intensity: 160, range: 12 },
+      { at: [1.6, 2, 3], aim: [0.6, 1.4, 0.4], color: '#cfe6ff', intensity: 90, range: 8 },
+      { at: [-0.2, 3, 2.5], color: '#7fd0ff', intensity: 40, range: 4 }
     ],
-    camera: { position: [0, 1.3, 6], target: [0, 1.3, -1] },
-    fov: 55
+    camera: { position: [-0.35, 1.7, 5.2], target: [0.6, 1.3, 0.4] },
+    fov: 38
   },
   // ---- Unlocked with the secret code: recreations of Loveguard's latest thumbnails.
   {
@@ -429,345 +433,6 @@ export const TEMPLATES: Template[] = [
     ],
     camera: { position: [0.6, 0.5, 5.6], target: [0, 6.5, -6] },
     fov: 74
-  }
-]
-
-/** Shallow depth of field focused on a point of the frame (x right, y down). */
-const focusOn = (x: number, y: number, blur = 3): Partial<EffectSettings> => ({
-  depthOfField: true,
-  dofBlur: blur,
-  dofRange: 0.35,
-  focusPoints: [{ x, y }]
-})
-/** Diamond armour, helmet left off so the face shows. */
-const DIAMOND_KIT: Partial<Equipment> = { chest: 'diamond', legs: 'diamond', feet: 'diamond' }
-
-/**
- * Draft layouts for reworking the presets: two very different takes on each (A: tight close-up of the hero with a big
- * title beside them; B: a bolder staging). Not listed anywhere yet; rendered for review.
- */
-export const TEMPLATE_DRAFTS: Template[] = [
-  // ---- Shocked find
-  {
-    id: 'reaction-a',
-    name: 'Shocked find · A',
-    hint: 'Close-up: shocked, holding a diamond, title beside',
-    backdrop: 'cave',
-    sky: 'night',
-    look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 1, bloomThreshold: 0.6, vignette: true, ...focusOn(0.3, 0.45) },
-    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.4, fog: false },
-    players: [{ name: 'Steve', pose: 'Pointing', at: [-0.9, 0, 0.5], yaw: 55 }],
-    vfx: [{ effect: 'shine', at: [0.35, 0.2, -0.6], color: '#9ff3ff', density: 0.4, scale: 0.6 }],
-    texts: [{ text: 'DIAMONDS?!', color: '#7df9ff', style: 'Diamond', screen: [0.4, 0.42], height: 0.2 }],
-    lights: [
-      { at: [1.6, 1.8, 2.6], aim: [-0.9, 1.4, 0.5], color: '#9fe8ff', intensity: 90, range: 10 },
-      { at: [-2.4, 2.4, -1.5], color: '#ff9a3c', intensity: 50, range: 9 }
-    ],
-    camera: { position: [0.5, 1.45, 3.3], target: [-0.45, 1.35, 0] },
-    fov: 34
-  },
-  {
-    id: 'reaction-b',
-    name: 'Shocked find · B',
-    hint: 'Over the shoulder at a glowing diamond vein deep in the cave',
-    backdrop: 'cave',
-    sky: 'night',
-    look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 1.3, bloomThreshold: 0.5, vignette: true, vignetteDarkness: 0.6 },
-    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.25, fog: true },
-    players: [{ name: 'Steve', pose: 'Pointing', at: [-0.95, 0, 2.3], yaw: 165 }],
-    vfx: [
-      { effect: 'shine', at: [0.6, 0, -4.5], color: '#8ff0ff', density: 0.8, scale: 2.2 },
-      { effect: 'embers', at: [0.6, -0.5, -4.5], color: '#7df9ff', density: 0.4, scale: 0.8 }
-    ],
-    texts: [{ text: 'I FOUND IT...', color: '#ffffff', style: 'Bold white', screen: [0.1, 0.66], height: 0.16 }],
-    lights: [
-      { at: [0.6, 1.2, -4], color: '#5fe8ff', intensity: 160, range: 14 },
-      { at: [-2, 2, 4], color: '#ffb35c', intensity: 25, range: 7 }
-    ],
-    camera: { position: [0.1, 1.65, 4.3], target: [0.2, 1.0, -4] },
-    fov: 46
-  },
-  // ---- 100 days
-  {
-    id: 'survival-a',
-    name: '100 days stranded · A',
-    hint: 'Armoured hero close-up at golden hour, big title on the right',
-    backdrop: 'island',
-    sky: 'golden',
-    look: 'pop',
-    effects: { bloom: true, bloomIntensity: 0.8, bloomThreshold: 0.7, vignette: true, ...focusOn(0.27, 0.4, 2.5) },
-    settings: { ...DAY, sunAzimuth: 300, sunElevation: 14 },
-    players: [
-      {
-        name: 'Steve',
-        pose: 'Standing',
-        at: [-0.95, 0, 0.6],
-        yaw: 22,
-        equipment: { ...DIAMOND_KIT, mainHand: 'diamond_sword' }
-      }
-    ],
-    texts: [{ text: 'I SURVIVED\n100 DAYS', color: YELLOW, style: 'Gold', screen: [0.38, 0.28], height: 0.44 }],
-    camera: { position: [1.0, 1.2, 4.3], target: [-0.25, 1.15, 0] },
-    fov: 32
-  },
-  {
-    id: 'survival-b',
-    name: '100 days stranded · B',
-    hint: 'Worm’s-eye victory into the setting sun, title across the top',
-    backdrop: 'island',
-    sky: 'clear',
-    look: 'golden',
-    effects: {
-      bloom: true,
-      bloomIntensity: 0.6,
-      bloomThreshold: 0.75,
-      godRays: true,
-      godRaysIntensity: 0.35,
-      vignette: true
-    },
-    settings: { ...DAY, sunAzimuth: 180, sunElevation: 30 },
-    players: [
-      {
-        name: 'Steve',
-        pose: 'Victory',
-        at: [0, 0, 0.8],
-        yaw: 0,
-        equipment: { ...DIAMOND_KIT, mainHand: 'diamond_sword' }
-      }
-    ],
-    texts: [{ text: '100 DAYS', color: YELLOW, style: 'Gold', screen: [0, 0.68], height: 0.26 }],
-    camera: { position: [0.2, 0.25, 3.6], target: [0, 1.55, 0.8] },
-    fov: 50
-  },
-  // ---- Versus
-  {
-    id: 'versus-a',
-    name: 'Versus showdown · A',
-    hint: 'Face-off: two fighters nose to nose, VS between them',
-    backdrop: 'meadow',
-    sky: 'sunset',
-    look: 'teal-orange',
-    effects: { bloom: false, vignette: true, ...focusOn(0.5, 0.4, 2.5) },
-    settings: { ...DAY, sunAzimuth: 0, sunElevation: 10 },
-    players: [
-      {
-        name: 'Steve',
-        pose: 'Blocking',
-        at: [-0.8, 0, 0.6],
-        yaw: 90,
-        equipment: { chest: 'diamond', mainHand: 'diamond_sword', offHand: 'shield' }
-      },
-      {
-        name: 'Alex',
-        pose: 'Sword swing',
-        at: [0.8, 0, 0.6],
-        yaw: -90,
-        equipment: { chest: 'netherite', legs: 'netherite', mainHand: 'netherite_sword' }
-      }
-    ],
-    texts: [{ text: 'VS', color: RED, style: 'Fire', screen: [0, 0.48], height: 0.32 }],
-    lights: [
-      { at: [-2.5, 2.5, 2.5], color: '#4fb8ff', intensity: 60, range: 8 },
-      { at: [2.5, 2.5, 2.5], color: '#ff5a3c', intensity: 60, range: 8 }
-    ],
-    camera: { position: [0, 1.25, 3.6], target: [0, 1.2, 0] },
-    fov: 40
-  },
-  {
-    id: 'versus-b',
-    name: 'Versus showdown · B',
-    hint: 'Over your shoulder at a netherite rival drawing a bow',
-    backdrop: 'meadow',
-    sky: 'sunset',
-    look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 0.8, bloomThreshold: 0.7, vignette: true, ...focusOn(0.64, 0.42, 3) },
-    settings: { ...DAY, sunAzimuth: 20, sunElevation: 8 },
-    players: [
-      {
-        name: 'Steve',
-        pose: 'Blocking',
-        at: [-1.15, 0, 2.6],
-        yaw: toward([-1.15, 0, 2.6], [1.3, 0, -0.9]),
-        equipment: { mainHand: 'diamond_sword', offHand: 'shield' }
-      },
-      {
-        name: 'Alex',
-        pose: 'Bow aim',
-        at: [1.3, 0, -0.9],
-        yaw: toward([1.3, 0, -0.9], [-1.15, 0, 2.6]),
-        equipment: { head: 'netherite', chest: 'netherite', legs: 'netherite', feet: 'netherite', mainHand: 'bow' }
-      }
-    ],
-    texts: [{ text: 'VS', color: RED, style: 'Fire', screen: [0.08, 0.6], height: 0.3 }],
-    camera: { position: [-0.35, 1.7, 4.8], target: [1.0, 1.3, -0.9] },
-    fov: 44
-  },
-  // ---- Nether
-  {
-    id: 'nether-a',
-    name: 'Nether leap · A',
-    hint: 'Low angle as you leap over the lava, ghast overhead',
-    backdrop: 'ravine',
-    sky: 'nether',
-    look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 1.1, bloomThreshold: 0.55, vignette: true },
-    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.45, fog: true },
-    players: [{ name: 'Steve', pose: 'Leaping', at: [0, 1.4, 1.2], yaw: 40 }],
-    mobs: [{ mob: 'ghast', at: [-3, 7, -8], yaw: 20 }],
-    vfx: [{ effect: 'embers', at: [0, -2, 0], color: '#ff9c3a', density: 0.7, scale: 1.4 }],
-    texts: [{ text: 'ESCAPE?!', color: RED, style: 'Fire', screen: [-0.42, 0.6], height: 0.22 }],
-    lights: [
-      { at: [0, -2.5, 1.2], color: '#ff6a1f', intensity: 120, range: 14 },
-      { at: [2, 3, 5], aim: [0, 2, 1.2], color: '#ffd2a1', intensity: 60, range: 12 }
-    ],
-    camera: { position: [2.6, 3.4, 5.6], target: [-0.2, 0.6, 0.6] },
-    fov: 46
-  },
-  {
-    id: 'nether-b',
-    name: 'Nether leap · B',
-    hint: 'Running at the camera, piglins chasing behind',
-    backdrop: 'nether',
-    sky: 'nether',
-    look: 'nether',
-    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, ...focusOn(0.66, 0.45, 3) },
-    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.5, fog: true },
-    players: [{ name: 'Steve', pose: 'Running', at: [0.8, 0, 2.3], yaw: 12 }],
-    mobs: [
-      { mob: 'zombified_piglin', at: [-0.6, 0, -0.8], yaw: 20, parts: ARMS_OUT },
-      { mob: 'zombified_piglin', at: [-2, 0, -2.6], yaw: 25, parts: ARMS_OUT },
-      { mob: 'zombified_piglin', at: [0.9, 0, -3.6], yaw: 5, parts: ARMS_OUT }
-    ],
-    texts: [{ text: 'RUN!', color: RED, style: 'Fire', screen: [-0.5, 0.45], height: 0.34 }],
-    lights: [{ at: [2, 3, 6], aim: [0.8, 1.4, 2.3], color: '#ffc08a', intensity: 80, range: 12 }],
-    camera: { position: [0.45, 1.35, 5.6], target: [0.1, 1.25, 0] },
-    fov: 40
-  },
-  // ---- Squad
-  {
-    id: 'squad-a',
-    name: 'Squad incoming · A',
-    hint: 'Close on your worried face as the squad charges in behind',
-    backdrop: 'forest',
-    sky: 'night',
-    look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, ...focusOn(0.28, 0.42, 3.5) },
-    settings: { renderMode: 'cinematic', sunStrength: 0.15, ambientStrength: 0.35, fog: true },
-    players: [
-      { name: 'Steve', pose: 'Blocking', at: [-0.95, 0, 2.6], yaw: 30, equipment: { mainHand: 'iron_sword' } },
-      ...(
-        [
-          ['Kai', 'kai', false, [1.0, 0, -1.0], 'Sprinting', 'netherite_sword'],
-          ['Noor', 'noor', true, [2.4, 0, -2.6], 'Sword swing', 'diamond_sword'],
-          ['Efe', 'efe', true, [0.1, 0, -3.6], 'Sprinting', 'netherite_sword']
-        ] as const
-      ).map(([name, skin, slim, at, pose, sword]) => ({
-        name,
-        skin,
-        slim,
-        at: [...at] as Vec3,
-        yaw: toward([...at] as Vec3, [-0.95, 0, 2.6]),
-        pose,
-        equipment: { chest: 'leather', legs: 'leather', feet: 'leather', leatherColor: '#7d3fd8', mainHand: sword }
-      }))
-    ],
-    texts: [{ text: 'HUNTED', color: '#ff3b3b', style: 'Horror', screen: [0.42, 0.58], height: 0.27 }],
-    lights: [
-      { at: [2.2, 7, 1.5], aim: [1.5, 0.5, -2.5], color: '#d9c4ff', intensity: 380, range: 30 },
-      { at: [0.8, 2.2, 5], aim: [-0.95, 1.5, 2.6], color: '#ffd9a8', intensity: 70, range: 9 }
-    ],
-    camera: { position: [0.2, 1.55, 5.6], target: [-0.35, 1.45, 1.4] },
-    fov: 36
-  },
-  {
-    id: 'squad-b',
-    name: 'Squad incoming · B',
-    hint: 'The whole squad in a V, shot low like a movie poster',
-    backdrop: 'forest',
-    sky: 'night',
-    look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 1, bloomThreshold: 0.55, vignette: true },
-    settings: { renderMode: 'cinematic', sunStrength: 0.15, ambientStrength: 0.4, fog: true },
-    players: (
-      [
-        ['Steve', undefined, false, [0, 0, 1.2], 'Blocking', 'diamond_sword'],
-        ['Kai', 'kai', false, [-1.1, 0, 0.3], 'Standing', 'netherite_sword'],
-        ['Noor', 'noor', true, [1.1, 0, 0.3], 'Standing', 'diamond_sword'],
-        ['Efe', 'efe', true, [-2.1, 0, -0.6], 'Standing', 'netherite_sword'],
-        ['Makena', 'makena', true, [2.1, 0, -0.6], 'Standing', 'diamond_sword']
-      ] as const
-    ).map(([name, skin, slim, at, pose, sword]) => ({
-      name,
-      ...(skin && { skin }),
-      slim,
-      at: [...at] as Vec3,
-      yaw: 0,
-      pose,
-      equipment: { chest: 'leather', legs: 'leather', feet: 'leather', leatherColor: '#7d3fd8', mainHand: sword }
-    })),
-    texts: [{ text: 'THE SQUAD', color: '#c9a7ff', style: 'Neon', screen: [0, 0.7], height: 0.22 }],
-    lights: [
-      { at: [0, 6, -4], aim: [0, 1, 0.5], color: '#b48cff', intensity: 320, range: 20 },
-      { at: [0, 2, 6], aim: [0, 1.4, 0.5], color: '#ffd9a8', intensity: 70, range: 12 }
-    ],
-    camera: { position: [0, 0.5, 4.6], target: [0, 1.5, 0] },
-    fov: 46
-  },
-  // ---- Horde
-  {
-    id: 'horde-a',
-    name: 'Mob horde · A',
-    hint: 'Mid-shot of you, zombies pressing in from both sides',
-    backdrop: 'forest',
-    sky: 'night',
-    look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, ...focusOn(0.5, 0.42, 3) },
-    settings: { renderMode: 'cinematic', sunStrength: 0.25, ambientStrength: 0.55, fog: true },
-    players: [{ name: 'Steve', pose: 'Blocking', at: [0, 0, 1.4], yaw: 0, equipment: { mainHand: 'diamond_sword' } }],
-    mobs: [
-      horde('zombie', [-1.5, 0, 2.2]),
-      horde('zombie', [1.6, 0, 2.0]),
-      horde('husk', [-2.3, 0, 0.6]),
-      horde('skeleton', [2.2, 0, 0.2]),
-      horde('creeper', [-0.9, 0, -0.9]),
-      horde('zombie', [0.9, 0, -1.4]),
-      horde('spider', [-2.6, 0, -2.2]),
-      horde('zombie', [2.6, 0, -2.4])
-    ],
-    texts: [{ text: 'SURROUNDED', color: '#ff3b3b', style: 'Horror', screen: [0, 0.68], height: 0.17 }],
-    lights: [
-      { at: [0, 4, -2], aim: [0, 1.6, 1.4], color: '#8fe8ff', intensity: 200, range: 14 },
-      { at: [0, 2.2, 5], aim: [0, 1.4, 1.4], color: '#cfe6ff', intensity: 70, range: 9 }
-    ],
-    camera: { position: [0, 1.45, 4.5], target: [0, 1.3, 0.8] },
-    fov: 46
-  },
-  {
-    id: 'horde-b',
-    name: 'Mob horde · B',
-    hint: 'From inside the horde, a zombie looming in front of you',
-    backdrop: 'forest',
-    sky: 'night',
-    look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, ...focusOn(0.62, 0.48, 3.5) },
-    settings: { renderMode: 'cinematic', sunStrength: 0.25, ambientStrength: 0.55, fog: true },
-    players: [{ name: 'Steve', pose: 'Blocking', at: [0.6, 0, 0.4], yaw: 0, equipment: { mainHand: 'diamond_sword' } }],
-    mobs: [
-      { mob: 'zombie', at: [-0.75, 0, 4.0], yaw: 165, parts: ARMS_OUT },
-      { mob: 'zombie', at: [2.3, 0, 2.0], yaw: -120, parts: ARMS_OUT },
-      { mob: 'skeleton', at: [-1.6, 0, 1.0], yaw: 120, parts: ARMS_OUT },
-      { mob: 'creeper', at: [2.0, 0, -1.4], yaw: -100 }
-    ],
-    texts: [{ text: '1 VS 100', color: '#ffffff', style: 'Bold white', screen: [0.45, 0.62], height: 0.2 }],
-    lights: [
-      { at: [0.6, 4, -1.5], aim: [0.6, 1.4, 0.4], color: '#8fe8ff', intensity: 160, range: 12 },
-      { at: [1.6, 2, 3], aim: [0.6, 1.4, 0.4], color: '#cfe6ff', intensity: 90, range: 8 },
-      { at: [-0.2, 3, 2.5], color: '#7fd0ff', intensity: 40, range: 4 }
-    ],
-    camera: { position: [-0.35, 1.7, 5.2], target: [0.6, 1.3, 0.4] },
-    fov: 38
   }
 ]
 
