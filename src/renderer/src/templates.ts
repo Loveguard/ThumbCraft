@@ -196,29 +196,32 @@ const focusOn = (x: number, y: number, blur = 3): Partial<EffectSettings> => ({
 })
 /** Diamond armour, helmet left off so the face shows. */
 const DIAMOND_KIT: Partial<Equipment> = { chest: 'diamond', legs: 'diamond', feet: 'diamond' }
+/** Where you stand in the horde shot; the mobs turn toward it. */
+const HORDE_HERO: Vec3 = [-0.5, 0, 3.2]
 
 export const TEMPLATES: Template[] = [
   {
     id: 'reaction',
     name: 'Shocked find',
-    hint: 'Over the shoulder at a glowing diamond vein deep in the cave',
+    hint: 'Close on you pointing back at a glowing diamond vein, title in the open cave',
     backdrop: 'cave',
     sky: 'night',
     look: 'teal-orange',
     effects: { bloom: true, bloomIntensity: 1.3, bloomThreshold: 0.5, vignette: true, vignetteDarkness: 0.6 },
     settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.25, fog: true },
-    players: [{ name: 'Steve', pose: 'Pointing', at: [-0.95, 0, 2.3], yaw: 165 }],
+    players: [{ name: 'Steve', pose: 'Pointing', at: [-0.75, 0, 1.4], yaw: 55 }],
     vfx: [
-      { effect: 'shine', at: [0.6, 0, -4.5], color: '#8ff0ff', density: 0.8, scale: 2.2 },
-      { effect: 'embers', at: [0.6, -0.5, -4.5], color: '#7df9ff', density: 0.4, scale: 0.8 }
+      { effect: 'shine', at: [0.9, 0, -4.5], color: '#8ff0ff', density: 0.6, scale: 1.8 },
+      { effect: 'embers', at: [0.9, -0.5, -4.5], color: '#7df9ff', density: 0.4, scale: 0.8 }
     ],
-    texts: [{ text: 'I FOUND IT...', color: '#ffffff', style: 'Bold white', screen: [0.1, 0.66], height: 0.16 }],
+    texts: [{ text: 'I FOUND IT...', color: '#ffffff', style: 'Bold white', screen: [0.42, 0.3], height: 0.24 }],
     lights: [
-      { at: [0.6, 1.2, -4], color: '#5fe8ff', intensity: 160, range: 14 },
-      { at: [-2, 2, 4], color: '#ffb35c', intensity: 25, range: 7 }
+      { at: [0.9, 1.2, -4], color: '#5fe8ff', intensity: 160, range: 14 },
+      { at: [0.6, 2.2, 3.6], aim: [-0.75, 1.5, 1.4], color: '#ffc27a', intensity: 70, range: 7 },
+      { at: [-1.5, 2.2, 0], color: '#5fe8ff', intensity: 30, range: 4 }
     ],
-    camera: { position: [0.1, 1.65, 4.3], target: [0.2, 1.0, -4] },
-    fov: 46
+    camera: { position: [0.4, 1.8, 4.0], target: [-0.1, 1.35, -1] },
+    fov: 42
   },
   {
     id: 'survival',
@@ -246,61 +249,61 @@ export const TEMPLATES: Template[] = [
       }
     ],
     texts: [{ text: '100 DAYS', color: YELLOW, style: 'Gold', screen: [0, 0.68], height: 0.26 }],
-    camera: { position: [0.2, 0.25, 3.6], target: [0, 1.55, 0.8] },
+    camera: { position: [0.15, 0.35, 2.9], target: [0, 1.6, 0.8] },
     fov: 50
   },
   {
     id: 'versus',
     name: 'Versus showdown',
-    hint: 'Face-off: two fighters nose to nose, VS between them',
+    hint: 'Two fighters close at the edges of the frame, VS between them',
     backdrop: 'meadow',
     sky: 'sunset',
     look: 'teal-orange',
-    effects: { bloom: false, vignette: true, ...focusOn(0.5, 0.4, 2.5) },
+    effects: { bloom: false, vignette: true, ...focusOn(0.2, 0.35, 2.5) },
     settings: { ...DAY, sunAzimuth: 0, sunElevation: 10 },
     players: [
       {
         name: 'Steve',
-        pose: 'Blocking',
-        at: [-0.8, 0, 0.6],
-        yaw: 90,
-        equipment: { chest: 'diamond', mainHand: 'diamond_sword', offHand: 'shield' }
+        pose: 'Sword swing',
+        at: [-0.95, 0, 0.6],
+        yaw: 60,
+        equipment: { chest: 'diamond', mainHand: 'diamond_sword' }
       },
       {
         name: 'Alex',
-        pose: 'Sword swing',
-        at: [0.8, 0, 0.6],
-        yaw: -90,
-        equipment: { chest: 'netherite', legs: 'netherite', mainHand: 'netherite_sword' }
+        pose: 'Bow aim',
+        at: [0.95, 0, 0.6],
+        yaw: -60,
+        equipment: { chest: 'netherite', legs: 'netherite', mainHand: 'bow' }
       }
     ],
-    texts: [{ text: 'VS', color: RED, style: 'Fire', screen: [0, 0.48], height: 0.32 }],
+    texts: [{ text: 'VS', color: RED, style: 'Fire', screen: [0, 0.3], height: 0.4 }],
     lights: [
       { at: [-2.5, 2.5, 2.5], color: '#4fb8ff', intensity: 60, range: 8 },
       { at: [2.5, 2.5, 2.5], color: '#ff5a3c', intensity: 60, range: 8 }
     ],
-    camera: { position: [0, 1.25, 3.6], target: [0, 1.2, 0] },
-    fov: 40
+    camera: { position: [0, 1.35, 2.7], target: [0, 1.3, 0] },
+    fov: 44
   },
   {
     id: 'nether',
     name: 'Nether leap',
-    hint: 'Low angle as you leap over the lava, ghast overhead',
+    hint: 'Sprinting along the edge of a lava ravine, ghast in the dark',
     backdrop: 'ravine',
     sky: 'nether',
     look: 'teal-orange',
     effects: { bloom: true, bloomIntensity: 1.1, bloomThreshold: 0.55, vignette: true },
     settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.45, fog: true },
-    players: [{ name: 'Steve', pose: 'Leaping', at: [0, 1.4, 1.2], yaw: 40 }],
-    mobs: [{ mob: 'ghast', at: [-3, 7, -8], yaw: 20 }],
+    players: [{ name: 'Steve', pose: 'Sprinting', at: [0, 1.4, 1.2], yaw: 30 }],
+    mobs: [{ mob: 'ghast', at: [3, 4.5, -9], yaw: -20 }],
     vfx: [{ effect: 'embers', at: [0, -2, 0], color: '#ff9c3a', density: 0.7, scale: 1.4 }],
-    texts: [{ text: 'ESCAPE?!', color: RED, style: 'Fire', screen: [-0.42, 0.6], height: 0.22 }],
+    texts: [{ text: 'ESCAPE?!', color: RED, style: 'Fire', screen: [0.42, 0.45], height: 0.28 }],
     lights: [
       { at: [0, -2.5, 1.2], color: '#ff6a1f', intensity: 120, range: 14 },
-      { at: [2, 3, 5], aim: [0, 2, 1.2], color: '#ffd2a1', intensity: 60, range: 12 }
+      { at: [1.8, 3.4, 3.4], aim: [0, 2.6, 1.2], color: '#ffd2a1', intensity: 80, range: 8 }
     ],
-    camera: { position: [2.6, 3.4, 5.6], target: [-0.2, 0.6, 0.6] },
-    fov: 46
+    camera: { position: [1.8, 3.0, 3.9], target: [0.8, 2.3, 0.2] },
+    fov: 44
   },
   {
     id: 'squad',
@@ -329,7 +332,7 @@ export const TEMPLATES: Template[] = [
         equipment: { chest: 'leather', legs: 'leather', feet: 'leather', leatherColor: '#7d3fd8', mainHand: sword }
       }))
     ],
-    texts: [{ text: 'HUNTED', color: '#ff3b3b', style: 'Horror', screen: [0.42, 0.58], height: 0.27 }],
+    texts: [{ text: 'HUNTED', color: '#ff3b3b', style: 'Horror', screen: [0.42, 0.52], height: 0.3 }],
     lights: [
       { at: [2.2, 7, 1.5], aim: [1.5, 0.5, -2.5], color: '#d9c4ff', intensity: 380, range: 30 },
       { at: [0.8, 2.2, 5], aim: [-0.95, 1.5, 2.6], color: '#ffd9a8', intensity: 70, range: 9 }
@@ -340,27 +343,34 @@ export const TEMPLATES: Template[] = [
   {
     id: 'horde',
     name: 'Mob horde',
-    hint: 'From inside the horde, a zombie looming in front of you',
+    hint: 'Close on you, sword up, as the horde closes in behind',
     backdrop: 'forest',
     sky: 'night',
     look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, ...focusOn(0.62, 0.48, 3.5) },
+    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, ...focusOn(0.25, 0.4, 3.5) },
     settings: { renderMode: 'cinematic', sunStrength: 0.25, ambientStrength: 0.55, fog: true },
-    players: [{ name: 'Steve', pose: 'Blocking', at: [0.6, 0, 0.4], yaw: 0, equipment: { mainHand: 'diamond_sword' } }],
-    mobs: [
-      { mob: 'zombie', at: [-0.75, 0, 4.0], yaw: 165, parts: ARMS_OUT },
-      { mob: 'zombie', at: [2.3, 0, 2.0], yaw: -120, parts: ARMS_OUT },
-      { mob: 'skeleton', at: [-1.6, 0, 1.0], yaw: 120, parts: ARMS_OUT },
-      { mob: 'creeper', at: [2.0, 0, -1.4], yaw: -100 }
-    ],
-    texts: [{ text: '1 VS 100', color: '#ffffff', style: 'Bold white', screen: [0.45, 0.62], height: 0.2 }],
+    players: [{ name: 'Steve', pose: 'Blocking', at: HORDE_HERO, yaw: 25, equipment: { mainHand: 'diamond_sword' } }],
+    mobs: (
+      [
+        ['zombie', [1.3, 0, 1.2]],
+        ['zombie', [2.5, 0, 0.1]],
+        ['skeleton', [0.3, 0, -0.6]],
+        ['creeper', [3.2, 0, -1.6]]
+      ] as const
+    ).map(([mob, at]) => ({
+      mob,
+      at: [...at] as Vec3,
+      yaw: toward([...at] as Vec3, HORDE_HERO),
+      ...(mob !== 'creeper' && { parts: ARMS_OUT })
+    })),
+    texts: [{ text: '1 VS 100', color: '#ffffff', style: 'Bold white', screen: [0.42, 0.5], height: 0.26 }],
     lights: [
-      { at: [0.6, 4, -1.5], aim: [0.6, 1.4, 0.4], color: '#8fe8ff', intensity: 160, range: 12 },
-      { at: [1.6, 2, 3], aim: [0.6, 1.4, 0.4], color: '#cfe6ff', intensity: 90, range: 8 },
-      { at: [-0.2, 3, 2.5], color: '#7fd0ff', intensity: 40, range: 4 }
+      { at: [0.8, 2.5, 5.6], aim: [-0.5, 1.5, 3.2], color: '#ffd9a8', intensity: 90, range: 8 },
+      { at: [-1.5, 3, 1.5], aim: [-0.5, 1.5, 3.2], color: '#8fe8ff', intensity: 120, range: 8 },
+      { at: [1.8, 3.5, -0.5], aim: [1.8, 1, 0.5], color: '#9fd8ff', intensity: 150, range: 10 }
     ],
-    camera: { position: [-0.35, 1.7, 5.2], target: [0.6, 1.3, 0.4] },
-    fov: 38
+    camera: { position: [0.5, 1.45, 5.6], target: [0.3, 1.3, 0] },
+    fov: 40
   },
   // ---- Unlocked with the secret code: recreations of Loveguard's latest thumbnails.
   {
