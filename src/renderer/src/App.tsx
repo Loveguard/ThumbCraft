@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, Download, MonitorPlay, Move3d, Redo2, Rotate3d, Ruler, Scale3d, Undo2 } from 'lucide-react'
 import { YouTubePreview } from './components/YouTubePreview'
 import { TabBar } from './components/TabBar'
@@ -14,6 +14,7 @@ import { encodeExport, extensionOf, sizeLabel } from './exportImage'
 import { useShallow } from 'zustand/react/shallow'
 import { useStore, type TransformMode } from './store'
 import { captureFrame } from './capture'
+import { useDismiss } from './useDismiss'
 import logo from './assets/logo.png'
 
 const EXPORT_SIZES: [number, number, string][] = [
@@ -31,6 +32,8 @@ const TOOLS: { mode: TransformMode; icon: typeof Move3d; label: string; key: str
 
 /** Ticks several sizes and saves them all into one folder, named after the project. */
 function BatchExport({ onClose }: { onClose: () => void }): ReactNode {
+  const ref = useRef<HTMLDivElement>(null)
+  useDismiss(ref, onClose)
   const [picked, setPicked] = useState<Set<string>>(() => new Set(['1280x720', '1080x1920']))
   const name = useStore((s) => s.project.name)
   const format = useStore((s) => s.settings.exportFormat)
@@ -47,7 +50,7 @@ function BatchExport({ onClose }: { onClose: () => void }): ReactNode {
     if (dir) useStore.getState().setStatus(`Exported ${images.length} thumbnails to ${dir}`)
   }
   return (
-    <div className="batch-export" role="dialog">
+    <div className="batch-export" role="dialog" ref={ref}>
       <strong>Export several sizes</strong>
       {EXPORT_SIZES.map(([w, h, label]) => {
         const key = `${w}x${h}`

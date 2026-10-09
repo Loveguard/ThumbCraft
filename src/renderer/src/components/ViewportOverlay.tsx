@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
 import * as THREE from 'three'
 import {
   ArrowDown,
@@ -18,6 +18,7 @@ import { hasEffects } from './Effects'
 import { StartPanel } from './StartPanel'
 import { viewport } from './Viewport'
 import { RENDER_MODES } from '../renderModes'
+import { useDismiss } from '../useDismiss'
 
 /** Bounding box of the given objects (or all visible objects). */
 function boundsOf(ids?: string[]): THREE.Box3 | null {
@@ -77,15 +78,8 @@ const ANGLES: { label: string; dir: [number, number, number]; hint: string }[] =
 function CameraMenu({ onClose }: { onClose: () => void }): ReactNode {
   const selectedId = useStore((s) => s.selectedId)
   const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const away = (e: MouseEvent): void => {
-      // The whole anchor counts as inside, so pressing the Camera button toggles the menu shut.
-      const anchor = ref.current?.closest('.menu-anchor') ?? ref.current
-      if (anchor && !anchor.contains(e.target as Node)) onClose()
-    }
-    window.addEventListener('mousedown', away)
-    return () => window.removeEventListener('mousedown', away)
-  }, [onClose])
+  // The whole anchor counts as inside, so pressing the Camera button toggles the menu shut.
+  useDismiss(ref, onClose, (el) => el.closest('.menu-anchor'))
   const apply = (dir: [number, number, number]): void => {
     const box = boundsOf(selectedId ? [selectedId] : undefined) ?? boundsOf()
     if (box) frame(box, new THREE.Vector3(...dir))

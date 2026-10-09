@@ -217,23 +217,67 @@ export function EffectsTab(): ReactNode {
   )
 }
 
-/** Sample colours a look is previewed on: sky, grass, leaves, skin, dirt, stone, water, a dark shade. */
-const PREVIEW: [number, number, number][] = [
-  [0.47, 0.66, 1],
-  [0.45, 0.73, 0.3],
-  [0.25, 0.45, 0.18],
-  [0.9, 0.68, 0.52],
-  [0.55, 0.38, 0.25],
-  [0.5, 0.5, 0.5],
-  [0.2, 0.35, 0.75],
-  [0.12, 0.1, 0.1]
-]
-const toCss = (c: number[]): string => `rgb(${c.map((v) => Math.round(v * 255)).join(',')})`
-const strip = (g: Grade | null): string =>
-  `linear-gradient(90deg, ${PREVIEW.map((c, i) => {
+type RGB = [number, number, number]
+/** A tiny pixel-art scene each look is previewed on: sky with a low sun, hills, a tree, grass and a player. */
+function previewScene(): RGB[][] {
+  const W = 64
+  const H = 28
+  const px: RGB[][] = []
+  const box = (x0: number, y0: number, x1: number, y1: number, c: RGB): void => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) px[y][x] = c
+  }
+  for (let y = 0; y < H; y++) {
+    px.push([])
+    for (let x = 0; x < W; x++) {
+      const t = y / 16
+      const sun = Math.max(0, 1 - Math.hypot(x - 48, y - 9) / 14)
+      px[y].push([
+        Math.min(1, 0.32 + 0.55 * t + 0.5 * sun),
+        Math.min(1, 0.52 + 0.36 * t + 0.35 * sun),
+        Math.min(1, 0.92 + 0.06 * t + 0.05 * sun)
+      ])
+    }
+  }
+  for (let x = 0; x < W; x++) {
+    const hill = 15 + Math.round(2 * Math.sin(x / 5) + Math.sin(x / 2.3))
+    box(x, hill, x + 1, 19, [0.2, 0.36, 0.2])
+  }
+  box(0, 19, W, H, [0.42, 0.68, 0.28])
+  box(0, 25, W, H, [0.5, 0.36, 0.24])
+  box(5, 5, 17, 13, [0.2, 0.42, 0.16])
+  box(10, 13, 12, 21, [0.4, 0.28, 0.17])
+  box(30, 20, 40, 22, [0.3, 0.5, 0.2])
+  box(32, 8, 38, 10, [0.25, 0.17, 0.1])
+  box(32, 10, 38, 14, [0.85, 0.62, 0.48])
+  box(33, 11, 34, 12, [0.25, 0.3, 0.75])
+  box(36, 11, 37, 12, [0.25, 0.3, 0.75])
+  box(31, 14, 39, 19, [0.0, 0.62, 0.62])
+  box(32, 19, 38, 22, [0.25, 0.25, 0.62])
+  return px
+}
+const previews = new Map<string, string>()
+/** The preview scene with a look applied, as an image (made once per look). */
+function lookPreview(key: string, g: Grade | null): string {
+  const hit = previews.get(key)
+  if (hit) return hit
+  const scene = previewScene()
+  const canvas = document.createElement('canvas')
+  canvas.width = scene[0].length
+  canvas.height = scene.length
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return ''
+  const img = ctx.createImageData(canvas.width, canvas.height)
+  scene.flat().forEach((c, i) => {
     const out = g ? gradeColor(c, g) : c
-    return `${toCss(out)} ${(i / PREVIEW.length) * 100}%, ${toCss(out)} ${((i + 1) / PREVIEW.length) * 100}%`
-  }).join(', ')})`
+    for (let k = 0; k < 3; k++) img.data[i * 4 + k] = Math.round(Math.min(1, Math.max(0, out[k])) * 255)
+    img.data[i * 4 + 3] = 255
+  })
+  ctx.putImageData(img, 0, 0)
+  const url = canvas.toDataURL()
+  previews.set(key, url)
+  return url
+}
+const preview = (key: string, g: Grade | null): string => `url(${lookPreview(key, g)}) center / cover`
 
 /** The colour looks (3D LUTs): built-in grades, or the user's own .cube file, with an intensity slider. */
 function LookPicker({ onPick }: { onPick: (id: string | null) => void }): ReactNode {
@@ -254,7 +298,7 @@ function LookPicker({ onPick }: { onPick: (id: string | null) => void }): ReactN
     <>
       <div className="look-grid">
         <button className={`look-card ${!look ? 'active' : ''}`} onClick={() => onPick(null)} title="No look">
-          <span className="look-strip" style={{ background: strip(null) }} />
+          <span className="look-strip" style={{ background: preview('none', null) }} />
           <span>None</span>
         </button>
         {LOOKS.map((l) => (
@@ -264,7 +308,7 @@ function LookPicker({ onPick }: { onPick: (id: string | null) => void }): ReactN
             onClick={() => onPick(l.id)}
             title={l.hint}
           >
-            <span className="look-strip" style={{ background: strip(l.grade) }} />
+            <span className="look-strip" style={{ background: preview(l.id, l.grade) }} />
             <span>{l.label}</span>
           </button>
         ))}

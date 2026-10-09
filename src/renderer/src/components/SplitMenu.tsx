@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Columns2, Download } from 'lucide-react'
 import { captureSplit } from '../capture'
 import { encodeExport, extensionOf } from '../exportImage'
 import { useStore, type SplitSettings } from '../store'
 import { tabProject, useTabs } from '../tabs'
 import { Slider } from './controls'
+import { useDismiss } from '../useDismiss'
 
 const DIVIDERS: { id: SplitSettings['style']; label: string }[] = [
   { id: 'straight', label: 'Straight' },
@@ -18,14 +19,7 @@ function SplitMenu({ onClose }: { onClose: () => void }): ReactNode {
   const active = useTabs((s) => s.active)
   const saved = useStore((s) => s.settings.split)
   const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const away = (e: MouseEvent): void => {
-      const inside = ref.current?.closest('.tab-bar-end') ?? ref.current
-      if (inside && !inside.contains(e.target as Node)) onClose()
-    }
-    window.addEventListener('mousedown', away)
-    return () => window.removeEventListener('mousedown', away)
-  }, [onClose])
+  useDismiss(ref, onClose, (el) => el.closest('.tab-bar-end'))
   const valid = (key?: string): boolean => !!key && tabs.some((t) => t.key === key)
   // By default: this project on the left, the next one on the right.
   const other = tabs.find((t) => t.key !== active)?.key ?? active

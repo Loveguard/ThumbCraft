@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, Copy, FilePlus2, FolderOpen, History, Info, Save, SaveAll } from 'lucide-react'
 import type { RecentProject } from '@shared/api'
 import { duplicateAsTab, openProjectFile, openRecentProject, saveProject, startNewProject } from '../projectActions'
 import { useStore } from '../store'
+import { useDismiss } from '../useDismiss'
 import { AboutDialog } from './AboutDialog'
 
 export const timeAgo = (t: number): string => {
@@ -18,19 +19,15 @@ export function ProjectMenu(): ReactNode {
   const project = useStore((s) => s.project)
   const setProject = useStore((s) => s.setProject)
   const [open, setOpen] = useState(false)
+  const closeMenu = useCallback(() => setOpen(false), [])
   const [recent, setRecent] = useState<RecentProject[]>([])
   const [about, setAbout] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!open) return
-    void window.blockframe.recentProjects().then(setRecent)
-    const away = (e: MouseEvent): void => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    window.addEventListener('mousedown', away)
-    return () => window.removeEventListener('mousedown', away)
+    if (open) void window.blockframe.recentProjects().then(setRecent)
   }, [open])
+  useDismiss(ref, closeMenu, (el) => el, open)
 
   const run = (fn: () => unknown): void => {
     setOpen(false)

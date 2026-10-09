@@ -159,7 +159,7 @@ The tool rail on the left opens one panel at a time; the panel on the right edit
   lightning divider. Lean and position are adjustable.
 - **YouTube preview** (the screen button in the top bar): your thumbnail and other open tabs in the home feed, search, "up next" and on a
   phone. The video length sits in the bottom-right corner, so keep faces and text clear of it.
-- **Render mode** (Scene & lighting, right panel): Vanilla is exactly the game's look; Cinematic, Soft and
+- **Render mode** (Render & camera, right panel): Vanilla is exactly the game's look; Cinematic, Soft and
   Cartoon add a real sun with shadows.
 
 ### Shortcuts

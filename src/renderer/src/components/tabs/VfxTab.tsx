@@ -50,7 +50,7 @@ function addEffect(p: VfxPreset): void {
     scale: 1
   })
   if (p.glow && !isLit(s.settings.renderMode))
-    s.setStatus('Tip: switch to Cinematic (Scene & lighting) so the effect lights up its surroundings.')
+    s.setStatus('Tip: switch to Cinematic (Render & camera, right panel) so the effect lights up its surroundings.')
 }
 
 /** A vanilla-shaped lightning bolt striking where you're looking, slimmer than the game's for a crisp look. */

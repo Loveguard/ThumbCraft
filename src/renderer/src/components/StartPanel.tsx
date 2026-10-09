@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { FolderOpen, Mountain, X } from 'lucide-react'
 import type { RecentProject } from '@shared/api'
+import { captureFrame, sceneSettled } from '../capture'
+import { encodeExport } from '../exportImage'
 import { assetUrl, loadImage } from '../minecraft/assets'
 import { openProjectFile, openRecentProject } from '../projectActions'
 import { useStore, type SkyPreset } from '../store'
@@ -32,8 +34,39 @@ function SkinFace({ skin, slim }: { skin?: string; slim: boolean }): ReactNode {
   return <canvas ref={ref} width={8} height={8} className="skin-face" />
 }
 
+/** Where a template's snapshot is kept; it changes whenever the template itself does, so old ones are ignored. */
+function previewKey(t: Template): string {
+  let h = 0x811c9dc5
+  for (const ch of JSON.stringify(t)) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0
+  return `tc:template-preview:${t.id}:${h.toString(36)}`
+}
+const readPreview = (t: Template): string | null => {
+  try {
+    return localStorage.getItem(previewKey(t))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Remembers what a template really looks like: once its scene has finished building, a small snapshot replaces
+ * the card's sketch from then on. Skipped if the user has already started changing it.
+ */
+async function rememberPreview(t: Template): Promise<void> {
+  await sceneSettled()
+  await new Promise((r) => setTimeout(r, 2500))
+  const { project } = useStore.getState()
+  if (project.dirty || project.name !== t.name) return
+  try {
+    localStorage.setItem(previewKey(t), await encodeExport(await captureFrame(384, 216), 'jpg'))
+  } catch {
+    /* no snapshot; the sketch stays */
+  }
+}
+
 function TemplateCard({ t }: { t: Template }): ReactNode {
   const [busy, setBusy] = useState(false)
+  const [snapshot] = useState(() => readPreview(t))
   const title = t.texts[0]?.text.replace(/\n/g, ' ')
   return (
     <button
@@ -42,24 +75,32 @@ function TemplateCard({ t }: { t: Template }): ReactNode {
       title={t.hint}
       onClick={() => {
         setBusy(true)
-        void applyTemplate(t).finally(() => setBusy(false))
+        void applyTemplate(t)
+          .then(() => {
+            if (!snapshot) void rememberPreview(t)
+          })
+          .finally(() => setBusy(false))
       }}
     >
-      <div
-        className="template-art"
-        style={{
-          background: t.skyColor
-            ? `linear-gradient(180deg, ${t.skyColor} 0%, #0d0d12 100%)`
-            : (SKY_ART[t.sky] ?? SKY_ART.clear)
-        }}
-      >
-        <div className="faces">
-          {t.players.slice(0, 4).map((p, i) => (
-            <SkinFace key={i} skin={p.skin} slim={p.slim ?? p.name === 'Alex'} />
-          ))}
+      {snapshot ? (
+        <img className="template-art" src={snapshot} alt="" />
+      ) : (
+        <div
+          className="template-art"
+          style={{
+            background: t.skyColor
+              ? `linear-gradient(180deg, ${t.skyColor} 0%, #0d0d12 100%)`
+              : (SKY_ART[t.sky] ?? SKY_ART.clear)
+          }}
+        >
+          <div className="faces">
+            {t.players.slice(0, 2).map((p, i) => (
+              <SkinFace key={i} skin={p.skin} slim={p.slim ?? p.name === 'Alex'} />
+            ))}
+          </div>
+          {title && <span style={{ color: t.texts[0].color }}>{title}</span>}
         </div>
-        {title && <span style={{ color: t.texts[0].color }}>{title}</span>}
-      </div>
+      )}
       <strong>{t.name}</strong>
       <em>{busy ? 'Setting up…' : t.hint}</em>
     </button>

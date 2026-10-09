@@ -36,7 +36,7 @@ import {
   type SceneObject,
   type Vec3
 } from '../store'
-import { Group, Hint, NumberInput, NumberRow, readFlag, ScrubNumber, Toggle, writeFlag } from './controls'
+import { Group, Hint, NumberInput, NumberRow, readFlag, ScrubNumber, Slider, Toggle, writeFlag } from './controls'
 import { EquipmentProperties } from './EquipmentProperties'
 import { LightProperties } from './LightProperties'
 import { LightningProperties } from './LightningProperties'
@@ -135,6 +135,14 @@ function Layers(): ReactNode {
   const selected = useStore(useShallow((s) => selection(s)))
   const { selectOnly, select, toggleSelect, setSelection, update, remove, updateMany } = useStore.getState()
   const rows = [...objects].reverse()
+  // Layers sharing a name get numbered ("Zombie", "Zombie 2") so they can be told apart.
+  const labels = new Map<string, string>()
+  const seen = new Map<string, number>()
+  for (const o of objects) {
+    const n = (seen.get(o.name) ?? 0) + 1
+    seen.set(o.name, n)
+    labels.set(o.id, n > 1 ? `${o.name} ${n}` : o.name)
+  }
   // Click: that layer alone. Ctrl+click: add or remove it. Shift+click: everything from the last pick to here.
   const pick = (e: MouseEvent, id: string): void => {
     if (e.ctrlKey || e.metaKey) return toggleSelect(id)
@@ -157,7 +165,10 @@ function Layers(): ReactNode {
           <span>Pick a biome, build, player or text from the left to get started.</span>
         </div>
       )}
-      <ul className="layers">
+      <ul
+        className="layers"
+        title={objects.length > 1 ? 'Ctrl+click or Shift+click to pick several layers; Ctrl+G groups them' : undefined}
+      >
         {rows.map((o, i) => {
           const Icon = KIND_ICON[o.kind]
           // A group's members sit together; a folder row heads each run of them.
@@ -192,7 +203,7 @@ function Layers(): ReactNode {
                 onClick={(e) => pick(e, o.id)}
               >
                 <Icon size={15} className="kind" />
-                <span className="name">{o.name}</span>
+                <span className="name">{labels.get(o.id)}</span>
                 <button
                   className="icon-btn sm"
                   title={o.visible ? 'Hide' : 'Show'}
@@ -218,9 +229,6 @@ function Layers(): ReactNode {
           )
         })}
       </ul>
-      {objects.length > 1 && (
-        <p className="field-note">Ctrl+click or Shift+click to pick several layers; Ctrl+G groups them.</p>
-      )}
     </Section>
   )
 }
@@ -660,7 +668,7 @@ function SceneSettings(): ReactNode {
   const s = useStore((st) => st.settings)
   const setSettings = useStore((st) => st.setSettings)
   return (
-    <Section id="scene" title="Scene & lighting" defaultOpen={false}>
+    <Section id="scene" title="Render & camera" defaultOpen={false}>
       <div className="segmented">
         {RENDER_MODES.map((m) => (
           <button
@@ -685,17 +693,15 @@ function SceneSettings(): ReactNode {
         <input type="checkbox" checked={s.fog} onChange={(e) => setSettings({ fog: e.target.checked })} />
         <span>Biome fog</span>
       </label>
-      <label className="field">
-        <span>FOV {s.fov}°</span>
-        <input
-          type="range"
-          min={30}
-          max={110}
-          value={s.fov}
-          onChange={(e) => setSettings({ fov: Number(e.target.value) })}
-        />
-      </label>
-      <p className="hint">Sky presets and HDRIs are in the Sky tab on the left.</p>
+      <Slider
+        label="Field of view"
+        min={30}
+        max={110}
+        step={1}
+        value={s.fov}
+        format={(v) => `${v}°`}
+        onChange={(fov) => setSettings({ fov })}
+      />
     </Section>
   )
 }
