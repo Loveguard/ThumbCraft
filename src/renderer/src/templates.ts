@@ -456,8 +456,8 @@ export const TEMPLATE_DRAFTS: Template[] = [
     look: 'teal-orange',
     effects: { bloom: true, bloomIntensity: 1, bloomThreshold: 0.6, vignette: true, ...focusOn(0.3, 0.45) },
     settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.4, fog: false },
-    players: [{ name: 'Steve', pose: 'Shocked', at: [-0.9, 0, 0.5], yaw: 22, equipment: { mainHand: 'diamond' } }],
-    vfx: [{ effect: 'shine', at: [-0.55, 0.4, 0.9], color: '#9ff3ff', density: 0.5, scale: 0.55 }],
+    players: [{ name: 'Steve', pose: 'Shocked', at: [-0.9, 0, 0.5], yaw: 22 }],
+    vfx: [{ effect: 'shine', at: [0.35, 0.2, -0.6], color: '#9ff3ff', density: 0.4, scale: 0.6 }],
     texts: [{ text: 'DIAMONDS?!', color: '#7df9ff', style: 'Diamond', screen: [0.4, 0.42], height: 0.2 }],
     lights: [
       { at: [1.6, 1.8, 2.6], aim: [-0.9, 1.4, 0.5], color: '#9fe8ff', intensity: 90, range: 10 },
@@ -516,17 +516,17 @@ export const TEMPLATE_DRAFTS: Template[] = [
     name: '100 days stranded · B',
     hint: 'Worm’s-eye victory into the setting sun, title across the top',
     backdrop: 'island',
-    sky: 'sunset',
+    sky: 'golden',
     look: 'golden',
     effects: {
       bloom: true,
-      bloomIntensity: 1.2,
-      bloomThreshold: 0.55,
+      bloomIntensity: 0.6,
+      bloomThreshold: 0.75,
       godRays: true,
-      godRaysIntensity: 0.8,
+      godRaysIntensity: 0.35,
       vignette: true
     },
-    settings: { ...DAY, sunAzimuth: 180, sunElevation: 9 },
+    settings: { ...DAY, sunAzimuth: 180, sunElevation: 18 },
     players: [
       {
         name: 'Steve',
@@ -548,7 +548,7 @@ export const TEMPLATE_DRAFTS: Template[] = [
     backdrop: 'meadow',
     sky: 'sunset',
     look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 0.8, bloomThreshold: 0.7, vignette: true, ...focusOn(0.5, 0.4, 2.5) },
+    effects: { bloom: true, bloomIntensity: 0.6, bloomThreshold: 0.85, vignette: true, ...focusOn(0.5, 0.4, 2.5) },
     settings: { ...DAY, sunAzimuth: 0, sunElevation: 10 },
     players: [
       {
@@ -588,19 +588,19 @@ export const TEMPLATE_DRAFTS: Template[] = [
         name: 'Steve',
         pose: 'Blocking',
         at: [-1.15, 0, 2.6],
-        yaw: toward([-1.15, 0, 2.6], [1.5, 0, -2.6]),
+        yaw: toward([-1.15, 0, 2.6], [1.3, 0, -0.9]),
         equipment: { mainHand: 'diamond_sword', offHand: 'shield' }
       },
       {
         name: 'Alex',
         pose: 'Bow aim',
-        at: [1.5, 0, -2.6],
-        yaw: toward([1.5, 0, -2.6], [-1.15, 0, 2.6]),
+        at: [1.3, 0, -0.9],
+        yaw: toward([1.3, 0, -0.9], [-1.15, 0, 2.6]),
         equipment: { head: 'netherite', chest: 'netherite', legs: 'netherite', feet: 'netherite', mainHand: 'bow' }
       }
     ],
     texts: [{ text: 'VS', color: RED, style: 'Fire', screen: [0.08, 0.6], height: 0.3 }],
-    camera: { position: [-0.35, 1.75, 4.8], target: [1.1, 1.3, -2.6] },
+    camera: { position: [-0.35, 1.7, 4.8], target: [1.0, 1.3, -0.9] },
     fov: 44
   },
   // ---- Nether
@@ -672,7 +672,7 @@ export const TEMPLATE_DRAFTS: Template[] = [
         equipment: { chest: 'leather', legs: 'leather', feet: 'leather', leatherColor: '#7d3fd8', mainHand: sword }
       }))
     ],
-    texts: [{ text: 'HUNTED', color: '#ff3b3b', style: 'Horror', screen: [0.42, 0.58], height: 0.22 }],
+    texts: [{ text: 'HUNTED', color: '#ff3b3b', style: 'Horror', screen: [0.42, 0.58], height: 0.27 }],
     lights: [
       { at: [2.2, 7, 1.5], aim: [1.5, 0.5, -2.5], color: '#d9c4ff', intensity: 380, range: 30 },
       { at: [0.8, 2.2, 5], aim: [-0.95, 1.5, 2.6], color: '#ffd9a8', intensity: 70, range: 9 }
@@ -706,13 +706,13 @@ export const TEMPLATE_DRAFTS: Template[] = [
       pose,
       equipment: { chest: 'leather', legs: 'leather', feet: 'leather', leatherColor: '#7d3fd8', mainHand: sword }
     })),
-    texts: [{ text: 'THE SQUAD', color: '#c9a7ff', style: 'Neon', screen: [0, 0.7], height: 0.18 }],
+    texts: [{ text: 'THE SQUAD', color: '#c9a7ff', style: 'Neon', screen: [0, 0.7], height: 0.22 }],
     lights: [
       { at: [0, 6, -4], aim: [0, 1, 0.5], color: '#b48cff', intensity: 320, range: 20 },
       { at: [0, 2, 6], aim: [0, 1.4, 0.5], color: '#ffd9a8', intensity: 70, range: 12 }
     ],
-    camera: { position: [0, 0.45, 6.2], target: [0, 1.45, 0] },
-    fov: 44
+    camera: { position: [0, 0.5, 4.6], target: [0, 1.5, 0] },
+    fov: 46
   },
   // ---- Horde
   {
@@ -740,8 +740,8 @@ export const TEMPLATE_DRAFTS: Template[] = [
       { at: [0, 4, -2], aim: [0, 1.6, 1.4], color: '#8fe8ff', intensity: 200, range: 14 },
       { at: [0, 2.2, 5], aim: [0, 1.4, 1.4], color: '#cfe6ff', intensity: 70, range: 9 }
     ],
-    camera: { position: [0, 1.5, 5.4], target: [0, 1.3, 0.8] },
-    fov: 44
+    camera: { position: [0, 1.45, 4.5], target: [0, 1.3, 0.8] },
+    fov: 46
   },
   {
     id: 'horde-b',
