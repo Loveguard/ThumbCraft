@@ -29,6 +29,7 @@ Promise.all([import('./App'), import('./components/AppErrorBoundary'), import('.
       void import('./capture').then((m) => ((window as unknown as { __capture: typeof m }).__capture = m))
       void import('./tabs').then((m) => ((window as unknown as { __tabs: typeof m }).__tabs = m))
       void import('./projectActions').then((m) => ((window as unknown as { __actions: typeof m }).__actions = m))
+      void import('./templates').then((m) => ((window as unknown as { __templates: typeof m }).__templates = m))
     }
     createRoot(root).render(
       <StrictMode>
