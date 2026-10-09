@@ -111,6 +111,8 @@ interface TextSpec {
   height: number
   /** A title style from TEXT_STYLES (its colours override `color`). */
   style?: string
+  /** Placed in the scene far behind the players (they stand in front of it) instead of drawn on top. */
+  behind?: boolean
 }
 
 export interface Template {
@@ -179,6 +181,8 @@ const RED = '#ff3b3b'
 const DAY: Partial<SceneSettings> = { renderMode: 'cinematic', sunStrength: 1, ambientStrength: 1 }
 /** Title text floats this far in front of the camera (it is drawn on top, so depth only sets its size). */
 const TEXT_DEPTH = 2
+/** How far behind the camera a backdrop title sits (well behind the players, so they stand in front of it). */
+const BEHIND_DEPTH = 14
 
 /** Yaw (degrees) that turns something at `from` to face `to`. */
 const toward = (from: Vec3, to: Vec3): number =>
@@ -372,6 +376,32 @@ export const TEMPLATES: Template[] = [
     camera: { position: [0.5, 1.45, 5.6], target: [0.3, 1.3, 0] },
     fov: 40
   },
+  {
+    id: 'poster',
+    name: 'Poster title',
+    hint: 'You mid-sprint in front of two giant lines of poster type that fill the frame',
+    backdrop: null,
+    sky: 'color',
+    skyColor: '#ff4b1f',
+    look: 'pop',
+    effects: { bloom: false, vignette: false },
+    settings: { ...DAY, sunAzimuth: 150, sunElevation: 35, fog: false },
+    players: [
+      {
+        name: 'Steve',
+        pose: 'Running',
+        at: [0, 0, 0],
+        yaw: 25,
+        equipment: { ...DIAMOND_KIT, mainHand: 'diamond_sword' }
+      }
+    ],
+    texts: [
+      { text: 'HARDCORE\nSURVIVAL', color: '#111111', style: 'Brutal', screen: [0, 0.02], height: 1.22, behind: true }
+    ],
+    lights: [{ at: [1.5, 2.5, 3.5], aim: [0, 1.2, 0], color: '#ffffff', intensity: 60, range: 10 }],
+    camera: { position: [0, 1.2, 3.3], target: [0, 1.32, 0] },
+    fov: 40
+  },
   // ---- Unlocked with the secret code: recreations of Loveguard's latest thumbnails.
   {
     id: 'lg-ai-vision',
@@ -452,7 +482,7 @@ const textPlacement = (t: Template, x: TextSpec): { position: Vec3; rotation: Ve
     screen: x.screen,
     height: x.height,
     unitHeight: 1.6 * x.text.split('\n').length,
-    depth: TEXT_DEPTH
+    depth: x.behind ? BEHIND_DEPTH : TEXT_DEPTH
   })
 
 /** Replaces the current scene with a template (the old one stays in Recent projects via autosave). */
@@ -522,7 +552,7 @@ export async function applyTemplate(t: Template): Promise<void> {
       outlineWidth: 14,
       font: FONTS[0].family,
       shadow: true,
-      onTop: true,
+      onTop: !x.behind,
       visible: true,
       ...TEXT_STYLES.find((st) => st.name === x.style)?.style
     })

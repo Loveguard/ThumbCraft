@@ -120,6 +120,12 @@ export const TEXT_STYLES: { name: string; preview: string; style: Style }[] = [
     style: { ...BASE, color: '#ff4444', gradient: '#5c0000', glow: '#ff0000', shadow: false }
   },
   {
+    // Poster type: flat, heavy, condensed, no outline or shadow (made to fill the frame behind a player).
+    name: 'Brutal',
+    preview: 'linear-gradient(#111111,#111111)',
+    style: { ...BASE, color: '#111111', outlineWidth: 0, shadow: false, font: '"Anton", Impact, sans-serif' }
+  },
+  {
     name: 'Diamond',
     preview: 'linear-gradient(#b8fff4,#1fbfb0)',
     style: { ...BASE, color: '#b8fff4', gradient: '#1fbfb0', outlineColor: '#06323a', outline2Width: 6 }
