@@ -53,7 +53,7 @@ const MEDIAPIPE_FILES: Record<string, string> = {
   'selfie_segmenter.tflite': 'application/octet-stream'
 }
 /** The secret scenes' models (built with tools/blender), served on tcres://secret/<name>. */
-const SECRET_FILES = new Set(['machine.glb', 'studio.glb', 'gallery.glb'])
+const SECRET_FILES = new Set(['vision.glb', 'builds.glb', 'boss.glb', 'glasses.glb'])
 function secretFile(name: string): string | null {
   if (!SECRET_FILES.has(name)) return null
   const dirs = app.isPackaged
