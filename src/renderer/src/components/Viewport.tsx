@@ -1102,12 +1102,8 @@ function Gizmo(): ReactNode {
   const selectedId = useStore((s) => s.selectedId)
   const selectedJoint = useStore((s) => s.selectedJoint)
   const ikMode = useStore((s) => s.ikMode)
-  const mode = useStore((s) => s.transformMode)
-  const update = useStore((s) => s.update)
   const objects = useStore((s) => s.objects)
   const [target, setTarget] = useState<THREE.Object3D | null>(null)
-  const controls = useRef<ComponentRef<typeof TransformControls>>(null)
-  useGizmoRegistry(controls)
   useEffect(() => setTarget(selectedId ? (viewport.objects.get(selectedId) ?? null) : null), [selectedId, objects])
   const player = objects.find((o): o is PlayerObject => o.id === selectedId && o.kind === 'player')
   // Stickers sit on the frame, not in the world: they're dragged in the sticker layer, not with these handles.
@@ -1119,9 +1115,80 @@ function Gizmo(): ReactNode {
     return <JointGizmo id={player.id} joint={selectedJoint} />
   }
   if (!target || !selectedId) return null
+  return <ObjectGizmo key={selectedId} id={selectedId} target={target} />
+}
+
+/**
+ * The centre of what an object actually draws (in world space), or null when it draws nothing. Builds and terrain
+ * are anchored at a corner of their whole area, air included, so this is where their handles belong instead.
+ */
+function drawnCentre(obj: THREE.Object3D, out: THREE.Vector3): THREE.Vector3 | null {
+  const box = new THREE.Box3()
+  const part = new THREE.Box3()
+  const visit = (o: THREE.Object3D): void => {
+    if (!o.visible || isHelperObject(o)) return
+    const g = (o as THREE.Mesh).geometry as THREE.BufferGeometry | undefined
+    if (g) {
+      if (o instanceof THREE.InstancedMesh) {
+        if (!o.boundingBox) o.computeBoundingBox()
+        if (o.boundingBox) part.copy(o.boundingBox)
+      } else {
+        if (!g.boundingBox) g.computeBoundingBox()
+        if (g.boundingBox) part.copy(g.boundingBox)
+      }
+      if (!part.isEmpty()) box.union(part.applyMatrix4(o.matrixWorld))
+    }
+    for (const c of o.children) visit(c)
+  }
+  obj.updateWorldMatrix(true, true)
+  visit(obj)
+  return box.isEmpty() ? null : box.getCenter(out)
+}
+
+/**
+ * Move, turn and resize handles for one object. They sit at the middle of what the object draws (not at its
+ * origin, which for a build can be far off in the air), and dragging them moves, turns or resizes the object
+ * around that point.
+ */
+function ObjectGizmo({ id, target }: { id: string; target: THREE.Object3D }): ReactNode {
+  const mode = useStore((s) => s.transformMode)
+  const update = useStore((s) => s.update)
+  const { scene } = useThree()
+  const controls = useRef<ComponentRef<typeof TransformControls>>(null)
+  useGizmoRegistry(controls)
+  const pivot = useMemo(() => {
+    const p = new THREE.Object3D()
+    p.userData.helper = true
+    return p
+  }, [])
+  const start = useRef<{
+    pivotInverse: THREE.Matrix4
+    world: THREE.Matrix4
+    offset: THREE.Vector3
+    scale: number
+  } | null>(null)
+  useEffect(() => {
+    scene.add(pivot)
+    return () => void scene.remove(pivot)
+  }, [scene, pivot])
+  const at = useMemo(() => new THREE.Vector3(), [])
+  // Follow the object (undo, the properties panel, a model still loading) while it isn't being dragged.
+  useFrame(() => {
+    if (start.current) return
+    const c = drawnCentre(target, at) ?? target.getWorldPosition(at)
+    if (!pivot.position.equals(c) || pivot.scale.x !== 1) {
+      pivot.position.copy(c)
+      pivot.rotation.set(0, 0, 0)
+      pivot.scale.setScalar(1)
+      pivot.updateMatrixWorld()
+    }
+  })
+  const m = useMemo(() => new THREE.Matrix4(), [])
+  const sc = useMemo(() => new THREE.Vector3(), [])
   const commit = (): void => {
+    start.current = null
     const r = target.rotation
-    update(selectedId, {
+    update(id, {
       position: [target.position.x, target.position.y, target.position.z],
       rotation: [r.x, r.y, r.z].map((v) => Math.round(THREE.MathUtils.radToDeg(v) * 10) / 10) as [
         number,
@@ -1134,33 +1201,47 @@ function Gizmo(): ReactNode {
   return (
     <TransformControls
       ref={controls}
-      object={target}
+      object={pivot}
       mode={mode}
       showY
+      onMouseDown={() => {
+        pivot.updateMatrixWorld()
+        target.updateWorldMatrix(true, false)
+        start.current = {
+          pivotInverse: pivot.matrixWorld.clone().invert(),
+          world: target.matrixWorld.clone(),
+          offset: pivot.position.clone().sub(target.getWorldPosition(new THREE.Vector3())),
+          scale: target.scale.x
+        }
+      }}
       onMouseUp={commit}
       onObjectChange={() => {
-        if (mode === 'translate') {
-          // Hold Shift (or turn on Snap) to snap. Dragging an arrow or plane only moves along it: the snapped
-          // spot (a surface or vertex under the cursor, else the half-block grid) is used on those axes only.
-          if (pointer.shift || useStore.getState().settings.snap) {
-            const axis = (controls.current as unknown as { axis: string | null } | null)?.axis ?? 'XYZ'
-            const hit = snapPoint(pointer.ndc, viewport.camera, selectedId)
-            const local = hit && (target.parent ? target.parent.worldToLocal(hit) : hit)
-            if (axis === 'XYZ' || axis === 'E') {
-              if (local) target.position.copy(local)
-            } else
-              for (const a of ['x', 'y', 'z'] as const)
-                if (axis.includes(a.toUpperCase()))
-                  target.position[a] = local ? local[a] : Math.round(target.position[a] * 2) / 2
-          }
-          return
+        const st = start.current
+        if (!st) return
+        if (mode === 'translate' && (pointer.shift || useStore.getState().settings.snap)) {
+          // Hold Shift (or turn on Snap) to snap the object's own anchor, as before: onto the surface or vertex
+          // under the cursor, else the half-block grid. Dragging an arrow or plane only snaps along it.
+          const axis = (controls.current as unknown as { axis: string | null } | null)?.axis ?? 'XYZ'
+          const hit = snapPoint(pointer.ndc, viewport.camera, id)
+          const anchor = pivot.position.clone().sub(st.offset)
+          if (axis === 'XYZ' || axis === 'E') {
+            if (hit) anchor.copy(hit)
+          } else
+            for (const a of ['x', 'y', 'z'] as const)
+              if (axis.includes(a.toUpperCase())) anchor[a] = hit ? hit[a] : Math.round(anchor[a] * 2) / 2
+          pivot.position.copy(anchor).add(st.offset)
         }
-        if (mode !== 'scale') return
-        // Keep scale uniform: follow whichever axis handle is being dragged.
-        const prev = objects.find((o) => o.id === selectedId)?.scale ?? 1
-        const s = target.scale
-        const v = [s.x, s.y, s.z].reduce((a, b) => (Math.abs(b - prev) > Math.abs(a - prev) ? b : a))
-        s.setScalar(v)
+        if (mode === 'scale') {
+          // Keep scale uniform: follow whichever axis handle is being dragged.
+          const s = pivot.scale
+          s.setScalar([s.x, s.y, s.z].reduce((a, b) => (Math.abs(b - 1) > Math.abs(a - 1) ? b : a)))
+        }
+        pivot.updateMatrixWorld()
+        // The handles' change, applied to the object as it was when the drag began.
+        const world = m.multiplyMatrices(pivot.matrixWorld, st.pivotInverse).multiply(st.world)
+        if (target.parent) world.premultiply(target.parent.matrixWorld.clone().invert())
+        world.decompose(target.position, target.quaternion, sc)
+        target.scale.setScalar(sc.x)
       }}
     />
   )
