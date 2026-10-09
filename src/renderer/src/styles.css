@@ -3170,3 +3170,241 @@ textarea:focus {
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
+
+/* Shots A/B/C: the bar above the viewport (right), its menu and the new-shot dialog. */
+.float-bar.shot-bar {
+  right: 0;
+  top: -44px;
+  gap: 2px;
+  z-index: 20;
+}
+.shot-bar-label {
+  padding: 0 6px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.shot-tab {
+  position: relative;
+  min-width: 30px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  font-weight: 700;
+  border-radius: 7px;
+}
+.shot-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.shot-tab.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.shot-own-look {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #b48cff;
+}
+.shot-menu,
+.new-shot {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-float);
+}
+.shot-menu {
+  width: 270px;
+}
+.shot-menu em {
+  display: block;
+  font-style: normal;
+  color: var(--text-2);
+  font-size: 11px;
+  margin-top: 2px;
+}
+.new-shot {
+  width: 420px;
+  max-height: 460px;
+}
+.new-shot-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.new-shot-head span {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.new-shot-all,
+.new-shot-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.new-shot-all {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.new-shot-all > span,
+.new-shot-list .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.new-shot-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.new-shot-list .kind {
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+.segmented.sm {
+  flex-shrink: 0;
+  width: 210px;
+  padding: 2px;
+}
+.segmented.sm button {
+  padding: 3px 6px;
+  font-size: 11px;
+}
+.new-shot .row {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Which shots a layer is in (Layers panel). */
+.shot-chips {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.shot-chip {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 5px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-3, #6b7280);
+}
+.shot-chip.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Thumbnail-kit stickers over the viewport. */
+.sticker-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+}
+.sticker {
+  position: absolute;
+  aspect-ratio: 1 / 1;
+  pointer-events: auto;
+  cursor: move;
+  touch-action: none;
+}
+.sticker-art,
+.sticker-art svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+.sticker.selected {
+  outline: 1px dashed rgba(74, 222, 128, 0.9);
+  outline-offset: -6%;
+}
+.sticker-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #4ade80;
+  border: 2px solid #0b1210;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.sticker-handle.scale {
+  right: 4%;
+  bottom: 4%;
+  cursor: nwse-resize;
+}
+.sticker-handle.turn {
+  left: 50%;
+  top: -2%;
+  transform: translateX(-50%);
+  cursor: grab;
+}
+.sticker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.sticker-grid button {
+  aspect-ratio: 1 / 1;
+  padding: 6px;
+}
+.sticker-grid button svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.sticker-grid button.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.split-menu {
+  width: 320px;
+}
+.split-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.split-row .segmented.sm {
+  width: 160px;
+}
+.split-preview {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+}
+.batch-shots {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}

@@ -9,7 +9,8 @@ import { returnToShot, saveShot } from './components/ViewportOverlay'
 import { Viewport, viewport } from './components/Viewport'
 import { encodeExport, extensionOf, sizeLabel } from './exportImage'
 import { useShallow } from 'zustand/react/shallow'
-import { useStore, type TransformMode } from './store'
+import { inShot, shotLabel, useStore, type TransformMode } from './store'
+import { captureFrame, eachShot } from './capture'
 import logo from './assets/logo.png'
 
 const EXPORT_SIZES: [number, number, string][] = [
@@ -25,27 +26,69 @@ const TOOLS: { mode: TransformMode; icon: typeof Move3d; label: string; key: str
   { mode: 'scale', icon: Scale3d, label: 'Scale', key: 'R' }
 ]
 
-/** Ticks several sizes and saves them all into one folder, named after the project. */
+/**
+ * Ticks several sizes (and, with several shots, which shots) and saves them all into one folder, named after the
+ * project. Three shots at 1280 × 720 are exactly what YouTube's Test & Compare takes.
+ */
 function BatchExport({ onClose }: { onClose: () => void }): ReactNode {
-  const [picked, setPicked] = useState<Set<string>>(() => new Set(['1280x720', '1080x1920']))
+  const shots = useStore((s) => s.shots)
+  const multi = shots.length > 1
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(multi ? ['1280x720'] : ['1280x720', '1080x1920']))
+  const [pickedShots, setPickedShots] = useState<Set<string>>(() => new Set(shots.map((x) => x.id)))
   const name = useStore((s) => s.project.name)
   const format = useStore((s) => s.settings.exportFormat)
+  const toggle = (set: (f: (prev: Set<string>) => Set<string>) => void, key: string, on: boolean): void =>
+    set((prev) => {
+      const next = new Set(prev)
+      if (on) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  const shotIds = multi ? shots.filter((x) => pickedShots.has(x.id)).map((x) => x.id) : [shots[0].id]
+  const total = picked.size * shotIds.length
   const run = async (): Promise<void> => {
-    if (!viewport.capture) return
     const sizes = EXPORT_SIZES.filter(([w, h]) => picked.has(`${w}x${h}`))
     onClose()
-    const images = []
-    for (const [w, h, label] of sizes)
-      images.push({
-        name: `${name} - ${label.split(' · ')[0]} ${w}x${h}.${extensionOf(format)}`,
-        dataUrl: await encodeExport(viewport.capture(w, h), format)
-      })
+    const ext = extensionOf(format)
+    const perShot = await eachShot(shotIds, async (id) => {
+      const letter = multi ? ` - ${shotLabel(shots, id)}` : ''
+      const out = []
+      for (const [w, h, label] of sizes) {
+        const size = sizes.length > 1 || !multi ? ` - ${label.split(' · ')[0]} ${w}x${h}` : ''
+        out.push({
+          name: `${name}${letter}${size}.${ext}`,
+          dataUrl: await encodeExport(await captureFrame(w, h), format)
+        })
+      }
+      return out
+    })
+    const images = perShot.flat()
     const dir = await window.blockframe.savePngs(images)
-    if (dir) useStore.getState().setStatus(`Exported ${images.length} thumbnails to ${dir}`)
+    if (dir)
+      useStore
+        .getState()
+        .setStatus(
+          `Exported ${images.length} thumbnails to ${dir}` +
+            (multi ? '. Upload the A/B/C files to YouTube Studio → Test & Compare.' : '')
+        )
   }
   return (
     <div className="batch-export" role="dialog">
-      <strong>Export several sizes</strong>
+      <strong>{multi ? 'Export shots for Test & Compare' : 'Export several sizes'}</strong>
+      {multi && (
+        <div className="batch-shots">
+          {shots.map((sh) => (
+            <label key={sh.id} className="check">
+              <input
+                type="checkbox"
+                checked={pickedShots.has(sh.id)}
+                onChange={(e) => toggle(setPickedShots, sh.id, e.target.checked)}
+              />
+              <span>Shot {shotLabel(shots, sh.id)}</span>
+            </label>
+          ))}
+        </div>
+      )}
       {EXPORT_SIZES.map(([w, h, label]) => {
         const key = `${w}x${h}`
         return (
@@ -53,22 +96,19 @@ function BatchExport({ onClose }: { onClose: () => void }): ReactNode {
             <input
               type="checkbox"
               checked={picked.has(key)}
-              onChange={(e) =>
-                setPicked((prev) => {
-                  const next = new Set(prev)
-                  if (e.target.checked) next.add(key)
-                  else next.delete(key)
-                  return next
-                })
-              }
+              onChange={(e) => toggle(setPicked, key, e.target.checked)}
             />
             <span>{label}</span>
           </label>
         )
       })}
-      <p className="hint">Every size uses the same camera, so check the framing of tall (Shorts) images.</p>
-      <button className="primary" disabled={!picked.size} onClick={() => void run()}>
-        <Download size={15} /> Export {picked.size} {picked.size === 1 ? 'image' : 'images'}…
+      <p className="hint">
+        {multi
+          ? 'Each shot is saved as its own file (… - A, - B, - C). YouTube Studio → Test & Compare tries up to three.'
+          : 'Every size uses the same camera, so check the framing of tall (Shorts) images.'}
+      </p>
+      <button className="primary" disabled={!total} onClick={() => void run()}>
+        <Download size={15} /> Export {total} {total === 1 ? 'image' : 'images'}…
       </button>
     </div>
   )
@@ -88,8 +128,10 @@ function TopBar(): ReactNode {
   const [batchOpen, setBatchOpen] = useState(false)
   const exportPng = async (): Promise<void> => {
     if (!viewport.capture) return
-    const url = await encodeExport(viewport.capture(exportWidth, exportHeight), exportFormat)
-    const saved = await window.blockframe.savePng(url, `thumbnail.${extensionOf(exportFormat)}`)
+    const url = await encodeExport(await captureFrame(exportWidth, exportHeight), exportFormat)
+    const { shots, activeShot } = useStore.getState()
+    const letter = shots.length > 1 ? ` - ${shotLabel(shots, activeShot)}` : ''
+    const saved = await window.blockframe.savePng(url, `thumbnail${letter}.${extensionOf(exportFormat)}`)
     if (saved) setStatus(`Exported ${saved} (${sizeLabel(url)})`)
   }
 
@@ -166,7 +208,7 @@ function TopBar(): ReactNode {
           </button>
           <button
             className="primary chevron"
-            title="Export several sizes at once"
+            title="Export several sizes, or every shot for YouTube's Test & Compare"
             aria-expanded={batchOpen}
             onClick={() => setBatchOpen((v) => !v)}
           >
@@ -201,7 +243,7 @@ function UpdateNotice(): ReactNode {
 
 function StatusBar(): ReactNode {
   const status = useStore((s) => s.status)
-  const count = useStore((s) => s.objects.length)
+  const count = useStore((s) => s.objects.filter((o) => inShot(o, s.activeShot)).length)
   return (
     <footer className="status" onClick={() => useStore.getState().setStatus('')}>
       <span className={status ? 'status-msg' : ''}>
@@ -261,9 +303,12 @@ export function App(): ReactNode {
       } else if ((e.ctrlKey || e.metaKey) && k === 'a') {
         e.preventDefault()
         // Everything but the ground, which is almost never meant to move with the rest.
-        s.setSelection(s.objects.filter((o) => !(o.kind === 'terrain' && o.ground)).map((o) => o.id))
+        s.setSelection(
+          s.objects.filter((o) => inShot(o, s.activeShot) && !(o.kind === 'terrain' && o.ground)).map((o) => o.id)
+        )
       } else if (e.ctrlKey || e.metaKey || e.altKey) return
       else if (k === 'r' && e.shiftKey) s.setSettings({ showRulers: !s.settings.showRulers })
+      else if (['1', '2', '3'].includes(k) && s.shots[Number(k) - 1]) s.switchShot(s.shots[Number(k) - 1].id)
       else if (k === 'w') s.setTransformMode('translate')
       else if (k === 'e') s.setTransformMode('rotate')
       else if (k === 'r') s.setTransformMode('scale')

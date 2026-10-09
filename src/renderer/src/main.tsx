@@ -24,8 +24,10 @@ function showStartupError(e: unknown): void {
 Promise.all([import('./App'), import('./components/AppErrorBoundary'), import('./store')])
   .then(([{ App }, { AppErrorBoundary }, { useStore }]) => {
     // Handle for automated UI tests: development builds, or a build made with RENDERER_VITE_TEST_HOOKS=1.
-    if (import.meta.env.DEV || import.meta.env.RENDERER_VITE_TEST_HOOKS === '1')
-      (window as unknown as { __blockframe: typeof useStore }).__blockframe = useStore
+    if (import.meta.env.DEV || import.meta.env.RENDERER_VITE_TEST_HOOKS === '1') {
+      ;(window as unknown as { __blockframe: typeof useStore }).__blockframe = useStore
+      void import('./capture').then((m) => ((window as unknown as { __capture: typeof m }).__capture = m))
+    }
     createRoot(root).render(
       <StrictMode>
         <AppErrorBoundary>

@@ -10,12 +10,16 @@ import { defaultSkinUrl } from './minecraft/builders'
 import {
   DEFAULT_SETTINGS,
   DEFAULT_SKY,
+  freshShots,
   NO_EFFECTS,
   newProjectInfo,
+  shotsSnapshot,
   terrainStore,
   useStore,
   type EffectSettings,
+  type Look,
   type SceneObject,
+  type Shot,
   type SceneSettings,
   type SkySettings
 } from './store'
@@ -42,6 +46,10 @@ interface ProjectJson {
   camera: { position: number[]; target: number[] } | null
   terrains: TerrainMeta[]
   media: { id: string; name: string; mime: string }[]
+  /** A/B/C versions (missing in projects from before shots: one shot with everything). */
+  shots?: Shot[]
+  activeShot?: string
+  sharedLook?: Look | null
 }
 
 const bytesOf = (a: Uint16Array): Uint8Array => new Uint8Array(a.buffer, a.byteOffset, a.byteLength)
@@ -70,8 +78,16 @@ export function serializeProject(): Uint8Array {
 
   const mediaIds = new Set<string>()
   for (const o of s.objects) mediaIdsOf(o, mediaIds)
-  if (s.sky.preset === 'hdri' && s.sky.hdriMediaId) mediaIds.add(s.sky.hdriMediaId)
-  if (s.effects.look === 'custom' && s.effects.lutMediaId) mediaIds.add(s.effects.lutMediaId)
+  // The current look plus every shot's own look and the shared one.
+  const looks = [
+    { sky: s.sky, effects: s.effects },
+    ...(s.sharedLook ? [s.sharedLook] : []),
+    ...s.shots.flatMap((x) => (x.look ? [x.look] : []))
+  ]
+  for (const l of looks) {
+    if (l.sky.preset === 'hdri' && l.sky.hdriMediaId) mediaIds.add(l.sky.hdriMediaId)
+    if (l.effects.look === 'custom' && l.effects.lutMediaId) mediaIds.add(l.effects.lutMediaId)
+  }
   const media = []
   for (const id of mediaIds) {
     const m = mediaStore.get(id)
@@ -96,7 +112,8 @@ export function serializeProject(): Uint8Array {
     sky: s.sky,
     camera: cam && target ? { position: cam.position.toArray(), target: target.toArray() } : null,
     terrains,
-    media
+    media,
+    ...shotsSnapshot()
   }
   files['project.json'] = strToU8(JSON.stringify(json))
   // Terrain and media are already dense/compressed; level 1 keeps saves fast.
@@ -195,6 +212,13 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
     future: [],
     // Merge with defaults so projects saved before a setting existed still open.
     settings: { ...DEFAULT_SETTINGS, ...settings },
+    ...(json.shots?.length
+      ? {
+          shots: json.shots.slice(0, 3),
+          activeShot: json.shots.some((x) => x.id === json.activeShot) ? json.activeShot! : json.shots[0].id,
+          sharedLook: json.sharedLook ?? null
+        }
+      : freshShots()),
     effects: { ...NO_EFFECTS, ...json.effects },
     sky: {
       ...DEFAULT_SKY,
@@ -234,6 +258,7 @@ export function newProject(): void {
     future: [],
     effects: { ...NO_EFFECTS },
     sky: { ...DEFAULT_SKY },
+    ...freshShots(),
     project: newProjectInfo()
   })
 }

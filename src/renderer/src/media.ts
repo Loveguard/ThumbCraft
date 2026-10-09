@@ -51,8 +51,11 @@ export function pruneMedia(): void {
   const used = new Set<string>()
   for (const list of [s.objects, ...[...s.past, ...s.future].map((e) => e.objects ?? [])])
     for (const o of list) mediaIdsOf(o, used)
-  if (s.sky.hdriMediaId) used.add(s.sky.hdriMediaId)
-  if (s.effects.lutMediaId) used.add(s.effects.lutMediaId)
+  // The current look, the shared one and every shot's own.
+  for (const l of [s, ...(s.sharedLook ? [s.sharedLook] : []), ...s.shots.flatMap((x) => (x.look ? [x.look] : []))]) {
+    if (l.sky.hdriMediaId) used.add(l.sky.hdriMediaId)
+    if (l.effects.lutMediaId) used.add(l.effects.lutMediaId)
+  }
   const now = Date.now()
   for (const [id, m] of mediaStore)
     if (!used.has(id) && now - m.addedAt > 60_000) {

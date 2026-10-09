@@ -15,6 +15,7 @@ import { mediaStore } from '../media'
 import { composerHandle, Effects, renderFrame, sunDirection } from './Effects'
 import { FocusPoints } from './FocusPoints'
 import { Rulers, rulerBridge, type ScreenRect } from './Rulers'
+import { StickerLayer } from './StickerLayer'
 import { SkyBackdrop } from './SkyBackdrop'
 import { snapPoint } from './snapping'
 import { ViewportOverlay } from './ViewportOverlay'
@@ -32,6 +33,7 @@ import {
 import { useShallow } from 'zustand/react/shallow'
 import {
   cameraBridge,
+  inShot,
   NO_EQUIPMENT,
   selection,
   terrainStore,
@@ -488,7 +490,19 @@ if (typeof window !== 'undefined')
   window.addEventListener('pointerdown', (e) => Object.assign(press, { x: e.clientX, y: e.clientY }), true)
 const wasDrag = (e: MouseEvent): boolean => Math.hypot(e.clientX - press.x, e.clientY - press.y) > 4
 
-const ObjectNode = memo(function ObjectNode({ o, order }: { o: SceneObject; order: number }): ReactNode {
+/**
+ * One scene object. `shown` is false while another shot is on screen: the object stays built (switching shots is
+ * instant) but is hidden, unclickable and left out of exports.
+ */
+const ObjectNode = memo(function ObjectNode({
+  o,
+  order,
+  shown
+}: {
+  o: SceneObject
+  order: number
+  shown: boolean
+}): ReactNode {
   const select = useStore((s) => s.select)
   const cinematic = useStore((s) => isLit(s.settings.renderMode))
   const ref = useRef<THREE.Group>(null)
@@ -518,6 +532,8 @@ const ObjectNode = memo(function ObjectNode({ o, order }: { o: SceneObject; orde
     }
   })
   const onClick = (e: ThreeEvent<MouseEvent>): void => {
+    // Not in this shot: let the click reach whatever is behind it.
+    if (!shown) return
     e.stopPropagation()
     if (wasDrag(e.nativeEvent)) return
     // Ctrl or Shift+click adds to the selection (or takes it out).
@@ -534,7 +550,7 @@ const ObjectNode = memo(function ObjectNode({ o, order }: { o: SceneObject; orde
   return (
     <group
       ref={ref}
-      visible={o.visible}
+      visible={o.visible && shown}
       position={o.position}
       rotation={[deg(o.rotation[0]), deg(o.rotation[1]), deg(o.rotation[2])]}
       scale={o.scale}
@@ -1064,8 +1080,9 @@ function BoxSelect(): null {
       const box = new THREE.Box3()
       const v = new THREE.Vector3()
       const hits: string[] = []
-      for (const ob of useStore.getState().objects) {
-        if (!ob.visible || (ob.kind === 'terrain' && ob.ground)) continue
+      const s0 = useStore.getState()
+      for (const ob of s0.objects) {
+        if (!ob.visible || !inShot(ob, s0.activeShot) || (ob.kind === 'terrain' && ob.ground)) continue
         const obj = viewport.objects.get(ob.id)
         if (!obj) continue
         box.setFromObject(obj)
@@ -1103,7 +1120,9 @@ function Gizmo(): ReactNode {
   useGizmoRegistry(controls)
   useEffect(() => setTarget(selectedId ? (viewport.objects.get(selectedId) ?? null) : null), [selectedId, objects])
   const player = objects.find((o): o is PlayerObject => o.id === selectedId && o.kind === 'player')
-  if (selected.length > 1) return <GroupGizmo ids={selected} />
+  // Stickers sit on the frame, not in the world: they're dragged in the sticker layer, not with these handles.
+  const world = selected.filter((id) => objects.find((o) => o.id === id)?.kind !== 'sticker')
+  if (world.length > 1) return <GroupGizmo ids={world} />
   if (player && selectedJoint) {
     const limb = ikMode ? limbOf(selectedJoint) : null
     if (limb) return <IkGizmo id={player.id} limb={limb} slim={player.slim} />
@@ -1200,6 +1219,7 @@ function watchContext(canvas: HTMLCanvasElement, rebuild: () => void): void {
 
 export function Viewport(): ReactNode {
   const objects = useStore((s) => s.objects)
+  const activeShot = useStore((s) => s.activeShot)
   const select = useStore((s) => s.select)
   const showGrid = useStore((s) => s.settings.showGrid)
   const exportWidth = useStore((s) => s.settings.exportWidth)
@@ -1235,9 +1255,10 @@ export function Viewport(): ReactNode {
             <Environment />
             <SkyBackdrop />
             <Weather />
-            {objects.map((o, i) => (
-              <ObjectNode key={o.id} o={o} order={i} />
-            ))}
+            {objects.map((o, i) =>
+              // Stickers are 2D layers on the frame, drawn by the sticker layer instead.
+              o.kind === 'sticker' ? null : <ObjectNode key={o.id} o={o} order={i} shown={inShot(o, activeShot)} />
+            )}
             {showGrid && <gridHelper args={[64, 64, '#666', '#333']} userData={{ helper: true }} />}
             <Gizmo />
             <SelectionBoxes />
@@ -1258,6 +1279,7 @@ export function Viewport(): ReactNode {
             />
           </Canvas>
           <FocusPoints />
+          <StickerLayer />
           <Rulers />
           <ViewportOverlay />
         </GlErrorBoundary>

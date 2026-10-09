@@ -15,6 +15,7 @@ import {
 import { cameraBridge, useStore } from '../store'
 import { pushAlongView } from './RightPanel'
 import { hasEffects } from './Effects'
+import { ShotBar } from './ShotBar'
 import { StartPanel } from './StartPanel'
 import { viewport } from './Viewport'
 import { RENDER_MODES } from '../renderModes'
@@ -52,7 +53,7 @@ export function saveShot(): void {
   const cam = cameraBridge.get?.()
   if (!cam || !viewport.camera) return
   useStore.getState().setSettings({ shot: { ...cam, fov: viewport.camera.fov } })
-  useStore.getState().setStatus('Shot saved. Look around freely; press C or "Back to shot" to return.')
+  useStore.getState().setStatus('View saved. Look around freely; press C or "Back to view" to return.')
 }
 
 /** Puts the camera back on the saved shot (undoable like any camera move). */
@@ -94,14 +95,14 @@ function CameraMenu({ onClose }: { onClose: () => void }): ReactNode {
   const shot = useStore((s) => s.settings.shot)
   return (
     <div className="menu" ref={ref}>
-      <div className="menu-title">Your shot</div>
+      <div className="menu-title">Your saved view</div>
       <button
         onClick={() => {
           saveShot()
           onClose()
         }}
       >
-        <strong>{shot ? 'Replace shot with this view' : 'Save this view as my shot'}</strong>
+        <strong>{shot ? 'Replace the saved view with this one' : 'Save this view'}</strong>
         <span>Look around freely, then jump back with one click (C)</span>
       </button>
       {shot && (
@@ -111,7 +112,7 @@ function CameraMenu({ onClose }: { onClose: () => void }): ReactNode {
             onClose()
           }}
         >
-          <strong>Forget saved shot</strong>
+          <strong>Forget saved view</strong>
           <span>Removes the bookmark; the camera stays where it is</span>
         </button>
       )}
@@ -139,6 +140,7 @@ export function ViewportOverlay(): ReactNode {
   return (
     <div className="overlay">
       <StartPanel />
+      <ShotBar />
       <div className="view-chip">
         {RENDER_MODES.find((m) => m.id === renderMode)?.label} · FOV {fov}°{effectsOn ? ' · Effects on' : ''}
       </div>
@@ -177,10 +179,10 @@ export function ViewportOverlay(): ReactNode {
         <button
           className={`tool ${shot ? 'shot-set' : ''}`}
           onClick={() => (shot ? returnToShot() : saveShot())}
-          title={shot ? 'Back to your saved shot (C)' : 'Save the current view so you can return to it (C)'}
+          title={shot ? 'Back to your saved view (C)' : 'Save the current view so you can return to it (C)'}
         >
           {shot ? <Clapperboard size={16} /> : <BookmarkPlus size={16} />}
-          {shot ? 'Back to shot' : 'Save shot'}
+          {shot ? 'Back to view' : 'Save view'}
         </button>
         <button
           className={`tool ${showGrid ? 'active' : ''}`}

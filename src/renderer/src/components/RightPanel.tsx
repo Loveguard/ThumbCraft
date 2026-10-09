@@ -18,6 +18,7 @@ import {
   Video,
   Zap,
   Flame,
+  MoveUpRight,
   Copy,
   Folder,
   Group as GroupIcon,
@@ -27,7 +28,9 @@ import {
 import { useShallow } from 'zustand/react/shallow'
 import { fullPose, POSES, type PartName, type Pose } from '@shared/minecraft/playerModel'
 import {
+  inShot,
   selection,
+  shotLabel,
   useStore,
   type MirrorObject,
   type MobObject,
@@ -40,6 +43,7 @@ import { EquipmentProperties } from './EquipmentProperties'
 import { LightProperties } from './LightProperties'
 import { LightningProperties } from './LightningProperties'
 import { VfxProperties } from './VfxProperties'
+import { StickerProperties } from './StickerProperties'
 import { MobProperties } from './MobProperties'
 import { TextProperties } from './TextProperties'
 import { BACKDROPS } from '@shared/minecraft/backdrops'
@@ -62,7 +66,8 @@ export const KIND_ICON: Record<SceneObject['kind'], LucideIcon> = {
   model: Shapes,
   mirror: RectangleVertical,
   lightning: Zap,
-  vfx: Flame
+  vfx: Flame,
+  sticker: MoveUpRight
 }
 
 /** Collapsible inspector section; remembers whether it was open. */
@@ -110,7 +115,7 @@ export function pushAlongView(amount: number): void {
   cam.getWorldDirection(dir)
   const s = useStore.getState()
   const ids = selection(s)
-  const list = s.objects.filter((o) => ids.includes(o.id))
+  const list = s.objects.filter((o) => ids.includes(o.id) && o.kind !== 'sticker')
   if (!list.length) return
   const centre = list.reduce((c, o) => c.add(new THREE.Vector3(...o.position)), new THREE.Vector3())
   centre.divideScalar(list.length)
@@ -130,8 +135,12 @@ export function pushAlongView(amount: number): void {
 function Layers(): ReactNode {
   const objects = useStore((s) => s.objects)
   const selected = useStore(useShallow((s) => selection(s)))
-  const { selectOnly, select, toggleSelect, setSelection, update, remove, updateMany } = useStore.getState()
-  const rows = [...objects].reverse()
+  const shots = useStore((s) => s.shots)
+  const activeShot = useStore((s) => s.activeShot)
+  const { selectOnly, select, toggleSelect, setSelection, update, remove, updateMany, setInShot } = useStore.getState()
+  // Only the shot on screen; the A/B/C chips put a layer into other shots or take it out.
+  const rows = [...objects].reverse().filter((o) => inShot(o, activeShot))
+  const shotCount = rows.length
   // Click: that layer alone. Ctrl+click: add or remove it. Shift+click: everything from the last pick to here.
   const pick = (e: MouseEvent, id: string): void => {
     if (e.ctrlKey || e.metaKey) return toggleSelect(id)
@@ -147,8 +156,8 @@ function Layers(): ReactNode {
     selectOnly(id)
   }
   return (
-    <Section id="layers" title={`Layers${objects.length ? ` · ${objects.length}` : ''}`}>
-      {objects.length === 0 && (
+    <Section id="layers" title={`Layers${shotCount ? ` · ${shotCount}` : ''}`}>
+      {shotCount === 0 && (
         <div className="empty">
           <strong>Your scene is empty</strong>
           <span>Pick a biome, build, player or text from the left to get started.</span>
@@ -190,6 +199,29 @@ function Layers(): ReactNode {
               >
                 <Icon size={15} className="kind" />
                 <span className="name">{o.name}</span>
+                {shots.length > 1 && (
+                  <span className="shot-chips">
+                    {shots.map((sh) => {
+                      const on = inShot(o, sh.id)
+                      const label = shotLabel(shots, sh.id)
+                      return (
+                        <button
+                          key={sh.id}
+                          className={`shot-chip ${on ? 'on' : ''}`}
+                          title={
+                            on ? `In shot ${label}: click to take it out` : `Not in shot ${label}: click to add it`
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setInShot(o.id, sh.id, !on)
+                          }}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </span>
+                )}
                 <button
                   className="icon-btn sm"
                   title={o.visible ? 'Hide' : 'Show'}
@@ -202,7 +234,11 @@ function Layers(): ReactNode {
                 </button>
                 <button
                   className="icon-btn sm danger"
-                  title="Delete (Del)"
+                  title={
+                    shots.length > 1 && (o.shots?.length ?? shots.length) > 1
+                      ? 'Remove from this shot (Del)'
+                      : 'Delete (Del)'
+                  }
                   onClick={(e) => {
                     e.stopPropagation()
                     remove(o.id)
@@ -215,7 +251,7 @@ function Layers(): ReactNode {
           )
         })}
       </ul>
-      {objects.length > 1 && (
+      {shotCount > 1 && (
         <p className="field-note">Ctrl+click or Shift+click to pick several layers; Ctrl+G groups them.</p>
       )}
     </Section>
@@ -226,7 +262,9 @@ function Layers(): ReactNode {
 function MultiProperties({ ids }: { ids: string[] }): ReactNode {
   const list = useStore(useShallow((s) => s.objects.filter((o) => ids.includes(o.id))))
   const { updateMany, groupSelected, ungroupSelected, duplicateSelected, removeSelected } = useStore.getState()
-  const centre = [0, 1, 2].map((a) => list.reduce((t, o) => t + o.position[a], 0) / Math.max(1, list.length)) as Vec3
+  // Stickers live on the frame, not in the world, so only 3D layers share a centre.
+  const world = list.filter((o) => o.kind !== 'sticker')
+  const centre = [0, 1, 2].map((a) => world.reduce((t, o) => t + o.position[a], 0) / Math.max(1, world.length)) as Vec3
   const grouped = list.length > 1 && !!list[0].groupId && list.every((o) => o.groupId === list[0].groupId)
   const anyGrouped = list.some((o) => o.groupId)
   const layerable = list.filter((o) => OVERLAY_KINDS.has(o.kind) && !(o.kind === 'terrain' && o.ground))
@@ -256,21 +294,25 @@ function MultiProperties({ ids }: { ids: string[] }): ReactNode {
           <Trash2 size={15} /> Delete
         </button>
       </div>
-      <h4>Position together</h4>
-      <NumberRow
-        label="Centre"
-        value={centre}
-        onChange={(next) =>
-          updateMany(
-            list.map((o) => ({
-              id: o.id,
-              patch: {
-                position: [0, 1, 2].map((a) => o.position[a] + next[a] - centre[a]) as Vec3
-              }
-            }))
-          )
-        }
-      />
+      {world.length > 0 && (
+        <>
+          <h4>Position together</h4>
+          <NumberRow
+            label="Centre"
+            value={centre}
+            onChange={(next) =>
+              updateMany(
+                world.map((o) => ({
+                  id: o.id,
+                  patch: {
+                    position: [0, 1, 2].map((a) => o.position[a] + next[a] - centre[a]) as Vec3
+                  }
+                }))
+              )
+            }
+          />
+        </>
+      )}
       <Toggle label="Visible" checked={list.every((o) => o.visible)} onChange={(visible) => setAll({ visible })} />
       {layerable.length > 0 && (
         <>
@@ -461,7 +503,8 @@ const KIND_LABEL: Record<SceneObject['kind'], string> = {
   model: '3D model',
   mirror: 'Mirror',
   lightning: 'Lightning',
-  vfx: 'Effect'
+  vfx: 'Effect',
+  sticker: 'Sticker'
 }
 
 /** Exact position, rotation and size, plus nudges; folded away because the viewport gizmo does most of this. */
@@ -585,6 +628,7 @@ function Properties({ o }: { o: SceneObject }): ReactNode {
       {o.kind === 'light' && <LightProperties o={o} />}
       {o.kind === 'lightning' && <LightningProperties o={o} />}
       {o.kind === 'vfx' && <VfxProperties o={o} />}
+      {o.kind === 'sticker' && <StickerProperties o={o} />}
       {o.kind === 'mirror' && <MirrorProperties o={o} />}
 
       {o.kind === 'text' && <TextProperties o={o} />}
@@ -640,7 +684,7 @@ function Properties({ o }: { o: SceneObject }): ReactNode {
           </label>
         </>
       )}
-      <TransformGroup o={o} />
+      {o.kind !== 'sticker' && <TransformGroup o={o} />}
     </Section>
   )
 }

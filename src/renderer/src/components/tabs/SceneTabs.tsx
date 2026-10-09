@@ -6,6 +6,7 @@ import type { Dimension, GenerateProgress } from '@shared/types'
 import { grassColor, type Colormaps } from '@shared/minecraft/tints'
 import { assetContext } from '../../minecraft/assets'
 import { defaultSkinUrl } from '../../minecraft/builders'
+import { STICKERS, stickerSvg } from '../../stickers'
 import { placeNew } from '../../placement'
 import { biomePreview } from '../../minecraft/biomePreview'
 import { fitScale, isModelFile, loadModel } from '../../minecraft/models3d'
@@ -567,6 +568,37 @@ export function TextTab(): ReactNode {
           </button>
         ))}
       </div>
+      <h4>Arrows & shapes</h4>
+      <div className="sticker-grid">
+        {STICKERS.map((k, i) => (
+          <button
+            key={k.id}
+            title={`Add ${k.label.toLowerCase()}`}
+            dangerouslySetInnerHTML={{
+              __html: stickerSvg({ shape: k.id, color: k.color, outline: true, glow: false })
+            }}
+            onClick={() =>
+              useStore.getState().add({
+                id: newId('obj'),
+                kind: 'sticker',
+                name: k.label,
+                shape: k.id,
+                color: k.color,
+                outline: true,
+                glow: false,
+                visible: true,
+                // Land near the middle, a little apart from the last one.
+                position: [0.5 + ((i % 3) - 1) * 0.06, 0.5, 0],
+                rotation: [0, 0, k.id === 'arrow' ? 20 : 0],
+                scale: k.id === 'box' ? 0.4 : 0.28
+              })
+            }
+          />
+        ))}
+      </div>
+      <Hint>
+        Arrows and shapes sit on the frame itself, on top of every effect, and stay put when the camera moves.
+      </Hint>
       <Hint>
         3D text is extruded pixel-for-pixel from Minecraft's own font texture. Stone titles are carved logo-style blocks
         in any colour; hardcore titles are front-on red letters where every O becomes the hardcore heart.
