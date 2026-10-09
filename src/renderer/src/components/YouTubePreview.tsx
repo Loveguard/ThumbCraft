@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { RefreshCw, X } from 'lucide-react'
-import { captureFrame, eachShot } from '../capture'
-import { shotLabel, useStore } from '../store'
+import { captureFrame, eachTab } from '../capture'
+import { useStore } from '../store'
+import { tabProject, useTabs } from '../tabs'
 
-interface Shot {
+interface Variant {
   label: string
   url: string
 }
@@ -43,8 +44,8 @@ function Lines({ n = 2 }: { n?: number }): ReactNode {
 
 /**
  * How the thumbnail reads where people actually see it: the home feed, search results, the "up next" list beside a
- * video and a phone, in light or dark mode, with the video-length badge in its corner. Every shot is rendered, so
- * A/B/C can be compared side by side.
+ * video and a phone, in light or dark mode, with the video-length badge in its corner. With several projects open
+ * (tabs), each one is rendered so the variants can be compared side by side.
  */
 export function YouTubePreview({ onClose }: { onClose: () => void }): ReactNode {
   const projectName = useStore((s) => s.project.name)
@@ -52,17 +53,19 @@ export function YouTubePreview({ onClose }: { onClose: () => void }): ReactNode 
   const [channel, setChannel] = useState('Your channel')
   const [duration, setDuration] = useState('12:34')
   const [dark, setDark] = useState(true)
-  const [shots, setShots] = useState<Shot[]>([])
+  const [variants, setVariants] = useState<Variant[]>([])
   const [pick, setPick] = useState(0)
   const [busy, setBusy] = useState(false)
 
   const render = async (): Promise<void> => {
     setBusy(true)
     try {
-      const s = useStore.getState()
-      const ids = s.shots.map((x) => x.id)
-      const urls = await eachShot(ids, () => captureFrame(640, 360))
-      setShots(urls.map((url, i) => ({ url, label: shotLabel(s.shots, ids[i]) })))
+      // The project on screen first, then the other open ones.
+      const { tabs, active } = useTabs.getState()
+      const keys = [active, ...tabs.map((t) => t.key).filter((k) => k !== active)]
+      const names = keys.map((k) => tabProject(tabs.find((t) => t.key === k)!).name)
+      const urls = await eachTab(keys, () => captureFrame(640, 360))
+      setVariants(urls.map((url, i) => ({ url, label: names[i] })))
     } finally {
       setBusy(false)
     }
@@ -77,7 +80,7 @@ export function YouTubePreview({ onClose }: { onClose: () => void }): ReactNode 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const chosen = shots[Math.min(pick, shots.length - 1)]
+  const chosen = variants[Math.min(pick, variants.length - 1)]
   const meta = <span className="ytp-meta">{channel} · 24K views · 2 hours ago</span>
   const avatar = <span className="ytp-avatar">{channel.trim().charAt(0).toUpperCase() || '?'}</span>
   // On the page itself: the top bar's blur would otherwise trap a fixed-position window inside it.
@@ -114,7 +117,7 @@ export function YouTubePreview({ onClose }: { onClose: () => void }): ReactNode 
             <X size={16} />
           </button>
         </header>
-        {!shots.length ? (
+        {!variants.length ? (
           <div className="ytp-loading">Rendering your thumbnails…</div>
         ) : (
           <div className="ytp-body">
@@ -122,8 +125,8 @@ export function YouTubePreview({ onClose }: { onClose: () => void }): ReactNode 
               <h3>Home feed</h3>
               <div className="ytp-grid">
                 {[
-                  ...shots.map((s) => s as Shot | null),
-                  ...Array.from({ length: Math.max(0, 6 - shots.length) }, () => null)
+                  ...variants.map((s) => s as Variant | null),
+                  ...Array.from({ length: Math.max(0, 6 - variants.length) }, () => null)
                 ].map((s, i) => (
                   <div key={i} className="ytp-card">
                     <Thumb
@@ -138,7 +141,7 @@ export function YouTubePreview({ onClose }: { onClose: () => void }): ReactNode 
                         <div>
                           <span className="ytp-title">{title}</span>
                           {meta}
-                          {shots.length > 1 && <span className="ytp-tag">Shot {s.label}</span>}
+                          {variants.length > 1 && <span className="ytp-tag">{s.label}</span>}
                         </div>
                       ) : (
                         <Lines />
@@ -148,11 +151,11 @@ export function YouTubePreview({ onClose }: { onClose: () => void }): ReactNode 
                 ))}
               </div>
             </section>
-            {shots.length > 1 && (
-              <div className="ytp-pick" title="Which shot the views below show">
-                {shots.map((s, i) => (
-                  <button key={s.label} className={i === pick ? 'active' : ''} onClick={() => setPick(i)}>
-                    Shot {s.label}
+            {variants.length > 1 && (
+              <div className="ytp-pick" title="Which project the views below show">
+                {variants.map((s, i) => (
+                  <button key={i} className={i === pick ? 'active' : ''} onClick={() => setPick(i)}>
+                    {s.label}
                   </button>
                 ))}
               </div>

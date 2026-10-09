@@ -42,20 +42,34 @@ export function mediaIdsOf(o: SceneObject, out: Set<string>): Set<string> {
   return out
 }
 
+/** The parts of a scene that can use media: what's on screen, its undo history and its look. */
+export interface SceneMedia {
+  objects: SceneObject[]
+  past: { objects?: SceneObject[] }[]
+  future: { objects?: SceneObject[] }[]
+  sky: { hdriMediaId?: string | null }
+  effects: { lutMediaId?: string | null }
+}
+
+/** Media ids a scene (and its undo history) uses. */
+export function mediaUsedBy(s: SceneMedia, out = new Set<string>()): Set<string> {
+  for (const list of [s.objects, ...[...s.past, ...s.future].map((e) => e.objects ?? [])])
+    for (const o of list) mediaIdsOf(o, out)
+  if (s.sky.hdriMediaId) out.add(s.sky.hdriMediaId)
+  if (s.effects.lutMediaId) out.add(s.effects.lutMediaId)
+  return out
+}
+
+/** The other open projects (tabs), whose media must stay loaded while they're in the background. */
+export const backgroundScenes: { get: () => SceneMedia[] } = { get: () => [] }
+
 /**
- * Frees media nothing refers to any more (replaced HDRIs, deleted images, failed imports). Anything the
- * scene or its undo history still uses is kept, so undoing a delete still finds its image.
+ * Frees media nothing refers to any more (replaced HDRIs, deleted images, failed imports). Anything an open
+ * project or its undo history still uses is kept, so undoing a delete still finds its image.
  */
 export function pruneMedia(): void {
-  const s = useStore.getState()
   const used = new Set<string>()
-  for (const list of [s.objects, ...[...s.past, ...s.future].map((e) => e.objects ?? [])])
-    for (const o of list) mediaIdsOf(o, used)
-  // The current look, the shared one and every shot's own.
-  for (const l of [s, ...(s.sharedLook ? [s.sharedLook] : []), ...s.shots.flatMap((x) => (x.look ? [x.look] : []))]) {
-    if (l.sky.hdriMediaId) used.add(l.sky.hdriMediaId)
-    if (l.effects.lutMediaId) used.add(l.effects.lutMediaId)
-  }
+  for (const scene of [useStore.getState(), ...backgroundScenes.get()]) mediaUsedBy(scene, used)
   const now = Date.now()
   for (const [id, m] of mediaStore)
     if (!used.has(id) && now - m.addedAt > 60_000) {

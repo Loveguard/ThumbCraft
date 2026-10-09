@@ -1,19 +1,17 @@
 import { useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { inShot, selection, useStore, type StickerObject } from '../store'
-import { stickerSvg } from '../stickers'
+import { selection, useStore, type StickerObject } from '../store'
+import { stickerArt, stretchLabel } from '../stickers'
 
-type Mode = 'move' | 'scale' | 'turn'
+type Mode = 'move' | 'scale' | 'turn' | 'stretch'
 
 /**
- * The thumbnail-kit stickers of the shot on screen, drawn over the 3D view (after every effect, like in the export).
+ * The thumbnail-kit stickers, drawn over the 3D view (after every effect, like in the export).
  * Drag one to move it, its corner dot to resize it and its top dot to turn it.
  */
 export function StickerLayer(): ReactNode {
   const stickers = useStore(
-    useShallow((s) =>
-      s.objects.filter((o): o is StickerObject => o.kind === 'sticker' && o.visible && inShot(o, s.activeShot))
-    )
+    useShallow((s) => s.objects.filter((o): o is StickerObject => o.kind === 'sticker' && o.visible))
   )
   const selected = useStore(useShallow((s) => selection(s)))
   const ref = useRef<HTMLDivElement>(null)
@@ -36,12 +34,19 @@ export function StickerLayer(): ReactNode {
     const from = { x: e.clientX, y: e.clientY }
     const startDist = Math.max(4, Math.hypot(from.x - cx, from.y - cy))
     const startAngle = Math.atan2(from.y - cy, from.x - cx)
+    // Stretching works along the sticker's own (turned, maybe mirrored) horizontal axis.
+    const turn = (o.rotation[2] * Math.PI) / 180
+    const along = (x: number, y: number): number => Math.abs((x - cx) * Math.cos(turn) + (y - cy) * Math.sin(turn))
+    const startAlong = Math.max(4, along(from.x, from.y))
     const move = (ev: PointerEvent): void => {
       const { update } = useStore.getState()
       if (mode === 'move') {
         const x = o.position[0] + (ev.clientX - from.x) / rect.width
         const y = o.position[1] + (ev.clientY - from.y) / rect.height
         update(o.id, { position: [Math.min(1.1, Math.max(-0.1, x)), Math.min(1.1, Math.max(-0.1, y)), 0] })
+      } else if (mode === 'stretch') {
+        const k = along(ev.clientX, ev.clientY) / startAlong
+        update(o.id, { stretch: Math.min(3, Math.max(0.4, (o.stretch ?? 1) * k)) })
       } else if (mode === 'scale') {
         const k = Math.hypot(ev.clientX - cx, ev.clientY - cy) / startDist
         update(o.id, { scale: Math.min(1.5, Math.max(0.03, o.scale * k)) })
@@ -66,6 +71,7 @@ export function StickerLayer(): ReactNode {
     <div className="sticker-layer" ref={ref}>
       {stickers.map((o) => {
         const active = selected.includes(o.id)
+        const art = stickerArt(o)
         return (
           <div
             key={o.id}
@@ -73,7 +79,8 @@ export function StickerLayer(): ReactNode {
             style={{
               left: `${o.position[0] * 100}%`,
               top: `${o.position[1] * 100}%`,
-              height: `${o.scale * 112}%`,
+              height: `${o.scale * art.height}%`,
+              aspectRatio: `${art.width} / ${art.height}`,
               transform: `translate(-50%, -50%) rotate(${o.rotation[2]}deg)`
             }}
             onPointerDown={(e) => start(e, o, 'move')}
@@ -81,7 +88,7 @@ export function StickerLayer(): ReactNode {
             <div
               className="sticker-art"
               style={{ transform: o.flip ? 'scaleX(-1)' : undefined }}
-              dangerouslySetInnerHTML={{ __html: stickerSvg(o) }}
+              dangerouslySetInnerHTML={{ __html: art.svg }}
             />
             {active && (
               <>
@@ -90,6 +97,13 @@ export function StickerLayer(): ReactNode {
                   title="Drag to resize"
                   onPointerDown={(e) => start(e, o, 'scale')}
                 />
+                {stretchLabel(o.shape) && (
+                  <i
+                    className="sticker-handle stretch"
+                    title={`Drag to change the ${stretchLabel(o.shape)!.toLowerCase()}`}
+                    onPointerDown={(e) => start(e, o, 'stretch')}
+                  />
+                )}
                 <i
                   className="sticker-handle turn"
                   title="Drag to turn (Shift: 15° steps)"

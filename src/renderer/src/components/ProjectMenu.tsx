@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronDown, FilePlus2, FolderOpen, History, Info, Save, SaveAll } from 'lucide-react'
+import { ChevronDown, Copy, FilePlus2, FolderOpen, History, Info, Save, SaveAll } from 'lucide-react'
 import type { RecentProject } from '@shared/api'
-import { openProjectFile, openRecentProject, saveProject, startNewProject } from '../projectActions'
+import { duplicateAsTab, openProjectFile, openRecentProject, saveProject, startNewProject } from '../projectActions'
 import { useStore } from '../store'
 import { AboutDialog } from './AboutDialog'
 
@@ -71,6 +71,12 @@ export function ProjectMenu(): ReactNode {
             <strong>
               <SaveAll size={14} /> Save as… <kbd>Ctrl ⇧ S</kbd>
             </strong>
+          </button>
+          <button onClick={() => run(duplicateAsTab)}>
+            <strong>
+              <Copy size={14} /> Duplicate as new tab
+            </strong>
+            <span>A copy to try a variant, or to make a split image with</span>
           </button>
           {recent.length > 0 && (
             <>

@@ -24,8 +24,6 @@ interface Base {
   flat?: boolean
   /** Objects sharing a group id are selected and moved together. */
   groupId?: string
-  /** The shots (A/B/C variants) this object appears in; missing means every shot. */
-  shots?: string[]
 }
 
 export interface TerrainObject extends Base {
@@ -191,7 +189,7 @@ export type WeatherType = 'none' | 'rain' | 'snow'
 
 /**
  * A thumbnail-kit sticker (arrow, circle…): a 2D layer on the frame, not in the 3D scene. `position[0..1]` is its
- * centre as fractions of the frame, `scale` its height as a fraction of the frame's height, `rotation[2]` degrees.
+ * centre as fractions of the frame, `scale` how much of the frame's height 100 shape units take, `rotation[2]` degrees.
  */
 export interface StickerObject extends Base {
   kind: 'sticker'
@@ -202,6 +200,10 @@ export interface StickerObject extends Base {
   /** A halo in its own colour instead of the drop shadow. */
   glow: boolean
   flip?: boolean
+  /** Line thickness, 1 = normal. */
+  weight?: number
+  /** Tail length of an arrow, width of a circle or box; 1 = normal. */
+  stretch?: number
 }
 
 export type SceneObject =
@@ -218,8 +220,9 @@ export type SceneObject =
   | VfxObject
   | StickerObject
 
-/** A split image: shot `left` and shot `right` joined along a divider. */
+/** A split image: two open projects (tabs) side by side, joined along a divider ("Day 1 vs Day 100"). */
 export interface SplitSettings {
+  /** Tab ids (project ids) shown left and right. */
   left: string
   right: string
   style: 'straight' | 'torn' | 'lightning'
@@ -242,7 +245,7 @@ export interface SceneSettings {
   showGrid: boolean
   /** Pixel rulers and centre/thirds guides over the viewport (never in exports). */
   showRulers?: boolean
-  /** Two shots side by side in one image ("Day 1 vs Day 100"), when set. */
+  /** The last split-image setup, so the split menu reopens as it was left. */
   split?: SplitSettings | null
   /** Always snap while moving (Shift does the same temporarily). */
   snap: boolean
@@ -442,11 +445,6 @@ interface State {
   settings: SceneSettings
   effects: EffectSettings
   sky: SkySettings
-  /** Up to three versions of the thumbnail (for YouTube's Test & Compare), each with its own camera and layers. */
-  shots: Shot[]
-  activeShot: string
-  /** The look shots share when they don't have their own (kept while a shot with its own look is shown). */
-  sharedLook: Look | null
   project: ProjectInfo
   status: string
   /** Undo history: scene edits and camera moves. Terrain voxels are shared, not copied. */
@@ -472,16 +470,6 @@ interface State {
   /** Moves, turns or resizes several objects as one undo step. */
   updateMany(patches: { id: string; patch: Partial<SceneObject> }[]): void
   removeSelected(): void
-  /** Shows another shot: its camera, its layers and (when it has one) its own look. */
-  switchShot(id: string): void
-  /** Adds a shot made from the current one: each layer is copied, shared (linked) or left out. */
-  addShot(carry: Record<string, CarryOver>): void
-  /** Deletes a shot; layers that were only in it go with it. */
-  removeShot(id: string): void
-  /** Puts a layer into a shot or takes it out (a layer always stays in at least one). */
-  setInShot(objectId: string, shotId: string, on: boolean): void
-  /** Gives the current shot its own colour, effects and sky, or makes it share the project's again. */
-  setShotOwnLook(on: boolean): void
   duplicateSelected(): void
   groupSelected(): void
   ungroupSelected(): void
@@ -506,102 +494,7 @@ export interface CameraState {
 export interface HistoryEntry {
   objects?: SceneObject[]
   camera?: CameraState
-  /** Shot changes (adding or deleting a shot) also restore the shot list. */
-  shots?: { shots: Shot[]; activeShot: string }
 }
-
-// ------------------------------------------------------------------ shots
-
-/** A shot's look when it doesn't share the project's: colour, effects, sky and render mode. */
-export interface Look {
-  effects: EffectSettings
-  sky: SkySettings
-  renderMode: RenderMode
-}
-
-/** One version of the thumbnail. Its layers are the objects whose `shots` include its id. */
-export interface Shot {
-  id: string
-  /** Where its camera was left; null until the shot has been looked through. */
-  camera: (CameraState & { fov: number }) | null
-  /** Its saved view (C / "Back to view"). */
-  bookmark: (CameraState & { fov: number }) | null
-  /** Its own look, or null to share the project's. */
-  look: Look | null
-}
-
-/** What happens to a layer when a new shot is made from the current one. */
-export type CarryOver = 'copy' | 'link' | 'skip'
-
-/** YouTube's Test & Compare tries up to three thumbnails. */
-export const MAX_SHOTS = 3
-
-const blankShot = (id = newId('shot')): Shot => ({ id, camera: null, bookmark: null, look: null })
-
-/** A fresh project's single shot. */
-export const freshShots = (): Pick<State, 'shots' | 'activeShot' | 'sharedLook'> => {
-  const shot = blankShot()
-  return { shots: [shot], activeShot: shot.id, sharedLook: null }
-}
-
-/** "A", "B" or "C": shots are lettered by position. */
-export const shotLabel = (shots: Shot[], id: string): string =>
-  String.fromCharCode(
-    65 +
-      Math.max(
-        0,
-        shots.findIndex((x) => x.id === id)
-      )
-  )
-
-/** Whether an object appears in a shot. */
-export const inShot = (o: SceneObject, shotId: string): boolean => !o.shots || o.shots.includes(shotId)
-
-const lookOf = (s: State): Look => ({ effects: s.effects, sky: s.sky, renderMode: s.settings.renderMode })
-
-/** Stores the current shot's camera, saved view and (if it has one) look, ready to leave it. */
-function leaveShot(s: State): Pick<State, 'shots' | 'sharedLook'> {
-  const cam = cameraBridge.get?.()
-  const current = s.shots.find((x) => x.id === s.activeShot)
-  const shots = s.shots.map((x) =>
-    x.id === s.activeShot
-      ? {
-          ...x,
-          camera: cam ? { ...cam, fov: s.settings.fov } : x.camera,
-          bookmark: s.settings.shot,
-          look: x.look ? lookOf(s) : null
-        }
-      : x
-  )
-  return { shots, sharedLook: current?.look ? (s.sharedLook ?? lookOf(s)) : lookOf(s) }
-}
-
-/** The shots as they are right now, with the current shot's camera and look stored (for saving). */
-export const shotsSnapshot = (): Pick<State, 'shots' | 'activeShot' | 'sharedLook'> => {
-  const s = useStore.getState()
-  return { ...leaveShot(s), activeShot: s.activeShot }
-}
-
-/** The state that shows shot `id` (its camera is moved straight away). */
-function enterShot(s: State, shots: Shot[], sharedLook: Look | null, id: string): Partial<State> {
-  const to = shots.find((x) => x.id === id) ?? shots[0]
-  const look = to.look ?? sharedLook ?? lookOf(s)
-  if (to.camera) cameraBridge.set?.(to.camera)
-  return {
-    shots,
-    sharedLook,
-    activeShot: to.id,
-    effects: look.effects,
-    sky: look.sky,
-    settings: { ...s.settings, renderMode: look.renderMode, fov: to.camera?.fov ?? s.settings.fov, shot: to.bookmark },
-    selectedId: null,
-    selectedIds: [],
-    selectedJoint: null
-  }
-}
-
-/** The shots a new or duplicated object belongs to: only the one being edited, once there are several. */
-const here = (s: State): string[] | undefined => (s.shots.length > 1 ? [s.activeShot] : undefined)
 
 /** The viewport registers these so undo can read and restore the view. */
 export const cameraBridge: { get: (() => CameraState | null) | null; set: ((c: CameraState) => void) | null } = {
@@ -624,11 +517,6 @@ function applyEntry(s: State, e: HistoryEntry): { reverse: HistoryEntry; patch: 
       patch.selectedJoint = null
     }
     patch.selectedIds = s.selectedIds.filter((id) => e.objects!.some((o) => o.id === id))
-  }
-  if (e.shots) {
-    const left = leaveShot(s)
-    reverse.shots = { shots: left.shots, activeShot: s.activeShot }
-    Object.assign(patch, enterShot(s, e.shots.shots, left.sharedLook, e.shots.activeShot))
   }
   const now = e.camera && cameraBridge.get?.()
   if (e.camera && now) {
@@ -655,28 +543,12 @@ export function selection(s: Pick<State, 'selectedId' | 'selectedIds'>): string[
   return s.selectedIds.includes(s.selectedId) ? s.selectedIds : [s.selectedId]
 }
 
-/**
- * The object list after deleting `ids`: with several shots, a layer that's also in other shots only leaves the one
- * being edited; otherwise it's deleted.
- */
-function removeHere(s: State, ids: Set<string>): SceneObject[] {
-  if (s.shots.length < 2) return s.objects.filter((o) => !ids.has(o.id))
-  const all = s.shots.map((x) => x.id)
-  return s.objects.flatMap((o) => {
-    if (!ids.has(o.id)) return [o]
-    const rest = (o.shots ?? all).filter((x) => x !== s.activeShot)
-    return rest.length ? [{ ...o, shots: rest } as SceneObject] : []
-  })
-}
-
-const history = (s: State, key: string, shots?: HistoryEntry['shots']): Pick<State, 'past' | 'future'> => {
+const history = (s: State, key: string): Pick<State, 'past' | 'future'> => {
   const now = Date.now()
   const merge = key === lastCommit.key && now - lastCommit.at < 600
   lastCommit = { key, at: now }
   if (merge) return { past: s.past, future: [] }
-  const entry: HistoryEntry = { objects: s.objects }
-  if (shots) entry.shots = shots
-  return { past: [...s.past.slice(-99), entry], future: [] }
+  return { past: [...s.past.slice(-99), { objects: s.objects }], future: [] }
 }
 
 /** Sun and fill for a night sky (your own lights do the work) and for daytime. */
@@ -716,7 +588,6 @@ export const useStore = create<State>((set) => ({
   settings: { ...DEFAULT_SETTINGS },
   effects: { ...NO_EFFECTS },
   sky: { ...DEFAULT_SKY },
-  ...freshShots(),
   project: newProjectInfo(),
   status: '',
   past: [],
@@ -752,12 +623,7 @@ export const useStore = create<State>((set) => ({
     }),
   setAssets: (assets) => set({ assets }),
   add: (o) =>
-    set((s) => ({
-      ...history(s, `add:${o.id}`),
-      objects: [...s.objects, s.shots.length > 1 ? { ...o, shots: here(s) } : o],
-      selectedId: o.id,
-      selectedIds: [o.id]
-    })),
+    set((s) => ({ ...history(s, `add:${o.id}`), objects: [...s.objects, o], selectedId: o.id, selectedIds: [o.id] })),
   duplicate: (id) =>
     set((s) => {
       const o = s.objects.find((x) => x.id === id)
@@ -765,7 +631,6 @@ export const useStore = create<State>((set) => ({
       const copy = { ...structuredClone(o), id: newId('obj'), name: `${o.name} copy` } as SceneObject
       copy.position = [o.position[0] + 1, o.position[1], o.position[2] + 1]
       delete copy.groupId
-      copy.shots = here(s)
       return {
         ...history(s, `dup:${copy.id}`),
         objects: [...s.objects, copy],
@@ -783,7 +648,7 @@ export const useStore = create<State>((set) => ({
       // Terrain voxels stay in terrainStore so the removal can be undone.
       return {
         ...history(s, `remove:${id}`),
-        objects: removeHere(s, new Set([id])),
+        objects: s.objects.filter((x) => x.id !== id),
         selectedId: s.selectedId === id ? null : s.selectedId,
         selectedIds: s.selectedIds.filter((x) => x !== id),
         selectedJoint: s.selectedId === id ? null : s.selectedJoint
@@ -832,7 +697,7 @@ export const useStore = create<State>((set) => ({
       if (!gone.size) return s
       return {
         ...history(s, `remove:${[...gone].join(',')}`),
-        objects: removeHere(s, gone),
+        objects: s.objects.filter((o) => !gone.has(o.id)),
         selectedId: null,
         selectedIds: [],
         selectedJoint: null
@@ -849,7 +714,6 @@ export const useStore = create<State>((set) => ({
         .map((o) => {
           const copy = { ...structuredClone(o), id: newId('obj'), name: `${o.name} copy` } as SceneObject
           copy.position = [o.position[0] + 1, o.position[1], o.position[2] + 1]
-          copy.shots = here(s)
           if (o.groupId) {
             if (!groups.has(o.groupId)) groups.set(o.groupId, newId('grp'))
             copy.groupId = groups.get(o.groupId)
@@ -862,99 +726,6 @@ export const useStore = create<State>((set) => ({
         selectedIds: copies.map((c) => c.id),
         selectedId: copies.at(-1)!.id,
         selectedJoint: null
-      }
-    }),
-  switchShot: (id) =>
-    set((s) => {
-      if (id === s.activeShot || !s.shots.some((x) => x.id === id)) return s
-      const left = leaveShot(s)
-      return enterShot(s, left.shots, left.sharedLook, id)
-    }),
-  addShot: (carry) =>
-    set((s) => {
-      if (s.shots.length >= MAX_SHOTS) return s
-      const left = leaveShot(s)
-      const from = left.shots.find((x) => x.id === s.activeShot)!
-      // The new shot starts where this one is: same camera, saved view and look.
-      const shot: Shot = { ...blankShot(), camera: from.camera, bookmark: from.bookmark, look: from.look }
-      const all = s.shots.map((x) => x.id)
-      const groups = new Map<string, string>()
-      const copies: SceneObject[] = []
-      const objects = s.objects.map((o) => {
-        const member = o.shots ?? all
-        if (!member.includes(s.activeShot)) return o.shots ? o : { ...o, shots: member }
-        const how = carry[o.id] ?? 'copy'
-        if (how === 'link') return { ...o, shots: [...member, shot.id] }
-        if (how === 'copy') {
-          const copy = { ...structuredClone(o), id: newId('obj'), shots: [shot.id] } as SceneObject
-          if (o.groupId) {
-            if (!groups.has(o.groupId)) groups.set(o.groupId, newId('grp'))
-            copy.groupId = groups.get(o.groupId)
-          }
-          copies.push(copy)
-        }
-        return o.shots ? o : { ...o, shots: member }
-      })
-      const shots = [...left.shots, shot]
-      return {
-        ...history(s, `shot-add:${shot.id}`, { shots: left.shots, activeShot: s.activeShot }),
-        objects: [...objects, ...copies],
-        ...enterShot(s, shots, left.sharedLook, shot.id)
-      }
-    }),
-  removeShot: (id) =>
-    set((s) => {
-      if (s.shots.length < 2 || !s.shots.some((x) => x.id === id)) return s
-      const left = leaveShot(s)
-      const shots = left.shots.filter((x) => x.id !== id)
-      const objects = s.objects.flatMap((o) => {
-        if (!o.shots) return [o]
-        const rest = o.shots.filter((x) => x !== id)
-        return rest.length ? [{ ...o, shots: rest } as SceneObject] : []
-      })
-      const next = id === s.activeShot ? shots[0].id : s.activeShot
-      return {
-        ...history(s, `shot-remove:${id}`, { shots: left.shots, activeShot: s.activeShot }),
-        objects,
-        ...(next === s.activeShot ? { shots, sharedLook: left.sharedLook } : enterShot(s, shots, left.sharedLook, next))
-      }
-    }),
-  setInShot: (objectId, shotId, on) =>
-    set((s) => {
-      const all = s.shots.map((x) => x.id)
-      const o = s.objects.find((x) => x.id === objectId)
-      if (!o) return s
-      const member = new Set(o.shots ?? all)
-      if (on) member.add(shotId)
-      else member.delete(shotId)
-      if (!member.size) {
-        return { status: 'A layer has to stay in at least one shot. Delete it instead to remove it completely.' }
-      }
-      const ordered = all.filter((x) => member.has(x))
-      return {
-        ...history(s, `in-shot:${objectId}:${shotId}`),
-        objects: s.objects.map((x) => (x.id === objectId ? ({ ...x, shots: ordered } as SceneObject) : x)),
-        ...(!on && shotId === s.activeShot && selection(s).includes(objectId)
-          ? { selectedId: null, selectedIds: [], selectedJoint: null }
-          : {})
-      }
-    }),
-  setShotOwnLook: (on) =>
-    set((s) => {
-      const current = s.shots.find((x) => x.id === s.activeShot)
-      if (!current || !!current.look === on) return s
-      if (on) {
-        return {
-          sharedLook: s.sharedLook ?? lookOf(s),
-          shots: s.shots.map((x) => (x.id === s.activeShot ? { ...x, look: lookOf(s) } : x))
-        }
-      }
-      const look = s.sharedLook ?? lookOf(s)
-      return {
-        shots: s.shots.map((x) => (x.id === s.activeShot ? { ...x, look: null } : x)),
-        effects: look.effects,
-        sky: look.sky,
-        settings: { ...s.settings, renderMode: look.renderMode }
       }
     }),
   groupSelected: () =>

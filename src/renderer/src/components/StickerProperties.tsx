@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
 import { FlipHorizontal2 } from 'lucide-react'
 import { useStore, type StickerObject } from '../store'
-import { STICKER_SWATCHES, STICKERS, stickerSvg } from '../stickers'
+import { hasWeight, STICKER_SWATCHES, STICKERS, stickerSvg, stretchLabel } from '../stickers'
 import { Hint, Slider, Toggle } from './controls'
 
 export function StickerProperties({ o }: { o: StickerObject }): ReactNode {
   const set = (patch: Partial<StickerObject>): void => useStore.getState().update(o.id, patch)
+  const stretch = stretchLabel(o.shape)
   return (
     <>
       <div className="sticker-grid">
@@ -43,6 +44,28 @@ export function StickerProperties({ o }: { o: StickerObject }): ReactNode {
         format={(v) => `${Math.round(v * 100)}%`}
         onChange={(scale) => set({ scale })}
       />
+      {hasWeight(o.shape) && (
+        <Slider
+          label="Thickness"
+          min={0.3}
+          max={3}
+          step={0.05}
+          value={o.weight ?? 1}
+          format={(v) => `${Math.round(v * 100)}%`}
+          onChange={(weight) => set({ weight })}
+        />
+      )}
+      {stretch && (
+        <Slider
+          label={stretch}
+          min={0.4}
+          max={3}
+          step={0.05}
+          value={o.stretch ?? 1}
+          format={(v) => `${Math.round(v * 100)}%`}
+          onChange={(v) => set({ stretch: v })}
+        />
+      )}
       <Slider
         label="Turn"
         min={-180}
@@ -58,8 +81,9 @@ export function StickerProperties({ o }: { o: StickerObject }): ReactNode {
         <FlipHorizontal2 size={15} /> Mirror
       </button>
       <Hint>
-        Drag it in the viewport to move it; drag the corner dot to resize and the top dot to turn it. Stickers sit on
-        the frame itself, on top of every effect, and stay put when the camera moves.
+        Drag it in the viewport to move it; drag the corner dot to resize, the top dot to turn it and, on arrows,
+        circles and boxes, the side dot to stretch it. Stickers sit on the frame itself, on top of every effect, and
+        stay put when the camera moves.
       </Hint>
     </>
   )

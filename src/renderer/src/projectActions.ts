@@ -3,6 +3,7 @@ import { pruneMedia } from './media'
 import type { ProjectMeta } from '@shared/api'
 import { loadProject, newProject, projectThumbnail, serializeProject } from './project'
 import { useStore } from './store'
+import { activeTabIsBlank, addTab, closeTab, duplicateTab, findTab, switchTab, useTabs } from './tabs'
 import { errorText } from './errors'
 
 function meta(withThumbnail: boolean): ProjectMeta {
@@ -56,11 +57,19 @@ function afterOpen(opened: { name: string; minecraftVersion: string | null }): v
     )
 }
 
+/** Makes room for a project being opened: its own tab, unless the tab on screen is an untouched new project. */
+async function freeTab(): Promise<void> {
+  await flushAutosave()
+  if (!activeTabIsBlank()) addTab()
+}
+
 export async function openProjectFile(): Promise<void> {
   try {
     const r = await window.blockframe.openProject()
     if (!r) return
-    await flushAutosave()
+    const open = r.path ? findTab({ path: r.path }) : null
+    if (open) return showTab(open)
+    await freeTab()
     afterOpen(loadProject(r.bytes, r.path))
   } catch (e) {
     report(e)
@@ -69,19 +78,60 @@ export async function openProjectFile(): Promise<void> {
 
 export async function openRecentProject(id: string): Promise<void> {
   try {
+    const open = findTab({ id })
+    if (open) return showTab(open)
     const r = await window.blockframe.openRecent(id)
-    await flushAutosave()
+    await freeTab()
     afterOpen(loadProject(r.bytes, r.path))
   } catch (e) {
     report(e)
   }
 }
 
+/** A new, empty project in its own tab (or in this one, when it's still empty). */
 export function startNewProject(): void {
   void flushAutosave().finally(() => {
-    newProject()
-    markClean()
+    if (activeTabIsBlank()) {
+      newProject()
+      markClean()
+    } else addTab()
   })
+}
+
+// ------------------------------------------------------------------ tabs
+
+/** Shows another open project. Its recovery copy is written first, so nothing waits unsaved in the background. */
+export async function showTab(key: string): Promise<void> {
+  if (key === useTabs.getState().active) return
+  await flushAutosave()
+  switchTab(key)
+}
+
+/** A copy of this project in a new tab, to try a variant without touching the original. */
+export async function duplicateAsTab(): Promise<void> {
+  await flushAutosave()
+  duplicateTab()
+  // The copy is new and unsaved: give it a recovery copy straight away.
+  autosaveDirty = true
+}
+
+/** Closes a tab, asking first when its project has changes that were never saved to a file. */
+export async function closeProjectTab(key: string): Promise<void> {
+  const { active, tabs } = useTabs.getState()
+  const tab = tabs.find((t) => t.key === key)
+  if (!tab) return
+  const project = tab.snap?.project ?? useStore.getState().project
+  const empty = (tab.snap?.objects ?? useStore.getState().objects).length === 0
+  if (
+    project.dirty &&
+    !empty &&
+    !window.confirm(
+      `“${project.name}” has changes you haven't saved. Close it anyway? (A recovery copy stays in Recent projects.)`
+    )
+  )
+    return
+  if (key === active) await flushAutosave()
+  closeTab(key)
 }
 
 // ------------------------------------------------------------------ autosave
@@ -111,6 +161,8 @@ export async function flushAutosave(): Promise<void> {
 /** Tracks edits and keeps a recovery copy so quitting halfway never loses work. */
 export function startAutosave(): () => void {
   const unsub = useStore.subscribe((s, prev) => {
+    // Another tab (or project) coming on screen isn't an edit.
+    if (s.project.id !== prev.project.id) return
     const changed =
       s.objects !== prev.objects ||
       s.settings !== prev.settings ||

@@ -28,9 +28,7 @@ import {
 import { useShallow } from 'zustand/react/shallow'
 import { fullPose, POSES, type PartName, type Pose } from '@shared/minecraft/playerModel'
 import {
-  inShot,
   selection,
-  shotLabel,
   useStore,
   type MirrorObject,
   type MobObject,
@@ -135,12 +133,8 @@ export function pushAlongView(amount: number): void {
 function Layers(): ReactNode {
   const objects = useStore((s) => s.objects)
   const selected = useStore(useShallow((s) => selection(s)))
-  const shots = useStore((s) => s.shots)
-  const activeShot = useStore((s) => s.activeShot)
-  const { selectOnly, select, toggleSelect, setSelection, update, remove, updateMany, setInShot } = useStore.getState()
-  // Only the shot on screen; the A/B/C chips put a layer into other shots or take it out.
-  const rows = [...objects].reverse().filter((o) => inShot(o, activeShot))
-  const shotCount = rows.length
+  const { selectOnly, select, toggleSelect, setSelection, update, remove, updateMany } = useStore.getState()
+  const rows = [...objects].reverse()
   // Click: that layer alone. Ctrl+click: add or remove it. Shift+click: everything from the last pick to here.
   const pick = (e: MouseEvent, id: string): void => {
     if (e.ctrlKey || e.metaKey) return toggleSelect(id)
@@ -156,8 +150,8 @@ function Layers(): ReactNode {
     selectOnly(id)
   }
   return (
-    <Section id="layers" title={`Layers${shotCount ? ` · ${shotCount}` : ''}`}>
-      {shotCount === 0 && (
+    <Section id="layers" title={`Layers${objects.length ? ` · ${objects.length}` : ''}`}>
+      {objects.length === 0 && (
         <div className="empty">
           <strong>Your scene is empty</strong>
           <span>Pick a biome, build, player or text from the left to get started.</span>
@@ -199,29 +193,6 @@ function Layers(): ReactNode {
               >
                 <Icon size={15} className="kind" />
                 <span className="name">{o.name}</span>
-                {shots.length > 1 && (
-                  <span className="shot-chips">
-                    {shots.map((sh) => {
-                      const on = inShot(o, sh.id)
-                      const label = shotLabel(shots, sh.id)
-                      return (
-                        <button
-                          key={sh.id}
-                          className={`shot-chip ${on ? 'on' : ''}`}
-                          title={
-                            on ? `In shot ${label}: click to take it out` : `Not in shot ${label}: click to add it`
-                          }
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setInShot(o.id, sh.id, !on)
-                          }}
-                        >
-                          {label}
-                        </button>
-                      )
-                    })}
-                  </span>
-                )}
                 <button
                   className="icon-btn sm"
                   title={o.visible ? 'Hide' : 'Show'}
@@ -234,11 +205,7 @@ function Layers(): ReactNode {
                 </button>
                 <button
                   className="icon-btn sm danger"
-                  title={
-                    shots.length > 1 && (o.shots?.length ?? shots.length) > 1
-                      ? 'Remove from this shot (Del)'
-                      : 'Delete (Del)'
-                  }
+                  title="Delete (Del)"
                   onClick={(e) => {
                     e.stopPropagation()
                     remove(o.id)
@@ -251,7 +218,7 @@ function Layers(): ReactNode {
           )
         })}
       </ul>
-      {shotCount > 1 && (
+      {objects.length > 1 && (
         <p className="field-note">Ctrl+click or Shift+click to pick several layers; Ctrl+G groups them.</p>
       )}
     </Section>

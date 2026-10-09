@@ -238,6 +238,10 @@ kbd {
   grid-template-rows: 52px 1fr 28px;
   height: 100%;
 }
+/* With several projects open, their tabs get a row of their own. */
+.app.with-tabs {
+  grid-template-rows: 52px 34px 1fr 28px;
+}
 
 .workspace {
   display: grid;
@@ -3171,52 +3175,109 @@ textarea:focus {
   font-variant-numeric: tabular-nums;
 }
 
-/* Shots A/B/C: the bar above the viewport (right), its menu and the new-shot dialog. */
-.float-bar.shot-bar {
-  right: 0;
-  top: -44px;
-  gap: 2px;
-  z-index: 20;
-}
-.shot-bar-label {
-  padding: 0 6px 0 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-2);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.shot-tab {
+/* Open projects, one tab each (shown once there are two or more). */
+.tab-bar {
   position: relative;
-  min-width: 30px;
-  height: 26px;
-  padding: 0 8px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-2);
-  font-weight: 700;
-  border-radius: 7px;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 34px;
+  padding: 0 10px;
+  background: var(--bg-app, var(--bg));
+  border-bottom: 1px solid var(--border);
 }
-.shot-tab:hover {
+.project-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 220px;
+  height: 28px;
+  padding: 0 6px 0 12px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.project-tab:hover {
   background: var(--bg-hover);
   color: var(--text);
 }
-.shot-tab.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
+.project-tab.active {
+  background: var(--bg-panel);
+  border-color: var(--border-strong);
+  color: var(--text);
+  box-shadow: inset 0 2px 0 var(--accent);
 }
-.shot-own-look {
-  position: absolute;
-  right: 3px;
-  top: 3px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #b48cff;
+.project-tab.dragging {
+  opacity: 0.5;
 }
-.shot-menu,
-.new-shot {
+.project-tab .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-tab .dirty-dot {
+  flex-shrink: 0;
+}
+.project-tab .close {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-2);
+  opacity: 0;
+}
+.project-tab:hover .close,
+.project-tab.active .close {
+  opacity: 1;
+}
+.project-tab .close:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.tab-add {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  margin-bottom: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-2);
+}
+.tab-add:hover,
+.tab-add.active {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.tab-bar-end {
+  position: relative;
+  margin-left: auto;
+  display: flex;
+  align-items: flex-end;
+}
+.tab-bar-end .tab-add {
+  width: auto;
+  gap: 6px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+}
+
+/* A small popover window (the split-image menu). */
+.pop-menu {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
@@ -3230,60 +3291,6 @@ textarea:focus {
   border: 1px solid var(--border-strong);
   box-shadow: var(--shadow-float);
 }
-.shot-menu {
-  width: 270px;
-}
-.shot-menu em {
-  display: block;
-  font-style: normal;
-  color: var(--text-2);
-  font-size: 11px;
-  margin-top: 2px;
-}
-.new-shot {
-  width: 420px;
-  max-height: 460px;
-}
-.new-shot-head {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.new-shot-head span {
-  color: var(--text-2);
-  font-size: 12px;
-}
-.new-shot-all,
-.new-shot-list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.new-shot-all {
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-  font-weight: 600;
-}
-.new-shot-all > span,
-.new-shot-list .name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.new-shot-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.new-shot-list .kind {
-  color: var(--text-2);
-  flex-shrink: 0;
-}
 .segmented.sm {
   flex-shrink: 0;
   width: 210px;
@@ -3292,33 +3299,6 @@ textarea:focus {
 .segmented.sm button {
   padding: 3px 6px;
   font-size: 11px;
-}
-.new-shot .row {
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-/* Which shots a layer is in (Layers panel). */
-.shot-chips {
-  display: flex;
-  gap: 2px;
-  flex-shrink: 0;
-}
-.shot-chip {
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  font-size: 10px;
-  font-weight: 700;
-  border-radius: 5px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text-3, #6b7280);
-}
-.shot-chip.on {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
 }
 
 /* Thumbnail-kit stickers over the viewport. */
@@ -3361,6 +3341,13 @@ textarea:focus {
   bottom: 4%;
   cursor: nwse-resize;
 }
+.sticker-handle.stretch {
+  right: -1%;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 3px;
+  cursor: ew-resize;
+}
 .sticker-handle.turn {
   left: 50%;
   top: -2%;
@@ -3394,19 +3381,13 @@ textarea:focus {
   justify-content: space-between;
   gap: 8px;
 }
-.split-row .segmented.sm {
-  width: 160px;
+.split-row select {
+  width: 190px;
 }
 .split-preview {
   width: 100%;
   border-radius: 8px;
   border: 1px solid var(--border-strong);
-}
-.batch-shots {
-  display: flex;
-  gap: 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
 }
 .tab-body .sticker-grid button {
   height: 54px;

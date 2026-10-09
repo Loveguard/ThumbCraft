@@ -15,7 +15,6 @@ import {
 import { cameraBridge, useStore } from '../store'
 import { pushAlongView } from './RightPanel'
 import { hasEffects } from './Effects'
-import { ShotBar } from './ShotBar'
 import { StartPanel } from './StartPanel'
 import { viewport } from './Viewport'
 import { RENDER_MODES } from '../renderModes'
@@ -140,7 +139,6 @@ export function ViewportOverlay(): ReactNode {
   return (
     <div className="overlay">
       <StartPanel />
-      <ShotBar />
       <div className="view-chip">
         {RENDER_MODES.find((m) => m.id === renderMode)?.label} · FOV {fov}°{effectsOn ? ' · Effects on' : ''}
       </div>

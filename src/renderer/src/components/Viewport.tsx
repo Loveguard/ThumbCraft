@@ -33,7 +33,6 @@ import {
 import { useShallow } from 'zustand/react/shallow'
 import {
   cameraBridge,
-  inShot,
   NO_EQUIPMENT,
   selection,
   terrainStore,
@@ -96,6 +95,9 @@ const isHelperObject = (o: THREE.Object3D): boolean => {
 
 const deg = THREE.MathUtils.degToRad
 
+/** How many scene objects are still being built (terrain meshing, skins, models…), so a capture can wait for them. */
+export const building = { count: 0 }
+
 /**
  * Runs an async builder when its inputs change. `dispose` frees a result once it has been replaced on screen
  * (or the node unmounts), and frees results that arrive after they were no longer wanted.
@@ -104,13 +106,16 @@ function useAsync<T>(fn: () => Promise<T>, deps: unknown[], dispose?: (v: NonNul
   const [v, setV] = useState<T | null>(null)
   useEffect(() => {
     let alive = true
-    fn().then(
-      (r) => {
-        if (alive) setV(() => r)
-        else if (r) dispose?.(r as NonNullable<T>)
-      },
-      (e) => console.error(e)
-    )
+    building.count++
+    fn()
+      .then(
+        (r) => {
+          if (alive) setV(() => r)
+          else if (r) dispose?.(r as NonNullable<T>)
+        },
+        (e) => console.error(e)
+      )
+      .finally(() => building.count--)
     return () => {
       alive = false
     }
@@ -490,19 +495,7 @@ if (typeof window !== 'undefined')
   window.addEventListener('pointerdown', (e) => Object.assign(press, { x: e.clientX, y: e.clientY }), true)
 const wasDrag = (e: MouseEvent): boolean => Math.hypot(e.clientX - press.x, e.clientY - press.y) > 4
 
-/**
- * One scene object. `shown` is false while another shot is on screen: the object stays built (switching shots is
- * instant) but is hidden, unclickable and left out of exports.
- */
-const ObjectNode = memo(function ObjectNode({
-  o,
-  order,
-  shown
-}: {
-  o: SceneObject
-  order: number
-  shown: boolean
-}): ReactNode {
+const ObjectNode = memo(function ObjectNode({ o, order }: { o: SceneObject; order: number }): ReactNode {
   const select = useStore((s) => s.select)
   const cinematic = useStore((s) => isLit(s.settings.renderMode))
   const ref = useRef<THREE.Group>(null)
@@ -532,8 +525,6 @@ const ObjectNode = memo(function ObjectNode({
     }
   })
   const onClick = (e: ThreeEvent<MouseEvent>): void => {
-    // Not in this shot: let the click reach whatever is behind it.
-    if (!shown) return
     e.stopPropagation()
     if (wasDrag(e.nativeEvent)) return
     // Ctrl or Shift+click adds to the selection (or takes it out).
@@ -550,7 +541,7 @@ const ObjectNode = memo(function ObjectNode({
   return (
     <group
       ref={ref}
-      visible={o.visible && shown}
+      visible={o.visible}
       position={o.position}
       rotation={[deg(o.rotation[0]), deg(o.rotation[1]), deg(o.rotation[2])]}
       scale={o.scale}
@@ -1080,9 +1071,8 @@ function BoxSelect(): null {
       const box = new THREE.Box3()
       const v = new THREE.Vector3()
       const hits: string[] = []
-      const s0 = useStore.getState()
-      for (const ob of s0.objects) {
-        if (!ob.visible || !inShot(ob, s0.activeShot) || (ob.kind === 'terrain' && ob.ground)) continue
+      for (const ob of useStore.getState().objects) {
+        if (!ob.visible || (ob.kind === 'terrain' && ob.ground)) continue
         const obj = viewport.objects.get(ob.id)
         if (!obj) continue
         box.setFromObject(obj)
@@ -1219,7 +1209,6 @@ function watchContext(canvas: HTMLCanvasElement, rebuild: () => void): void {
 
 export function Viewport(): ReactNode {
   const objects = useStore((s) => s.objects)
-  const activeShot = useStore((s) => s.activeShot)
   const select = useStore((s) => s.select)
   const showGrid = useStore((s) => s.settings.showGrid)
   const exportWidth = useStore((s) => s.settings.exportWidth)
@@ -1257,7 +1246,7 @@ export function Viewport(): ReactNode {
             <Weather />
             {objects.map((o, i) =>
               // Stickers are 2D layers on the frame, drawn by the sticker layer instead.
-              o.kind === 'sticker' ? null : <ObjectNode key={o.id} o={o} order={i} shown={inShot(o, activeShot)} />
+              o.kind === 'sticker' ? null : <ObjectNode key={o.id} o={o} order={i} />
             )}
             {showGrid && <gridHelper args={[64, 64, '#666', '#333']} userData={{ helper: true }} />}
             <Gizmo />

@@ -27,6 +27,8 @@ Promise.all([import('./App'), import('./components/AppErrorBoundary'), import('.
     if (import.meta.env.DEV || import.meta.env.RENDERER_VITE_TEST_HOOKS === '1') {
       ;(window as unknown as { __blockframe: typeof useStore }).__blockframe = useStore
       void import('./capture').then((m) => ((window as unknown as { __capture: typeof m }).__capture = m))
+      void import('./tabs').then((m) => ((window as unknown as { __tabs: typeof m }).__tabs = m))
+      void import('./projectActions').then((m) => ((window as unknown as { __actions: typeof m }).__actions = m))
     }
     createRoot(root).render(
       <StrictMode>

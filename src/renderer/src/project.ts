@@ -5,21 +5,17 @@ import * as THREE from 'three'
 import { fullPose } from '@shared/minecraft/playerModel'
 import type { TerrainData } from '@shared/types'
 import { viewport } from './components/Viewport'
-import { clearMedia, mediaIdsOf, mediaStore, registerMedia } from './media'
+import { backgroundScenes, mediaIdsOf, mediaStore, pruneMedia, registerMedia } from './media'
 import { defaultSkinUrl } from './minecraft/builders'
 import {
   DEFAULT_SETTINGS,
   DEFAULT_SKY,
-  freshShots,
   NO_EFFECTS,
   newProjectInfo,
-  shotsSnapshot,
   terrainStore,
   useStore,
   type EffectSettings,
-  type Look,
   type SceneObject,
-  type Shot,
   type SceneSettings,
   type SkySettings
 } from './store'
@@ -46,10 +42,6 @@ interface ProjectJson {
   camera: { position: number[]; target: number[] } | null
   terrains: TerrainMeta[]
   media: { id: string; name: string; mime: string }[]
-  /** A/B/C versions (missing in projects from before shots: one shot with everything). */
-  shots?: Shot[]
-  activeShot?: string
-  sharedLook?: Look | null
 }
 
 const bytesOf = (a: Uint16Array): Uint8Array => new Uint8Array(a.buffer, a.byteOffset, a.byteLength)
@@ -78,16 +70,8 @@ export function serializeProject(): Uint8Array {
 
   const mediaIds = new Set<string>()
   for (const o of s.objects) mediaIdsOf(o, mediaIds)
-  // The current look plus every shot's own look and the shared one.
-  const looks = [
-    { sky: s.sky, effects: s.effects },
-    ...(s.sharedLook ? [s.sharedLook] : []),
-    ...s.shots.flatMap((x) => (x.look ? [x.look] : []))
-  ]
-  for (const l of looks) {
-    if (l.sky.preset === 'hdri' && l.sky.hdriMediaId) mediaIds.add(l.sky.hdriMediaId)
-    if (l.effects.look === 'custom' && l.effects.lutMediaId) mediaIds.add(l.effects.lutMediaId)
-  }
+  if (s.sky.preset === 'hdri' && s.sky.hdriMediaId) mediaIds.add(s.sky.hdriMediaId)
+  if (s.effects.look === 'custom' && s.effects.lutMediaId) mediaIds.add(s.effects.lutMediaId)
   const media = []
   for (const id of mediaIds) {
     const m = mediaStore.get(id)
@@ -112,8 +96,7 @@ export function serializeProject(): Uint8Array {
     sky: s.sky,
     camera: cam && target ? { position: cam.position.toArray(), target: target.toArray() } : null,
     terrains,
-    media,
-    ...shotsSnapshot()
+    media
   }
   files['project.json'] = strToU8(JSON.stringify(json))
   // Terrain and media are already dense/compressed; level 1 keeps saves fast.
@@ -178,7 +161,6 @@ const safeSkinUrl = (url: unknown, slim: boolean): string =>
 export function loadProject(bytes: Uint8Array, path: string | null): OpenedProject {
   const { json, files } = readProjectFile(bytes)
 
-  terrainStore.clear()
   for (const t of json.terrains) {
     const { id, ...meta } = t
     const blocks = files[`terrain/${id}/blocks.u16`]
@@ -187,7 +169,6 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
     terrainStore.set(id, { ...meta, blocks: u16(blocks), biomes: u16(biomes) })
   }
 
-  clearMedia()
   for (const m of json.media) {
     const b = files[`media/${m.id}`]
     if (b) registerMedia(m.name, m.mime, b, m.id)
@@ -212,13 +193,6 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
     future: [],
     // Merge with defaults so projects saved before a setting existed still open.
     settings: { ...DEFAULT_SETTINGS, ...settings },
-    ...(json.shots?.length
-      ? {
-          shots: json.shots.slice(0, 3),
-          activeShot: json.shots.some((x) => x.id === json.activeShot) ? json.activeShot! : json.shots[0].id,
-          sharedLook: json.sharedLook ?? null
-        }
-      : freshShots()),
     effects: { ...NO_EFFECTS, ...json.effects },
     sky: {
       ...DEFAULT_SKY,
@@ -240,12 +214,11 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
       controls.update()
     })
   }
+  releaseUnused()
   return { name: json.name, minecraftVersion: json.minecraftVersion }
 }
 
 export function newProject(): void {
-  terrainStore.clear()
-  clearMedia()
   const { showGrid, snap, exportWidth, exportHeight, exportFormat } = useStore.getState().settings
   useStore.setState({
     // Scene look starts fresh; the user's own workspace preferences carry over.
@@ -258,9 +231,22 @@ export function newProject(): void {
     future: [],
     effects: { ...NO_EFFECTS },
     sky: { ...DEFAULT_SKY },
-    ...freshShots(),
     project: newProjectInfo()
   })
+  releaseUnused()
+}
+
+/**
+ * Frees terrain and media that no open project (tab) uses any more, including their undo histories: after the scene
+ * on screen was replaced or a tab was closed.
+ */
+export function releaseUnused(): void {
+  const used = new Set<string>()
+  for (const scene of [useStore.getState(), ...backgroundScenes.get()])
+    for (const list of [scene.objects, ...[...scene.past, ...scene.future].map((e) => e.objects ?? [])])
+      for (const o of list) if (o.kind === 'terrain') used.add(o.terrainId)
+  for (const id of [...terrainStore.keys()]) if (!used.has(id)) terrainStore.delete(id)
+  pruneMedia()
 }
 
 /** A small preview image for the recent-projects list. */

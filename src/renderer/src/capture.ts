@@ -1,9 +1,11 @@
 // The finished thumbnail as exported: the 3D render (with its effects), then the 2D thumbnail-kit layers on top.
-// Also renders other shots (A/B/C) without leaving the one on screen for long.
-import { viewport } from './components/Viewport'
+// Also renders the other open projects (tabs), for split images and the YouTube preview.
+import { building, viewport } from './components/Viewport'
 import { decodeImage } from './image'
 import { drawStickers } from './stickers'
-import { inShot, useStore, type SplitSettings, type StickerObject } from './store'
+import { flushAutosave } from './projectActions'
+import { useStore, type SplitSettings, type StickerObject } from './store'
+import { switchTab, useTabs } from './tabs'
 
 const nextFrame = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => r()))
 
@@ -14,9 +16,7 @@ export async function captureFrame(w: number, h: number): Promise<string> {
   await document.fonts.ready
   const png = viewport.capture(w, h)
   const s = useStore.getState()
-  const stickers = s.objects.filter(
-    (o): o is StickerObject => o.kind === 'sticker' && o.visible && inShot(o, s.activeShot)
-  )
+  const stickers = s.objects.filter((o): o is StickerObject => o.kind === 'sticker' && o.visible)
   if (!stickers.length) return png
   const c = document.createElement('canvas')
   c.width = w
@@ -27,13 +27,22 @@ export async function captureFrame(w: number, h: number): Promise<string> {
   return c.toDataURL('image/png')
 }
 
+/** Waits until everything in the scene on screen has been built and drawn (or 30 s, whichever comes first). */
+export async function sceneSettled(): Promise<void> {
+  const until = performance.now() + 30_000
+  let quiet = 0
+  while (quiet < 3 && performance.now() < until) {
+    await nextFrame()
+    quiet = building.count === 0 ? quiet + 1 : 0
+  }
+}
+
 /**
- * Shows each shot in turn and runs `fn` while it's on screen, then goes back to the shot you were on. A few frames
- * pass after each switch so its layers, camera and look are applied (everything stays built, so it's quick).
+ * Shows each open project (tab) in turn and runs `fn` once its scene is built, then goes back to the tab you were
+ * on. One run at a time: two overlapping runs would switch tabs under each other and capture the wrong one.
  */
-export function eachShot<T>(ids: string[], fn: (id: string) => Promise<T>): Promise<T[]> {
-  // One run at a time: two overlapping runs would switch shots under each other and capture the wrong one.
-  const run = queue.then(() => shotByShot(ids, fn))
+export function eachTab<T>(keys: string[], fn: (key: string) => Promise<T>): Promise<T[]> {
+  const run = queue.then(() => tabByTab(keys, fn))
   queue = run.then(
     () => undefined,
     () => undefined
@@ -42,17 +51,19 @@ export function eachShot<T>(ids: string[], fn: (id: string) => Promise<T>): Prom
 }
 let queue: Promise<void> = Promise.resolve()
 
-async function shotByShot<T>(ids: string[], fn: (id: string) => Promise<T>): Promise<T[]> {
-  const back = useStore.getState().activeShot
+async function tabByTab<T>(keys: string[], fn: (key: string) => Promise<T>): Promise<T[]> {
+  // Pending edits go into this project's recovery copy before other projects come on screen.
+  await flushAutosave()
+  const back = useTabs.getState().active
   const out: T[] = []
   try {
-    for (const id of ids) {
-      useStore.getState().switchShot(id)
-      for (let i = 0; i < 3; i++) await nextFrame()
-      out.push(await fn(id))
+    for (const key of keys) {
+      if (key !== useTabs.getState().active) switchTab(key)
+      await sceneSettled()
+      out.push(await fn(key))
     }
   } finally {
-    useStore.getState().switchShot(back)
+    switchTab(back)
   }
   return out
 }
@@ -69,7 +80,7 @@ function random(seed: number): () => number {
 }
 
 /**
- * Two shots in one image: `left` fills the frame, `right` shows past the divider, and the divider is drawn over
+ * Two renders in one image: `left` fills the frame, `right` shows past the divider, and the divider is drawn over
  * the seam (a straight line, a strip of torn paper or a lightning bolt).
  */
 export async function composeSplit(
@@ -161,8 +172,8 @@ export async function composeSplit(
   return c.toDataURL('image/png')
 }
 
-/** The split image at `w`×`h`, rendering both shots. */
+/** The split image at `w`×`h`, rendering both projects. */
 export async function captureSplit(w: number, h: number, sp: SplitSettings): Promise<string> {
-  const [left, right] = await eachShot([sp.left, sp.right], () => captureFrame(w, h))
+  const [left, right] = await eachTab([sp.left, sp.right], () => captureFrame(w, h))
   return composeSplit(left, right, w, h, sp)
 }
