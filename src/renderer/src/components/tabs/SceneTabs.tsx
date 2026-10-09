@@ -597,11 +597,9 @@ export function TextTab(): ReactNode {
         ))}
       </div>
       <Hint>
-        Arrows and shapes sit on the frame itself, on top of every effect, and stay put when the camera moves.
-      </Hint>
-      <Hint>
-        3D text is extruded pixel-for-pixel from Minecraft's own font texture. Stone titles are carved logo-style blocks
-        in any colour; hardcore titles are front-on red letters where every O becomes the hardcore heart.
+        Arrows and shapes sit on the frame itself, on top of every effect, and stay put when the camera moves. 3D text
+        is extruded pixel-for-pixel from Minecraft's own font texture. Stone titles are carved logo-style blocks in any
+        colour; hardcore titles are front-on red letters where every O becomes the hardcore heart.
       </Hint>
     </div>
   )

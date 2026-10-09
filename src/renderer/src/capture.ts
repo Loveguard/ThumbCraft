@@ -10,6 +10,8 @@ const nextFrame = (): Promise<void> => new Promise((r) => requestAnimationFrame(
 /** The thumbnail of the shot on screen at `w`×`h`, as a PNG data URL: the 3D render, then its stickers. */
 export async function captureFrame(w: number, h: number): Promise<string> {
   if (!viewport.capture) throw new Error('The viewport is not ready yet')
+  // Titles redraw once their font has loaded; never export one mid-swap.
+  await document.fonts.ready
   const png = viewport.capture(w, h)
   const s = useStore.getState()
   const stickers = s.objects.filter(
@@ -29,7 +31,18 @@ export async function captureFrame(w: number, h: number): Promise<string> {
  * Shows each shot in turn and runs `fn` while it's on screen, then goes back to the shot you were on. A few frames
  * pass after each switch so its layers, camera and look are applied (everything stays built, so it's quick).
  */
-export async function eachShot<T>(ids: string[], fn: (id: string) => Promise<T>): Promise<T[]> {
+export function eachShot<T>(ids: string[], fn: (id: string) => Promise<T>): Promise<T[]> {
+  // One run at a time: two overlapping runs would switch shots under each other and capture the wrong one.
+  const run = queue.then(() => shotByShot(ids, fn))
+  queue = run.then(
+    () => undefined,
+    () => undefined
+  )
+  return run
+}
+let queue: Promise<void> = Promise.resolve()
+
+async function shotByShot<T>(ids: string[], fn: (id: string) => Promise<T>): Promise<T[]> {
   const back = useStore.getState().activeShot
   const out: T[] = []
   try {

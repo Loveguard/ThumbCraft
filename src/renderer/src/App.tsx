@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { ChevronDown, Download, Move3d, Redo2, Rotate3d, Ruler, Scale3d, Undo2 } from 'lucide-react'
+import { ChevronDown, Download, MonitorPlay, Move3d, Redo2, Rotate3d, Ruler, Scale3d, Undo2 } from 'lucide-react'
+import { YouTubePreview } from './components/YouTubePreview'
 import { LeftPanel } from './components/LeftPanel'
 import { ProjectMenu } from './components/ProjectMenu'
 import { openProjectFile, saveProject, startAutosave, startNewProject } from './projectActions'
@@ -126,6 +127,7 @@ function TopBar(): ReactNode {
   const { setTransformMode, setSettings, setStatus, undo, redo } = useStore.getState()
 
   const [batchOpen, setBatchOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const exportPng = async (): Promise<void> => {
     if (!viewport.capture) return
     const url = await encodeExport(await captureFrame(exportWidth, exportHeight), exportFormat)
@@ -174,6 +176,14 @@ function TopBar(): ReactNode {
         >
           <Ruler size={18} />
         </button>
+        <button
+          className="icon-btn"
+          title="How it looks on YouTube: home feed, search, up next and phone, every shot side by side"
+          onClick={() => setPreviewOpen(true)}
+        >
+          <MonitorPlay size={18} />
+        </button>
+        {previewOpen && <YouTubePreview onClose={() => setPreviewOpen(false)} />}
       </div>
 
       <div className="export">
