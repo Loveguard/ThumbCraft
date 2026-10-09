@@ -1,7 +1,7 @@
 {
   "name": "thumbcraft",
   "productName": "ThumbCraft",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Desktop thumbnail studio for Minecraft creators: accurate 3D biome scenes, player skins, text and media layers.",
   "main": "out/main/index.js",
   "private": true,
