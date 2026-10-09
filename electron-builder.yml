@@ -2,7 +2,7 @@ appId: com.thumbcraft.app
 productName: ThumbCraft
 directories:
   output: release
-  # icon.png (1024²) here becomes the Windows .ico and macOS .icns.
+  # icon.png (1024²) here becomes the macOS .icns; icon.ico (made from it) is the Windows one.
   buildResources: build
 files:
   - out/**
@@ -21,6 +21,11 @@ extraResources:
   - from: resources/secret/
     to: secret/
     filter: ['*.glb']
+  # The window and taskbar icon (src/main/index.ts sets it explicitly).
+  - from: build/icon.ico
+    to: icon.ico
+  - from: build/icon.png
+    to: icon.png
   # Licences of everything bundled (fonts, MediaPipe, libraries).
   - from: THIRD_PARTY_NOTICES.md
     to: THIRD_PARTY_NOTICES.md
@@ -42,6 +47,8 @@ publish:
   repo: ThumbCraft
   releaseType: release
 win:
+  # Every size Windows asks for (16 to 256), made from icon.png.
+  icon: build/icon.ico
   target:
     - target: nsis
       arch: [x64]

@@ -68,7 +68,7 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
    - **macOS:** the `.dmg` works on Intel and Apple Silicon.
 2. Open it.
    - **Windows:** the app isn't code-signed yet, so SmartScreen may say _"Windows protected your PC"_. Click
-     **More info → Run anyway**.
+     **More info → Run anyway**. (How to turn signing on: [docs/SIGNING.md](docs/SIGNING.md).)
    - **macOS:** see [Installing on a Mac](#installing-on-a-mac) below. It takes one extra step the first time.
 3. That's it. ThumbCraft finds your Minecraft automatically, whether it's the official launcher, Prism, Modrinth
    or CurseForge.

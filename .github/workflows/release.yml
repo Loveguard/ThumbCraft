@@ -45,10 +45,30 @@ jobs:
       # The mob-model helper ships compiled from its source here, never from a committed binary.
       - run: npm run build:dumper
       - run: npx electron-vite build
-      - run: npx electron-builder ${{ matrix.target }} --publish never
+      # Windows builds are signed with Azure Trusted Signing once its secrets and variables are set (see
+      # docs/SIGNING.md); until then they're unsigned, so SmartScreen warns on first run. macOS ones are ad-hoc.
+      - shell: bash
+        run: |
+          sign=()
+          if [[ "$RUNNER_OS" == Windows && -n "$AZURE_CLIENT_ID" ]]; then
+            sign=(
+              "-c.win.azureSignOptions.publisherName=$SIGN_PUBLISHER"
+              "-c.win.azureSignOptions.endpoint=$SIGN_ENDPOINT"
+              "-c.win.azureSignOptions.codeSigningAccountName=$SIGN_ACCOUNT"
+              "-c.win.azureSignOptions.certificateProfileName=$SIGN_PROFILE"
+            )
+          fi
+          npx electron-builder $TARGET --publish never "${sign[@]}"
         env:
-          # No paid signing certificate: Windows builds are unsigned, macOS ones ad-hoc signed.
+          TARGET: ${{ matrix.target }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          SIGN_PUBLISHER: ${{ vars.SIGN_PUBLISHER }}
+          SIGN_ENDPOINT: ${{ vars.SIGN_ENDPOINT }}
+          SIGN_ACCOUNT: ${{ vars.SIGN_ACCOUNT }}
+          SIGN_PROFILE: ${{ vars.SIGN_PROFILE }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-${{ matrix.os }}

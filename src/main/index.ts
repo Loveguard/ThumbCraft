@@ -129,6 +129,16 @@ function watchStartup(w: BrowserWindow, devUrl: string | undefined): void {
   })
 }
 
+/** The app icon for the window and taskbar: .ico on Windows (every size), .png elsewhere. */
+function windowIcon(): string | undefined {
+  const file = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
+  return [
+    join(process.resourcesPath, file),
+    join(app.getAppPath(), 'build', file),
+    join(__dirname, '../../build', file)
+  ].find((p) => existsSync(p))
+}
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 1600,
@@ -137,10 +147,9 @@ function createWindow(): void {
     minHeight: 700,
     backgroundColor: '#0b0c0e',
     title: 'ThumbCraft',
-    // Installed builds carry the icon in the executable; this covers `npm run dev` and Linux.
-    icon: [join(app.getAppPath(), 'build', 'icon.png'), join(__dirname, '../../build/icon.png')].find((p) =>
-      existsSync(p)
-    ),
+    // Set explicitly (Windows otherwise guesses from the executable and the taskbar can keep a generic icon):
+    // installed builds ship icon.ico/.png next to the app, `npm run dev` reads them from build/.
+    icon: windowIcon(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
