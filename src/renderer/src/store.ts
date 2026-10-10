@@ -33,6 +33,9 @@ export interface TerrainObject extends Base {
   ground?: boolean
 }
 /** What a player wears and holds. Armor values are material ids (e.g. "diamond"); items are item ids. */
+export type { OutfitId } from './minecraft/outfits'
+import type { OutfitId } from './minecraft/outfits'
+
 export interface Equipment {
   head: string | null
   chest: string | null
@@ -42,6 +45,8 @@ export interface Equipment {
   leatherColor: string
   mainHand: string | null
   offHand: string | null
+  /** A custom outfit (king, astronaut…), worn instead of armour. */
+  outfit?: OutfitId | null
 }
 
 export const NO_EQUIPMENT: Equipment = {

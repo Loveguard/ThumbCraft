@@ -378,8 +378,8 @@ export const POSES: Record<string, Pose> = {
     head: [12, 0, 0],
     rightArm: [-30, 0, 15],
     rightForearm: [-30, 0, 0],
-    leftArm: [-75, 45, 0],
-    leftForearm: [-80, 0, 0],
+    // The game's shield block: the off-hand arm raised and turned in across the chest, elbow straight.
+    leftArm: [-54, -30, 0],
     rightLeg: [-15, 0, 5],
     rightShin: [20, 0, 0],
     leftLeg: [20, 0, -5],
@@ -420,12 +420,13 @@ export const POSES: Record<string, Pose> = {
     rightShin: [15, 0, 0],
     leftLeg: [20, 0, 0]
   }),
+  // The game's riding pose: thighs forward and splayed outward (18° each way), arms resting forward.
   Sitting: preset({
     head: [5, 0, 0],
-    rightArm: [-35, 0, 5],
-    leftArm: [-35, 0, -5],
-    rightLeg: [-90, 8, 0],
-    leftLeg: [-90, -8, 0]
+    rightArm: [-36, 0, 5],
+    leftArm: [-36, 0, -5],
+    rightLeg: [-81, -18, -4.5],
+    leftLeg: [-81, 18, 4.5]
   })
 }
 

@@ -6,7 +6,8 @@ import { newId, useStore, type ImageObject } from '../../store'
 import { Hint } from '../controls'
 
 /** Every particle texture shipped in the user's client jar (textures/particle), grouped by look. */
-export function ParticlesTab(): ReactNode {
+/** The game's particle sprites (hearts, flames, notes…); `embedded` when shown inside another tab. */
+export function ParticlesTab({ embedded = false }: { embedded?: boolean }): ReactNode {
   const assets = useStore((s) => s.assets)!
   const [filter, setFilter] = useState('')
   const [tint, setTint] = useState('#ffffff')
@@ -58,7 +59,7 @@ export function ParticlesTab(): ReactNode {
   const current = last && useStore.getState().objects.find((x) => x.id === last.id)
 
   return (
-    <div className="tab-body">
+    <div className={embedded ? 'particles-embedded' : 'tab-body'}>
       <label className="field">
         <span>Search</span>
         <input value={filter} placeholder="heart, flame, explosion…" onChange={(e) => setFilter(e.target.value)} />

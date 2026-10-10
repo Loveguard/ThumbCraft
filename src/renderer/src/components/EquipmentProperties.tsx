@@ -3,9 +3,10 @@ import { X } from 'lucide-react'
 import { itemIcon, listItems } from '@shared/minecraft/items'
 import { ARMOR_SLOTS, type ArmorSlot } from '@shared/minecraft/playerModel'
 import { assetUrl } from '../minecraft/assets'
-import { armorMaterials } from '../minecraft/equipment'
+import { armorMaterials, SHIELD_TEXTURE } from '../minecraft/equipment'
 import { NO_EQUIPMENT, useStore, type Equipment, type PlayerObject } from '../store'
 import { Group } from './controls'
+import { OUTFITS } from '../minecraft/outfits'
 
 const SLOT_LABEL: Record<ArmorSlot, string> = { head: 'Helmet', chest: 'Chestplate', legs: 'Leggings', feet: 'Boots' }
 /** Shown first in the item picker: what thumbnails use most. */
@@ -26,10 +27,17 @@ const FAVOURITES = [
 
 const pretty = (id: string): string => id.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 
+/** Whether this version has the shield (drawn from its entity texture; it has no ordinary item model). */
+const useHasShield = (): boolean => useStore((s) => !!s.assets?.textures.includes(SHIELD_TEXTURE))
+
 function ItemPicker({ onPick }: { onPick: (id: string) => void }): ReactNode {
   const models = useStore((s) => s.assets?.models)
+  const hasShield = useHasShield()
   const [q, setQ] = useState('')
-  const items = useMemo(() => (models ? listItems(models) : []), [models])
+  const items = useMemo(
+    () => (models ? [...listItems(models), ...(hasShield ? ['shield'] : [])].sort() : []),
+    [models, hasShield]
+  )
   const shown = useMemo(() => {
     if (!q) return [...FAVOURITES.filter((f) => items.includes(f)), ...items.filter((i) => !FAVOURITES.includes(i))]
     const words = q.toLowerCase().split(/\s+/).filter(Boolean)
@@ -99,6 +107,7 @@ export function EquipmentProperties({ o }: { o: PlayerObject }): ReactNode {
   const set = (patch: Partial<Equipment>): void => useStore.getState().update(o.id, { equipment: { ...eq, ...patch } })
   const fullSets = materials.filter((m) => ARMOR_SLOTS.every((s) => m.slots.includes(s)))
   const wearsLeather = ARMOR_SLOTS.some((s) => eq[s] === 'leather')
+  const hasShield = useHasShield()
 
   return (
     <>
@@ -141,9 +150,32 @@ export function EquipmentProperties({ o }: { o: PlayerObject }): ReactNode {
         )}
       </Group>
 
+      <h4>Outfit</h4>
+      <div className="chips">
+        <button className={`chip ${!eq.outfit ? 'active' : ''}`} onClick={() => set({ outfit: null })}>
+          None
+        </button>
+        {OUTFITS.map((f) => (
+          <button
+            key={f.id}
+            title={f.hint}
+            className={`chip ${eq.outfit === f.id ? 'active' : ''}`}
+            onClick={() => set({ outfit: f.id })}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+      {eq.outfit && <p className="hint">Outfits are worn instead of armour.</p>}
+
       <h4>Held items</h4>
       <HandSlot label="Main hand" value={eq.mainHand} onChange={(mainHand) => set({ mainHand })} />
       <HandSlot label="Off hand" value={eq.offHand} onChange={(offHand) => set({ offHand })} />
+      {hasShield && eq.offHand !== 'shield' && (
+        <button className="link" onClick={() => set({ offHand: 'shield' })}>
+          Give a shield (off hand)
+        </button>
+      )}
     </>
   )
 }

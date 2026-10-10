@@ -2,7 +2,18 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { searchStructures } from '@shared/minecraft/schematics'
 import { assetContext } from '../../minecraft/assets'
-import { structureThumbnail } from '../../minecraft/thumbnails'
+import { structureThumbnail, terrainThumbnail } from '../../minecraft/thumbnails'
+import { buildTower, buildTrunk } from '@shared/minecraft/backdrops'
+import {
+  buildBeacon,
+  buildCampfire,
+  buildNetherPortal,
+  buildPodium,
+  buildStarterHouse,
+  buildTntStack,
+  buildTreasurePile
+} from '@shared/minecraft/props'
+import type { TerrainData } from '@shared/types'
 import { placeNew } from '../../placement'
 import { addTerrain } from '../../sceneActions'
 import { useStore } from '../../store'
@@ -66,6 +77,56 @@ function PieceCard({ kind, busy, onAdd }: { kind: PieceKind; busy: string; onAdd
           </button>
         </>
       )}
+    </div>
+  )
+}
+
+/** Small hand-built builds that thumbnails use a lot, ready in one click. */
+const QUICK_PROPS: { id: string; label: string; build: () => TerrainData }[] = [
+  { id: 'portal', label: 'Nether portal', build: buildNetherPortal },
+  { id: 'starter-house', label: 'Starter house', build: buildStarterHouse },
+  { id: 'treasure', label: 'Treasure pile', build: buildTreasurePile },
+  { id: 'tnt', label: 'TNT stack', build: buildTntStack },
+  { id: 'podium', label: 'Diamond podium', build: buildPodium },
+  { id: 'beacon', label: 'Beacon', build: buildBeacon },
+  { id: 'campfire', label: 'Campfire camp', build: buildCampfire },
+  { id: 'tower', label: 'Watchtower', build: buildTower },
+  { id: 'trunk', label: 'Tree trunk', build: () => buildTrunk('oak_log', 8) }
+]
+
+function PropIcon({ id, build }: { id: string; build: () => TerrainData }): ReactNode {
+  const assets = useStore((s) => s.assets)
+  const [src, setSrc] = useState<string | null>(null)
+  useEffect(() => {
+    const ctx = assetContext(assets)
+    if (!ctx) return
+    let alive = true
+    void terrainThumbnail(ctx, id, build).then((u) => alive && setSrc(u))
+    return () => {
+      alive = false
+    }
+  }, [assets, id, build])
+  return <span className="asset-thumb">{src && <img src={src} alt="" />}</span>
+}
+
+function QuickProps(): ReactNode {
+  return (
+    <div className="card-grid">
+      {QUICK_PROPS.map((p) => (
+        <button
+          key={p.id}
+          className="asset-card"
+          title={p.label}
+          aria-label={p.label}
+          onClick={() => {
+            const t = p.build()
+            addTerrain(t, p.label, placeNew('grid', Math.max(t.sizeX, t.sizeZ) / 2).position)
+          }}
+        >
+          <PropIcon id={p.id} build={p.build} />
+          <span className="asset-name">{p.label}</span>
+        </button>
+      ))}
     </div>
   )
 }
@@ -178,6 +239,11 @@ export function BuildsTab(): ReactNode {
         <span>Search</span>
         <input value={query} placeholder="house, portal, ship…" onChange={(e) => setQuery(e.target.value)} />
       </label>
+      {!query.trim() && (
+        <ColorSection id="builds-quick" title="Quick props" color="#facc15" count={QUICK_PROPS.length} defaultOpen>
+          <QuickProps />
+        </ColorSection>
+      )}
       {query.trim() ? (
         <>
           <PieceSections ids={found} titled busy={busy} onAdd={addStructure} />

@@ -8,12 +8,14 @@ import {
   boxFaces,
   playerParts,
   PLAYER_PIXEL,
-  type ArmorSlot
+  type ArmorSlot,
+  type BoxDef
 } from '@shared/minecraft/playerModel'
 import { blockTint, sampleColormap, type BiomeColors } from '@shared/minecraft/tints'
 import type { Equipment } from '../store'
 import { assetUrl, imageData, loadImage, type AssetContext } from './assets'
 import { boxGeometry, disposeObject } from './builders'
+import { buildOutfit } from './outfits'
 
 export interface ArmorMaterial {
   id: string
@@ -101,11 +103,50 @@ async function buildArmor(
   return out
 }
 
+/** Where vanilla's shield texture lives (the plain one, before any banner pattern). */
+export const SHIELD_TEXTURE = 'entity/shield_base_nopattern'
+
+/** Vanilla's shield.json display transforms (used when the jar's own aren't found). */
+const SHIELD_DISPLAY: Record<string, ItemTransform> = {
+  thirdperson_righthand: { rotation: [0, 90, 0], translation: [10, 6, -4], scale: [1, 1, 1] },
+  thirdperson_lefthand: { rotation: [0, 90, 0], translation: [10, 6, 12], scale: [1, 1, 1] }
+}
+
+/**
+ * The shield, which the game draws with entity code instead of an item model: ShieldModel's 12×22×1 plate and
+ * 2×6×6 handle, in item space (the vanilla entity model turned the way the item renderer turns it).
+ */
+async function buildShield(
+  ctx: AssetContext
+): Promise<{ object: THREE.Object3D; display: Record<string, ItemTransform> } | null> {
+  const tex = await pixelTexture(SHIELD_TEXTURE)
+  if (!tex) return null
+  const mat = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.1, side: THREE.DoubleSide })
+  const group = new THREE.Group()
+  const boxes: BoxDef[] = [
+    { from: [-6, -11, 1], to: [6, 11, 2], uv: [0, 0], inflate: 0, overlay: false },
+    { from: [-1, -3, -5], to: [1, 3, 1], uv: [26, 0], inflate: 0, overlay: false }
+  ]
+  for (const b of boxes) {
+    const mesh = new THREE.Mesh(boxGeometry(boxFaces(b), 64, 64), mat)
+    mesh.castShadow = true
+    group.add(mesh)
+  }
+  // boxGeometry works in player pixels; item space is 16 pixels to the block. The game draws the model around
+  // the item's corner (after the item renderer's half-block shift), not its centre.
+  group.scale.setScalar(1 / (16 * PLAYER_PIXEL))
+  const outer = new THREE.Group()
+  outer.add(group)
+  const own = (ctx.bundle.models['item/shield'] as { display?: Record<string, ItemTransform> } | undefined)?.display
+  return { object: outer, display: { ...SHIELD_DISPLAY, ...own } }
+}
+
 /** An item model in block units (0–1), plus how it is held. */
 async function buildItem(
   ctx: AssetContext,
   id: string
 ): Promise<{ object: THREE.Object3D; display: Record<string, ItemTransform> } | null> {
+  if (id === 'shield' || id === 'minecraft:shield') return buildShield(ctx)
   const item = resolveItem(ctx.bundle.models, id)
   if (!item) return null
   const group = new THREE.Group()
@@ -251,7 +292,13 @@ export async function applyEquipment(
   alive: () => boolean
 ): Promise<void> {
   const added: { parent: THREE.Object3D; object: THREE.Object3D }[] = []
-  for (const slot of ARMOR_SLOTS) {
+  // An outfit replaces the armour (its suit is drawn on the armour layout).
+  const outfit = eq.outfit ? buildOutfit(eq.outfit, slim) : null
+  for (const { part, object } of outfit?.parts ?? []) {
+    const parent = player.getObjectByName(part)
+    if (parent) added.push({ parent, object })
+  }
+  for (const slot of outfit ? [] : ARMOR_SLOTS) {
     const id = eq[slot]
     if (!id) continue
     for (const { part, mesh } of await buildArmor(ctx, slot, id, slim, eq.leatherColor)) {
@@ -277,4 +324,6 @@ export async function applyEquipment(
     parent.add(object)
   }
   for (const { it, item } of built) if (item) holdItem(player, item.object, item.display, it.left, slim)
+  // The outfit's staff or sceptre, unless the main hand already holds something.
+  if (outfit?.held && !eq.mainHand) holdItem(player, outfit.held.object, outfit.held.display, false, slim)
 }

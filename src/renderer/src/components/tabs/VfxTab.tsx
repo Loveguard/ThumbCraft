@@ -16,7 +16,8 @@ import {
 import { placeNew } from '../../placement'
 import { newId, useStore } from '../../store'
 import { VFX_PRESETS, vfxBounds, type VfxPreset, type VfxType } from '../../vfx'
-import { Hint } from '../controls'
+import { ColorSection, Hint } from '../controls'
+import { ParticlesTab } from './ParticlesTab'
 import { WeatherControls } from './SkyTab'
 import { isLit } from '../../renderModes'
 
@@ -109,6 +110,9 @@ export function VfxTab(): ReactNode {
       </Hint>
       <hr />
       <WeatherControls />
+      <ColorSection id="fx-particles" title="Game particles" color="#f472b6" defaultOpen={false}>
+        <ParticlesTab embedded />
+      </ColorSection>
     </div>
   )
 }

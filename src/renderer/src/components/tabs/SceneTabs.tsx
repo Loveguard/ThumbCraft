@@ -12,7 +12,8 @@ import { biomePreview } from '../../minecraft/biomePreview'
 import { fitScale, isModelFile, loadModel } from '../../minecraft/models3d'
 import { registerFile } from '../../media'
 import { applyReadyMadeBiome, setGround } from '../../sceneActions'
-import { defaultPose, newId, useStore } from '../../store'
+import { defaultPose, newId, NO_EQUIPMENT, useStore, type Equipment } from '../../store'
+import { OUTFITS } from '../../minecraft/outfits'
 import { errorText } from '../../errors'
 import { hexColor } from '../../image'
 import { FONTS } from '../../textStyles'
@@ -341,7 +342,7 @@ function InstantBackdrops(): ReactNode {
 export function PlayersTab(): ReactNode {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
-  const add = (username: string, skinUrl: string, slim: boolean): void =>
+  const add = (username: string, skinUrl: string, slim: boolean, equipment?: Equipment): void =>
     useStore.getState().add({
       id: newId('obj'),
       kind: 'player',
@@ -349,6 +350,7 @@ export function PlayersTab(): ReactNode {
       skinUrl,
       slim,
       pose: defaultPose(),
+      ...(equipment && { equipment }),
       visible: true,
       ...placeNew('ground'),
       scale: 1
@@ -384,6 +386,22 @@ export function PlayersTab(): ReactNode {
         <button onClick={() => add('Steve', defaultSkinUrl(false), false)}>Add Steve</button>
         <button onClick={() => add('Alex', defaultSkinUrl(true), true)}>Add Alex</button>
       </div>
+      <h4>Characters in an outfit</h4>
+      <div className="tile-grid">
+        {OUTFITS.map((f) => (
+          <button
+            key={f.id}
+            title={f.hint}
+            onClick={() => add(f.label, defaultSkinUrl(false), false, { ...NO_EQUIPMENT, outfit: f.id })}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+      <Hint label="About outfits">
+        Custom suits made for ThumbCraft, worn instead of armour. Any player can wear one: select it and pick an outfit
+        under Equipment. The sceptre or staff goes in the main hand while it is empty.
+      </Hint>
     </div>
   )
 }

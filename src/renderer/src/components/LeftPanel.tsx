@@ -7,7 +7,6 @@ import {
   Image as ImageIcon,
   Lightbulb,
   Mountain,
-  Sparkles,
   Type,
   User,
   WandSparkles,
@@ -17,7 +16,6 @@ import { BuildsTab } from './tabs/BuildsTab'
 import { EffectsTab } from './tabs/EffectsTab'
 import { LightsTab } from './tabs/LightsTab'
 import { MobsTab } from './tabs/MobsTab'
-import { ParticlesTab } from './tabs/ParticlesTab'
 import { SkyTab } from './tabs/SkyTab'
 import { VfxTab } from './tabs/VfxTab'
 import { MediaTab, PlayersTab, TextTab, WorldTab } from './tabs/SceneTabs'
@@ -66,14 +64,6 @@ const TABS: TabDef[] = [
     body: () => <MobsTab />
   },
   {
-    id: 'particles',
-    label: 'Particles',
-    icon: Sparkles,
-    title: 'Particles',
-    subtitle: 'Hearts, flames, notes and more from the game',
-    body: () => <ParticlesTab />
-  },
-  {
     id: 'media',
     label: 'Media',
     icon: ImageIcon,
@@ -110,7 +100,7 @@ const TABS: TabDef[] = [
     label: 'FX',
     icon: Flame,
     title: 'Special effects',
-    subtitle: 'Smoke, fog, fire, explosions, magic and weather in 3D',
+    subtitle: 'Smoke, fire, explosions, magic, weather and the game’s particles',
     body: () => <VfxTab />
   },
   {

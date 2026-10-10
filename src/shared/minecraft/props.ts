@@ -136,3 +136,75 @@ export function ruinBlocks(t: TerrainData, seed = 1): TerrainData {
     return null
   })
 }
+
+// ---- Quick props for the Builds tab: small, recognisable builds that thumbnails use a lot.
+
+/** A lit nether portal: an obsidian frame (4×5 outside) filled with portal blocks, facing +z. */
+export function buildNetherPortal(): TerrainData {
+  return blockBox(4, 5, 1, (x, y) => {
+    if (x === 0 || x === 3 || y === 0 || y === 4) return 'obsidian'
+    return ['nether_portal', { axis: 'x' }]
+  })
+}
+
+/** The classic first-night dirt hut: dirt walls, a door gap, a torch and a flat oak roof. */
+export function buildStarterHouse(): TerrainData {
+  const n = 5
+  return blockBox(n, 5, n, (x, y, z) => {
+    const wall = x === 0 || z === 0 || x === n - 1 || z === n - 1
+    if (y === 4) return 'oak_planks'
+    if (!wall) {
+      if (y === 0) return 'dirt'
+      // A torch on the back wall, lighting the inside.
+      return x === 2 && z === 1 && y === 2 ? ['wall_torch', { facing: 'south' }] : null
+    }
+    if (z === n - 1 && x === 2 && (y === 1 || y === 2)) return null // doorway at the front
+    if (x === 0 && z === 2 && y === 2) return 'glass'
+    return y === 0 ? 'cobblestone' : 'dirt'
+  })
+}
+
+/** A treasure hoard: chests behind a heap of gold, diamond and emerald blocks. */
+export function buildTreasurePile(): TerrainData {
+  const heap = ['gold_block', 'gold_block', 'diamond_block', 'gold_block', 'emerald_block', 'gold_block']
+  return blockBox(5, 3, 4, (x, y, z) => {
+    if (z === 0 && y === 0 && x >= 1 && x <= 3) return ['chest', { facing: 'south' }]
+    const h = (x === 2 ? 2 : x === 1 || x === 3 ? 1 : 0) - (z === 3 ? 1 : 0)
+    if (z >= 1 && y <= h) return heap[(x * 7 + y * 3 + z * 5) % heap.length]
+    return null
+  })
+}
+
+/** A stack of TNT stepped like a pyramid (5×5 base), for "blowing it all up" shots. */
+export function buildTntStack(): TerrainData {
+  return blockBox(5, 3, 5, (x, y, z) => {
+    const ring = Math.max(Math.abs(x - 2), Math.abs(z - 2))
+    return ring <= 2 - y ? 'tnt' : null
+  })
+}
+
+/** A display pedestal: stepped quartz with a gold trim and a diamond block on top. */
+export function buildPodium(): TerrainData {
+  return blockBox(5, 4, 5, (x, y, z) => {
+    const ring = Math.max(Math.abs(x - 2), Math.abs(z - 2))
+    if (y === 0) return ring === 2 ? 'smooth_quartz' : 'quartz_block'
+    if (y === 1) return ring <= 1 ? (ring === 1 ? 'gold_block' : 'quartz_pillar') : null
+    if (y === 2) return ring === 0 ? 'quartz_pillar' : null
+    return ring === 0 ? 'diamond_block' : null
+  })
+}
+
+/** A beacon on a full iron pyramid (one tier, 3×3), its beam lighting the sky. */
+export function buildBeacon(): TerrainData {
+  return blockBox(3, 2, 3, (x, y, z) => (y === 0 ? 'iron_block' : x === 1 && z === 1 ? 'beacon' : null))
+}
+
+/** A campfire with log seats around it, for night-time survival scenes. */
+export function buildCampfire(): TerrainData {
+  return blockBox(5, 1, 5, (x, _y, z) => {
+    if (x === 2 && z === 2) return ['campfire', { lit: 'true' }]
+    if ((x === 0 || x === 4) && z >= 1 && z <= 3) return ['oak_log', { axis: 'z' }]
+    if ((z === 0 || z === 4) && x >= 1 && x <= 3) return ['oak_log', { axis: 'x' }]
+    return null
+  })
+}

@@ -1,6 +1,7 @@
 // Small isometric preview images of models (mobs, structure pieces), rendered off screen one at a time and cached.
 import * as THREE from 'three'
 import type { MobModels } from '@shared/minecraft/entityModels'
+import type { TerrainData } from '@shared/types'
 import type { AssetContext } from './assets'
 import { buildTerrain } from './builders'
 import { buildMob } from './mobs'
@@ -92,6 +93,28 @@ export function structureThumbnail(ctx: AssetContext, id: string): Promise<strin
     })
     queue = p.catch(() => null)
     cache.set(key, p)
+  }
+  return p
+}
+
+/** Cached preview of a hand-built block prop (`key` names it; null when it can't be drawn). */
+export function terrainThumbnail(ctx: AssetContext, key: string, build: () => TerrainData): Promise<string | null> {
+  const id = `${ctx.bundle.version}|prop|${key}`
+  let p = cache.get(id)
+  if (!p) {
+    p = queue.then(async () => {
+      try {
+        const group = await buildTerrain(ctx, build(), { ambientOcclusion: true, cinematic: false })
+        if (!group.children.length) return null
+        const url = renderThumbnail(group)
+        dispose(group)
+        return url
+      } catch {
+        return null
+      }
+    })
+    queue = p.catch(() => null)
+    cache.set(id, p)
   }
   return p
 }
