@@ -3,20 +3,20 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { searchStructures } from '@shared/minecraft/schematics'
 import { assetContext } from '../../minecraft/assets'
 import { structureThumbnail, terrainThumbnail } from '../../minecraft/thumbnails'
-import { buildTower, buildTrunk } from '@shared/minecraft/backdrops'
 import {
   buildBeacon,
-  buildCampfire,
   buildNetherPortal,
-  buildPodium,
-  buildStarterHouse,
+  buildOreWall,
+  buildSkyIsland,
   buildTntStack,
-  buildTreasurePile
+  buildTreasurePile,
+  buildWatchtower
 } from '@shared/minecraft/props'
+import { startTreeBrush, stopBrush, TREE_CHOICES, useBrush } from '../../brush'
 import type { TerrainData } from '@shared/types'
 import { placeNew } from '../../placement'
 import { addTerrain } from '../../sceneActions'
-import { useStore } from '../../store'
+import { newId, useStore } from '../../store'
 import { errorText } from '../../errors'
 import { groupStructures, structureCategories, VILLAGE_BIOMES, type PieceKind } from '../../structureGroups'
 import { ColorSection, Hint, Toggle } from '../controls'
@@ -84,14 +84,11 @@ function PieceCard({ kind, busy, onAdd }: { kind: PieceKind; busy: string; onAdd
 /** Small hand-built builds that thumbnails use a lot, ready in one click. */
 const QUICK_PROPS: { id: string; label: string; build: () => TerrainData }[] = [
   { id: 'portal', label: 'Nether portal', build: buildNetherPortal },
-  { id: 'starter-house', label: 'Starter house', build: buildStarterHouse },
   { id: 'treasure', label: 'Treasure pile', build: buildTreasurePile },
+  { id: 'ore-wall', label: 'Ore vein wall', build: buildOreWall },
   { id: 'tnt', label: 'TNT stack', build: buildTntStack },
-  { id: 'podium', label: 'Diamond podium', build: buildPodium },
-  { id: 'beacon', label: 'Beacon', build: buildBeacon },
-  { id: 'campfire', label: 'Campfire camp', build: buildCampfire },
-  { id: 'tower', label: 'Watchtower', build: buildTower },
-  { id: 'trunk', label: 'Tree trunk', build: () => buildTrunk('oak_log', 8) }
+  { id: 'sky-island', label: 'Sky island', build: buildSkyIsland },
+  { id: 'watchtower', label: 'Watchtower', build: buildWatchtower }
 ]
 
 function PropIcon({ id, build }: { id: string; build: () => TerrainData }): ReactNode {
@@ -109,25 +106,103 @@ function PropIcon({ id, build }: { id: string; build: () => TerrainData }): Reac
   return <span className="asset-thumb">{src && <img src={src} alt="" />}</span>
 }
 
-function QuickProps(): ReactNode {
+const addProp = (t: TerrainData, label: string): void =>
+  addTerrain(t, label, placeNew('grid', Math.max(t.sizeX, t.sizeZ) / 2).position)
+
+/** The beacon, lit (with the game's beam rising from it, grouped with it) or not. */
+function BeaconCard(): ReactNode {
+  const [lit, setLit] = useState(true)
+  const name = `Beacon · ${lit ? 'lit' : 'unlit'}`
+  const add = (): void => {
+    const t = buildBeacon()
+    const at = placeNew('grid', 1.5).position
+    if (!lit) return addTerrain(t, 'Beacon', at)
+    const groupId = newId('grp')
+    addTerrain(t, 'Beacon', at, false, groupId)
+    useStore.getState().add({
+      id: newId('obj'),
+      kind: 'vfx',
+      name: 'Beacon beam',
+      effect: 'beacon',
+      color: '#ffffff',
+      density: 0.5,
+      opacity: 1,
+      glow: false,
+      seed: 1,
+      visible: true,
+      groupId,
+      position: [at[0], at[1] + t.sizeY, at[2]],
+      rotation: [0, 0, 0],
+      scale: 1
+    })
+  }
   return (
-    <div className="card-grid">
-      {QUICK_PROPS.map((p) => (
-        <button
-          key={p.id}
-          className="asset-card"
-          title={p.label}
-          aria-label={p.label}
-          onClick={() => {
-            const t = p.build()
-            addTerrain(t, p.label, placeNew('grid', Math.max(t.sizeX, t.sizeZ) / 2).position)
-          }}
-        >
-          <PropIcon id={p.id} build={p.build} />
-          <span className="asset-name">{p.label}</span>
+    <div className="piece-card">
+      <button className="asset-card" onClick={add} title={name} aria-label={name}>
+        <PropIcon id="beacon" build={buildBeacon} />
+        <span className="asset-name">{name}</span>
+      </button>
+      {(['prev', 'next'] as const).map((side) => (
+        <button key={side} className={`piece-step ${side}`} title="Lit or unlit" onClick={() => setLit(!lit)}>
+          {side === 'prev' ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
         </button>
       ))}
     </div>
+  )
+}
+
+/** Turn on to plant trees with each click on the scene; pick a kind or mix them. */
+function TreeBrush(): ReactNode {
+  const trees = useBrush((s) => s.trees)
+  return (
+    <div className="tree-brush">
+      <button
+        className={trees ? 'primary' : ''}
+        onClick={() => (trees ? stopBrush() : startTreeBrush('mixed'))}
+        title="Plant trees by clicking on the ground (Esc to stop)"
+      >
+        {trees ? 'Stop tree brush' : 'Tree brush'}
+      </button>
+      {trees && (
+        <>
+          <div className="chips">
+            {TREE_CHOICES.map((c) => (
+              <button
+                key={c.id}
+                className={`chip ${trees === c.id ? 'active' : ''}`}
+                onClick={() => startTreeBrush(c.id)}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <p className="hint">Click the ground to plant a tree. Each one is a little different. Esc stops.</p>
+        </>
+      )}
+    </div>
+  )
+}
+
+function QuickProps(): ReactNode {
+  return (
+    <>
+      <div className="card-grid">
+        {QUICK_PROPS.map((p) => (
+          <button
+            key={p.id}
+            className="asset-card"
+            title={p.label}
+            aria-label={p.label}
+            onClick={() => addProp(p.build(), p.label)}
+          >
+            <PropIcon id={p.id} build={p.build} />
+            <span className="asset-name">{p.label}</span>
+          </button>
+        ))}
+        <BeaconCard />
+      </div>
+      <TreeBrush />
+    </>
   )
 }
 
@@ -240,7 +315,7 @@ export function BuildsTab(): ReactNode {
         <input value={query} placeholder="house, portal, ship…" onChange={(e) => setQuery(e.target.value)} />
       </label>
       {!query.trim() && (
-        <ColorSection id="builds-quick" title="Quick props" color="#facc15" count={QUICK_PROPS.length} defaultOpen>
+        <ColorSection id="builds-quick" title="Quick props" color="#facc15" count={QUICK_PROPS.length + 1} defaultOpen>
           <QuickProps />
         </ColorSection>
       )}

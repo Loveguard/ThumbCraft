@@ -243,6 +243,79 @@ function Beam({ color, opacity }: { color: string; opacity: number }): ReactNode
   )
 }
 
+/** How tall the beacon beam is drawn (the game's reaches the sky; this is plenty for any shot). */
+const BEACON_HEIGHT = 160
+
+/**
+ * A lit beacon's beam like the game draws it: a bright core column with the game's beam texture and a wider,
+ * faint glow around it, both added onto what's behind.
+ */
+function BeaconBeam({ color, opacity }: { color: string; opacity: number }): ReactNode {
+  const [map, setMap] = useState<THREE.Texture | null>(null)
+  useEffect(() => {
+    let alive = true
+    void loadImage(assetUrl('entity/beacon_beam')).then((img) => {
+      if (!alive || !img) return
+      const t = new THREE.Texture(img)
+      t.wrapS = t.wrapT = THREE.RepeatWrapping
+      t.repeat.set(1, BEACON_HEIGHT / 4)
+      t.magFilter = THREE.NearestFilter
+      t.colorSpace = THREE.SRGBColorSpace
+      t.needsUpdate = true
+      setMap(t)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+  const core = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+      }),
+    []
+  )
+  const glow = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        toneMapped: false
+      }),
+    []
+  )
+  core.map = map
+  core.color.set(color)
+  core.opacity = 0.9 * opacity
+  core.needsUpdate = true
+  glow.color.set(color)
+  glow.opacity = 0.18 * opacity
+  useEffect(
+    () => () => {
+      core.dispose()
+      glow.dispose()
+      map?.dispose()
+    },
+    [core, glow, map]
+  )
+  // The tall beam doesn't count towards the object's centre (its handles stay at the beacon).
+  return (
+    <group userData={{ noCentre: true }}>
+      <mesh position={[0, BEACON_HEIGHT / 2, 0]} material={core} renderOrder={499} raycast={() => null}>
+        <boxGeometry args={[0.4, BEACON_HEIGHT, 0.4]} />
+      </mesh>
+      <mesh position={[0, BEACON_HEIGHT / 2, 0]} material={glow} renderOrder={499} raycast={() => null}>
+        <boxGeometry args={[0.5, BEACON_HEIGHT, 0.5]} />
+      </mesh>
+    </group>
+  )
+}
+
 export function VfxNode({ o, cinematic }: { o: VfxObject; cinematic: boolean }): ReactNode {
   const layers = useMemo(() => vfxLayers(o.effect, o.density, o.seed), [o.effect, o.density, o.seed])
   const [half, height] = vfxBounds(o.effect)
@@ -255,6 +328,7 @@ export function VfxNode({ o, cinematic }: { o: VfxObject; cinematic: boolean }):
   return (
     <>
       {o.effect === 'beam' && <Beam color={o.color} opacity={o.opacity} />}
+      {o.effect === 'beacon' && <BeaconBeam color={o.color} opacity={o.opacity} />}
       {o.effect === 'fire' && <GameFire color="#ffffff" />}
       {layers.map((l, i) => (
         <PuffCloud key={`${o.effect}-${i}`} layer={l} color={o.color} opacity={o.opacity} />

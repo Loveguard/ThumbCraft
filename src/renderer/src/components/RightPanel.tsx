@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import * as THREE from 'three'
 import {
   Box,
@@ -66,6 +66,26 @@ export const KIND_ICON: Record<SceneObject['kind'], LucideIcon> = {
   lightning: Zap,
   vfx: Flame,
   sticker: MoveUpRight
+}
+
+/**
+ * Each kind of layer's colour, tinting its row so the list reads at a glance: green for terrain and builds,
+ * blue for players, red for mobs, yellow for lights, pink for text, purple for media, orange for effects.
+ */
+export const KIND_COLOR: Record<SceneObject['kind'], string> = {
+  terrain: '#6fbf5a',
+  player: '#60a5fa',
+  mob: '#f87171',
+  light: '#fbbf24',
+  text: '#f472b6',
+  pixelText: '#f472b6',
+  image: '#a78bfa',
+  video: '#a78bfa',
+  model: '#a78bfa',
+  mirror: '#5eead4',
+  lightning: '#fb923c',
+  vfx: '#fb923c',
+  sticker: '#e879f9'
 }
 
 /** Collapsible inspector section; remembers whether it was open. */
@@ -200,6 +220,8 @@ function Layers(): ReactNode {
               )}
               <li
                 className={`${o.groupId ? 'in-group' : ''} ${selected.includes(o.id) ? 'active' : ''} ${o.visible ? '' : 'hidden'}`}
+                data-kind={o.kind}
+                style={{ '--kind': KIND_COLOR[o.kind] } as CSSProperties}
                 onClick={(e) => pick(e, o.id)}
               >
                 <Icon size={15} className="kind" />

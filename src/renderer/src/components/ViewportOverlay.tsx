@@ -16,7 +16,7 @@ import { cameraBridge, useStore } from '../store'
 import { pushAlongView } from './RightPanel'
 import { hasEffects } from './Effects'
 import { StartPanel } from './StartPanel'
-import { viewport } from './Viewport'
+import { drawnBox, viewport } from './Viewport'
 import { RENDER_MODES } from '../renderModes'
 import { useDismiss } from '../useDismiss'
 
@@ -26,7 +26,10 @@ function boundsOf(ids?: string[]): THREE.Box3 | null {
   for (const [id, o] of viewport.objects) {
     if (ids && !ids.includes(id)) continue
     if (!o.visible) continue
-    box.expandByObject(o)
+    // What it draws (a beacon's sky-high beam doesn't count); a light or other bodiless object counts as its spot.
+    const drawn = drawnBox(o)
+    if (drawn.isEmpty()) box.expandByPoint(o.getWorldPosition(new THREE.Vector3()))
+    else box.union(drawn)
   }
   return box.isEmpty() ? null : box
 }

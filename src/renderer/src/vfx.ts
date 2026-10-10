@@ -4,7 +4,7 @@
 // exported image always match.
 
 export type VfxType =
-  'smoke' | 'fog' | 'fire' | 'explosion' | 'embers' | 'magic' | 'beam' | 'shine' | 'totem' | 'impact'
+  'smoke' | 'fog' | 'fire' | 'explosion' | 'embers' | 'magic' | 'beam' | 'shine' | 'totem' | 'impact' | 'beacon'
 
 export interface VfxPreset {
   id: VfxType
@@ -84,6 +84,16 @@ export const VFX_PRESETS: VfxPreset[] = [
     hint: 'A ground shockwave of dust and flying bits, for a hard landing or a big hit',
     color: '#b8a284',
     density: 0.6,
+    glow: false,
+    retired: true
+  },
+  {
+    // Placed by the lit Beacon quick prop (Builds tab), not offered in the FX panel.
+    id: 'beacon',
+    label: 'Beacon beam',
+    hint: 'The vertical beam of a lit beacon',
+    color: '#ffffff',
+    density: 0.5,
     glow: false,
     retired: true
   }
@@ -332,6 +342,21 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
         { texture: 'puff', blending: 'normal', color: '#4a3b2c', puffs: chunks }
       ]
     }
+    case 'beacon': {
+      // The beam itself is a mesh (VfxNode); these are the soft glow where it leaves the beacon.
+      const glow: Puff[] = []
+      for (let i = 0; i < 4; i++) glow.push(puff(0, 0.2 + i * 0.35, 0, 1.2 - i * 0.2, 0.18, 1))
+      // A few motes of light drifting up around the beam.
+      const motes: Puff[] = []
+      for (let i = 0, n = count(6, 16); i < n; i++) {
+        const [x, z] = disc(rnd, 0.5)
+        motes.push(puff(x, rnd() * 12, z, 0.03 + rnd() * 0.03, 0.8, 1.2))
+      }
+      return [
+        { texture: 'puff', blending: 'additive', puffs: glow },
+        { texture: 'spark', blending: 'additive', puffs: motes }
+      ]
+    }
   }
 }
 
@@ -352,6 +377,8 @@ export function vfxBounds(effect: VfxType): [number, number] {
       return [1.4, 2.8]
     case 'beam':
       return [1.6, 10]
+    case 'beacon':
+      return [0.3, 2]
     case 'shine':
       return [1.4, 2.4]
     case 'totem':

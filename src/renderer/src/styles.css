@@ -3858,3 +3858,34 @@ textarea:focus {
 .view-bar::before {
   background: var(--glass-sheen), var(--glass-strong);
 }
+
+/* Quick props: the tree brush under the grid. */
+.tree-brush {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* Layers tinted by kind (KIND_COLOR in RightPanel): a soft wash, a coloured edge and icon. */
+.layers li[data-kind] {
+  position: relative;
+  background: color-mix(in srgb, var(--kind) 8%, transparent);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--kind) 70%, transparent);
+}
+.layers li[data-kind]:hover {
+  background: color-mix(in srgb, var(--kind) 15%, transparent);
+}
+.layers li[data-kind].active {
+  background: color-mix(in srgb, var(--kind) 24%, transparent);
+  box-shadow:
+    inset 3px 0 0 var(--kind),
+    inset 0 0 0 1px color-mix(in srgb, var(--kind) 45%, transparent);
+}
+.layers li[data-kind] .kind,
+.layers li[data-kind].active .kind {
+  color: var(--kind);
+}
+.layers li[data-kind].hidden {
+  background: color-mix(in srgb, var(--kind) 4%, transparent);
+}

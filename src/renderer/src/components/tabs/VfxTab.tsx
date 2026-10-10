@@ -31,7 +31,8 @@ const ICONS: Record<VfxType, LucideIcon> = {
   beam: SunDim,
   shine: Gem,
   totem: PartyPopper,
-  impact: Radar
+  impact: Radar,
+  beacon: SunDim
 }
 
 function addEffect(p: VfxPreset): void {

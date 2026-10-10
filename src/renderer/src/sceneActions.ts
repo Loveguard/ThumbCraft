@@ -14,7 +14,7 @@ function centreSurface(t: TerrainData): number {
  * Adds a block volume to the scene. Without a position, generated landscapes are lowered so their
  * centre surface sits at y=0; builds pass the spot the user is looking at.
  */
-export function addTerrain(t: TerrainData, name: string, position?: Vec3, ground = false): void {
+export function addTerrain(t: TerrainData, name: string, position?: Vec3, ground = false, groupId?: string): void {
   const terrainId = newId('terrain')
   terrainStore.set(terrainId, t)
   useStore.getState().add({
@@ -23,6 +23,7 @@ export function addTerrain(t: TerrainData, name: string, position?: Vec3, ground
     name,
     terrainId,
     ...(ground && { ground: true }),
+    ...(groupId && { groupId }),
     visible: true,
     position: position ?? [0, -centreSurface(t), 0],
     rotation: [0, 0, 0],
