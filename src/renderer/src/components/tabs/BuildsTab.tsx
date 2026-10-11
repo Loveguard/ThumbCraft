@@ -5,12 +5,13 @@ import { assetContext } from '../../minecraft/assets'
 import { structureThumbnail, terrainThumbnail } from '../../minecraft/thumbnails'
 import {
   buildBeacon,
+  buildEnchantingSetup,
+  buildEndPortal,
   buildNetherPortal,
-  buildOreWall,
   buildSkyIsland,
+  buildStarterHouse,
   buildTntStack,
-  buildTreasurePile,
-  buildWatchtower
+  buildTreasurePile
 } from '@shared/minecraft/props'
 import { startTreeBrush, stopBrush, TREE_CHOICES, useBrush } from '../../brush'
 import type { TerrainData } from '@shared/types'
@@ -83,12 +84,13 @@ function PieceCard({ kind, busy, onAdd }: { kind: PieceKind; busy: string; onAdd
 
 /** Small hand-built builds that thumbnails use a lot, ready in one click. */
 const QUICK_PROPS: { id: string; label: string; build: () => TerrainData }[] = [
+  { id: 'starter-house', label: 'Starter house', build: buildStarterHouse },
   { id: 'portal', label: 'Nether portal', build: buildNetherPortal },
+  { id: 'end-portal', label: 'End portal', build: buildEndPortal },
+  { id: 'enchanting', label: 'Enchanting setup', build: buildEnchantingSetup },
   { id: 'treasure', label: 'Treasure pile', build: buildTreasurePile },
-  { id: 'ore-wall', label: 'Ore vein wall', build: buildOreWall },
   { id: 'tnt', label: 'TNT stack', build: buildTntStack },
-  { id: 'sky-island', label: 'Sky island', build: buildSkyIsland },
-  { id: 'watchtower', label: 'Watchtower', build: buildWatchtower }
+  { id: 'sky-island', label: 'Sky island', build: buildSkyIsland }
 ]
 
 function PropIcon({ id, build }: { id: string; build: () => TerrainData }): ReactNode {

@@ -171,49 +171,6 @@ export function buildBeacon(): TerrainData {
   return blockBox(3, 2, 3, (x, y, z) => (y === 0 ? 'iron_block' : x === 1 && z === 1 ? 'beacon' : null))
 }
 
-/**
- * A grand watchtower (25 tall): a stone-brick shaft with deepslate corner buttresses and arrow slits, a carved
- * band halfway up, a wide spruce lookout with a railing and lanterns, a stepped dark-oak roof and a red flag.
- */
-export function buildWatchtower(): TerrainData {
-  const n = 13 // footprint including the lookout's overhang
-  const c = 6 // centre column
-  const shaft = 4 // shaft half-width (9×9)
-  const deck = 17 // lookout floor
-  return blockBox(n, 26, n, (x, y, z) => {
-    const dx = Math.abs(x - c)
-    const dz = Math.abs(z - c)
-    const ring = Math.max(dx, dz)
-    const r = hash(x, y, z, 77)
-    // Flagpole and flag on the roof's tip.
-    if (x === c && z === c && y >= 22) return y === 25 ? null : 'spruce_fence'
-    if (z === c && y >= 23 && y <= 24 && x > c && x <= c + 2) return 'red_wool'
-    // Roof: a stepped pyramid of dark oak over the lookout.
-    if (y >= deck + 3 && y <= 22) {
-      const step = 5 - (y - (deck + 3))
-      if (ring === step) return 'dark_oak_planks'
-      return null
-    }
-    // Lookout: an overhanging spruce floor, railing posts and lanterns on the corners.
-    if (y === deck) return ring <= 6 ? 'spruce_planks' : null
-    if (y === deck + 1) {
-      if (ring !== 6) return null
-      if (dx === 6 && dz === 6) return 'spruce_log'
-      return 'spruce_fence'
-    }
-    if (y === deck + 2) return dx === 6 && dz === 6 ? 'lantern' : null
-    if (ring > shaft) return null
-    // Shaft: hollow walls, a solid ground floor.
-    if (y === 0) return ring === shaft ? 'polished_andesite' : 'cobblestone'
-    if (ring < shaft) return null
-    if (dx === shaft && dz === shaft) return 'deepslate_bricks' // corner buttresses
-    if (y === 8 || y === deck - 1) return 'chiseled_stone_bricks'
-    // Arrow slits on each face, two levels.
-    if ((y === 5 || y === 6 || y === 12 || y === 13) && (dx === 0 || dz === 0)) return 'iron_bars'
-    return r < 0.18 ? 'mossy_stone_bricks' : r < 0.28 ? 'cracked_stone_bricks' : 'stone_bricks'
-  })
-}
-
 /** A floating sky island: grass on top, dirt and stone tapering to a point underneath, an oak tree on top. */
 export function buildSkyIsland(): TerrainData {
   const n = 11
@@ -241,18 +198,80 @@ export function buildSkyIsland(): TerrainData {
   })
 }
 
-/** A cave wall with a seam of exposed ores (diamond and emerald in deepslate), for "I found it" shots. */
-export function buildOreWall(): TerrainData {
-  const w = 9
-  const h = 6
-  return blockBox(w, h, 2, (x, y, z) => {
-    if (z === 1) return y >= 3 ? 'stone' : 'deepslate'
-    const r = hash(x, y, 0, 31)
-    const seam = Math.abs(y - 2 - Math.sin(x * 0.9) * 1.2) < 0.9
-    if (seam && r < 0.55) return y >= 3 ? 'diamond_ore' : 'deepslate_diamond_ore'
-    if (r > 0.94) return y >= 3 ? 'emerald_ore' : 'deepslate_emerald_ore'
-    if (r > 0.88) return y >= 3 ? 'gold_ore' : 'deepslate_gold_ore'
-    return y >= 3 ? (r < 0.2 ? 'andesite' : 'stone') : r < 0.2 ? 'tuff' : 'deepslate'
+/**
+ * A cosy starter house (7×6): cobblestone footing, oak-log corners, plank walls with glass windows, a door with
+ * a torch beside it, a gabled spruce roof with an overhang and a cobblestone chimney. The door faces +z.
+ */
+export function buildStarterHouse(): TerrainData {
+  const w = 9 // roof width, one block of overhang each side
+  const d = 8 // roof depth, likewise
+  return blockBox(w, 9, d, (x, y, z) => {
+    const wallX = x === 1 || x === w - 2
+    const wallZ = z === 1 || z === d - 2
+    const inside = x >= 1 && x <= w - 2 && z >= 1 && z <= d - 2
+    // Chimney through the back of the roof.
+    if (x === w - 3 && z === 2 && y >= 4) return 'cobblestone'
+    if (y >= 4) {
+      // Gabled roof: stair rows climbing from front and back to a ridge along x.
+      const k = y - 4
+      if (z === k) return ['spruce_stairs', { facing: 'south', half: 'bottom', shape: 'straight' }]
+      if (z === d - 1 - k) return ['spruce_stairs', { facing: 'north', half: 'bottom', shape: 'straight' }]
+      // Gable ends filled with planks under the roof.
+      if (wallX && z > k && z < d - 1 - k) return 'oak_planks'
+      return null
+    }
+    // Torch beside the door, on the front wall.
+    if (z === d - 1 && x === 3 && y === 2) return ['wall_torch', { facing: 'south' }]
+    if (!inside) return null
+    if (y === 0) return 'cobblestone'
+    if (!wallX && !wallZ) return null
+    if (wallX && wallZ) return ['oak_log', { axis: 'y' }]
+    // Door in the middle of the front wall.
+    if (z === d - 2 && x === 4 && y <= 2)
+      return ['oak_door', { facing: 'north', half: y === 1 ? 'lower' : 'upper', hinge: 'left', open: 'false' }]
+    // Windows: two on the front, one on each side, one on the back.
+    if (y === 2) {
+      if (wallZ && (x === 2 || x === w - 3)) return 'glass'
+      if (wallX && (z === 3 || z === 4)) return 'glass'
+      if (z === 1 && x === 4) return 'glass'
+    }
+    if (y === 3) return ['stripped_oak_log', { axis: 'x' }]
+    return 'oak_planks'
+  })
+}
+
+/** An enchanting setup: the table in the middle, two-high bookshelf walls round three sides, lanterns on top. */
+export function buildEnchantingSetup(): TerrainData {
+  return blockBox(5, 3, 5, (x, y, z) => {
+    const ring = Math.max(Math.abs(x - 2), Math.abs(z - 2))
+    if (ring === 0) return y === 0 ? 'enchanting_table' : null
+    if (ring !== 2) return null
+    if (z === 4 && x >= 1 && x <= 3) return null // open front
+    if (y === 2) return (x === 0 || x === 4) && z === 0 ? 'lantern' : null
+    return 'bookshelf'
+  })
+}
+
+/**
+ * The stronghold end portal: twelve frames with eyes in, round the black portal surface, on a cracked
+ * stone-brick floor.
+ */
+export function buildEndPortal(): TerrainData {
+  return blockBox(7, 2, 7, (x, y, z) => {
+    const dx = x - 3
+    const dz = z - 3
+    const ring = Math.max(Math.abs(dx), Math.abs(dz))
+    if (y === 0) {
+      // The game draws the portal surface in code, so a black floor under it stands in for the void.
+      if (ring <= 1) return 'black_concrete'
+      const r = hash(x, 0, z, 41)
+      return r < 0.2 ? 'mossy_stone_bricks' : r < 0.35 ? 'cracked_stone_bricks' : 'stone_bricks'
+    }
+    if (ring <= 1) return 'end_portal'
+    if (ring !== 2 || Math.abs(dx) === Math.abs(dz)) return null
+    // Each frame faces the middle.
+    const facing = dz === -2 ? 'south' : dz === 2 ? 'north' : dx === -2 ? 'east' : 'west'
+    return ['end_portal_frame', { facing, eye: 'true' }]
   })
 }
 
