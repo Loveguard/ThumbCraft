@@ -4272,3 +4272,47 @@ button:hover:not(:disabled) {
 .topbar input.project-name:not([type='checkbox']):focus {
   background: rgba(0, 0, 0, 0.3);
 }
+
+/* Page selector at the foot of a long list (over 50 tiles), 12 tiles a page. */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.pager button {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.pager button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+.pager button.active,
+.pager button.active:hover {
+  background: color-mix(in srgb, var(--section, var(--accent)) 22%, transparent);
+  color: var(--text);
+}
+.pager button:disabled {
+  opacity: 0.35;
+}
+.pager-step {
+  display: grid;
+  place-items: center;
+}
+.pager-gap {
+  min-width: 16px;
+  text-align: center;
+  color: var(--text-3, var(--text-2));
+  font-size: 12px;
+}
