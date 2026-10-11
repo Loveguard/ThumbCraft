@@ -14,6 +14,13 @@ import camoUrl from '../assets/outfits/camo.png'
 import starrobeUrl from '../assets/outfits/starrobe.png'
 import webbingUrl from '../assets/outfits/webbing.png'
 import leatherUrl from '../assets/outfits/leather.png'
+import chainmailUrl from '../assets/outfits/chainmail.png'
+import steelUrl from '../assets/outfits/steel.png'
+import woolBlueUrl from '../assets/outfits/wool-blue.png'
+import woolRedUrl from '../assets/outfits/wool-red.png'
+import twillNavyUrl from '../assets/outfits/twill-navy.png'
+import oxfordUrl from '../assets/outfits/oxford.png'
+import cottonBlackUrl from '../assets/outfits/cotton-black.png'
 
 export type OutfitId = 'king' | 'astronaut' | 'soldier' | 'wizard' | 'knight' | 'pirate' | 'police' | 'ninja'
 
@@ -37,7 +44,22 @@ export const OUTFITS: { id: OutfitId; label: string; hint: string }[] = [
 ]
 
 /** Fabric tiles: 128px squares that repeat seamlessly, each spanning 32 pixels of the model. */
-type FabricId = 'velvet' | 'ermine' | 'filigree' | 'spacesuit' | 'camo' | 'starrobe' | 'webbing' | 'leather'
+type FabricId =
+  | 'velvet'
+  | 'ermine'
+  | 'filigree'
+  | 'spacesuit'
+  | 'camo'
+  | 'starrobe'
+  | 'webbing'
+  | 'leather'
+  | 'chainmail'
+  | 'steel'
+  | 'woolBlue'
+  | 'woolRed'
+  | 'twillNavy'
+  | 'oxford'
+  | 'cottonBlack'
 const FABRICS: Record<FabricId, { url: string; average: string }> = {
   velvet: { url: velvetUrl, average: '#c90c25' },
   ermine: { url: ermineUrl, average: '#dad9d9' },
@@ -46,7 +68,14 @@ const FABRICS: Record<FabricId, { url: string; average: string }> = {
   camo: { url: camoUrl, average: '#6a5f41' },
   starrobe: { url: starrobeUrl, average: '#571851' },
   webbing: { url: webbingUrl, average: '#758860' },
-  leather: { url: leatherUrl, average: '#5b4741' }
+  leather: { url: leatherUrl, average: '#5b4741' },
+  chainmail: { url: chainmailUrl, average: '#65686d' },
+  steel: { url: steelUrl, average: '#afb4b9' },
+  woolBlue: { url: woolBlueUrl, average: '#355ead' },
+  woolRed: { url: woolRedUrl, average: '#a72427' },
+  twillNavy: { url: twillNavyUrl, average: '#2f406a' },
+  oxford: { url: oxfordUrl, average: '#b4cbe8' },
+  cottonBlack: { url: cottonBlackUrl, average: '#24242b' }
 }
 const FABRIC_SPAN = 32
 /** Texels per model pixel on a suit texture. */
@@ -119,13 +148,6 @@ const band = (g: G, c: Paint, n: Record<string, Rect>, from: number, to: number)
     const [x, y, w] = n[s]
     fill(g, c, [x, y + from, w, to - from])
   }
-}
-/** Chain mail: rows of rings, every other row shifted by one. */
-const chain = (g: G, n: Record<string, Rect>): void => {
-  fillNet(g, '#8d939a', n)
-  g.fillStyle = '#5d636b'
-  for (const [x0, y0, w, h] of Object.values(n))
-    for (let y = y0; y < y0 + h; y++) for (let x = x0 + ((y - y0) % 2); x < x0 + w; x += 2) g.fillRect(x, y, 1, 1)
 }
 /** Darkens a net by `amount` (0…1), for the shadowed under-layer of a suit. */
 const shade = (g: G, n: Record<string, Rect>, amount: number): void => fillNet(g, `rgba(0, 0, 0, ${amount})`, n)
@@ -239,41 +261,41 @@ const SUITS: Record<OutfitId, SuitArt> = {
     helmet: true,
     layer1: (g, f) => {
       // Great helm: steel with a dark eye slit and breathing holes.
-      fillNet(g, '#b9bec4', HEAD)
+      fillNet(g, f.steel, HEAD)
       band(g, '#8d939a', HEAD, 7, 8)
       for (const s of SIDES) fill(g, '#9aa0a7', [HEAD[s][0], HEAD[s][1], HEAD[s][2], 1])
       fill(g, '#1b1d20', [9, 11, 6, 1]) // eye slit
       fill(g, '#d8dce0', [11, 12, 2, 4]) // nose guard
       for (const x of [9, 10, 13, 14]) fill(g, '#2a2d31', [x, 14, 1, 1])
-      chain(g, BODY)
-      chain(g, ARM)
+      fillNet(g, f.chainmail, BODY)
+      fillNet(g, f.chainmail, ARM)
       // Tabard front and back with a gold cross.
       for (const [x, y] of [
         [20, 20],
         [32, 20]
       ] as const) {
-        fill(g, '#1f4fa8', [x, y, 8, 12])
+        fill(g, f.woolBlue, [x, y, 8, 12])
         fill(g, '#f2c14e', [x + 3, y + 1, 2, 7])
         fill(g, '#f2c14e', [x + 1, y + 3, 6, 2])
       }
       band(g, f.leather, BODY, 8, 9) // sword belt
-      band(g, '#b9bec4', ARM, 0, 3) // pauldrons
-      band(g, '#b9bec4', ARM, 9, 12) // gauntlets
-      band(g, '#b9bec4', LEG, 7, 12) // sabatons
+      band(g, f.steel, ARM, 0, 3) // pauldrons
+      band(g, f.steel, ARM, 9, 12) // gauntlets
+      band(g, f.steel, LEG, 7, 12) // sabatons
       fill(g, '#6b7078', LEG.bottom)
     },
-    layer2: (g) => {
-      chain(g, BODY)
-      chain(g, LEG)
-      band(g, '#1f4fa8', BODY, 0, 4) // tabard skirt
-      band(g, '#b9bec4', LEG, 4, 6) // knee cops
+    layer2: (g, f) => {
+      fillNet(g, f.chainmail, BODY)
+      fillNet(g, f.chainmail, LEG)
+      band(g, f.woolBlue, BODY, 0, 4) // tabard skirt
+      band(g, f.steel, LEG, 4, 6) // knee cops
     }
   },
   pirate: {
     helmet: false,
     layer1: (g, f) => {
       // Red captain's coat, open over a white shirt, with gold buttons.
-      fillNet(g, '#9b1b1f', BODY)
+      fillNet(g, f.woolRed, BODY)
       fill(g, '#efe6d2', [22, 20, 4, 12])
       fill(g, '#d9cfb8', [23, 21, 2, 2]) // shirt ruffle
       for (const y of [22, 25, 28]) {
@@ -282,7 +304,7 @@ const SUITS: Record<OutfitId, SuitArt> = {
       }
       band(g, f.leather, BODY, 8, 10) // wide belt
       fill(g, '#f2c14e', [23, 28, 2, 2]) // buckle
-      fillNet(g, '#9b1b1f', ARM)
+      fillNet(g, f.woolRed, ARM)
       band(g, '#efe6d2', ARM, 10, 11) // shirt cuffs
       band(g, '#f2c14e', ARM, 9, 10) // braid
       band(g, f.leather, LEG, 5, 12) // tall boots
@@ -290,56 +312,56 @@ const SUITS: Record<OutfitId, SuitArt> = {
       fill(g, '#2a1d14', LEG.bottom)
     },
     layer2: (g, f) => {
-      fillNet(g, '#9b1b1f', BODY) // coat tails
-      fillNet(g, '#3c3a46', LEG) // breeches
+      fillNet(g, f.woolRed, BODY) // coat tails
+      fillNet(g, f.cottonBlack, LEG) // breeches
       shade(g, BODY, 0.25)
       band(g, f.leather, BODY, 0, 1)
     }
   },
   police: {
     helmet: false,
-    layer1: (g) => {
-      fillNet(g, '#7fa6d6', BODY) // shirt
-      fill(g, '#1c2a4a', [23, 20, 2, 7]) // tie
+    layer1: (g, f) => {
+      fillNet(g, f.oxford, BODY) // shirt
+      fill(g, f.twillNavy, [23, 20, 2, 7]) // tie
       fill(g, '#f2c14e', [21, 21, 1, 2]) // badge
       fill(g, '#1c2a4a', [26, 21, 1, 1]) // pocket button
       for (const s of SIDES) fill(g, '#2b4a7a', [BODY[s][0], BODY[s][1], BODY[s][2], 1]) // collar
       band(g, '#151515', BODY, 9, 11) // duty belt
       fill(g, '#c9c9c9', [23, 29, 2, 1]) // buckle
       fill(g, '#2a2a2a', [20, 30, 2, 2]) // radio pouch
-      fillNet(g, '#7fa6d6', ARM)
+      fillNet(g, f.oxford, ARM)
       band(g, '#2b4a7a', ARM, 0, 2) // shoulder patches
       band(g, '#151515', LEG, 9, 12) // shoes
       fill(g, '#0d0d0d', LEG.bottom)
     },
-    layer2: (g) => {
-      fillNet(g, '#1c2a4a', BODY)
-      fillNet(g, '#1c2a4a', LEG)
+    layer2: (g, f) => {
+      fillNet(g, f.twillNavy, BODY)
+      fillNet(g, f.twillNavy, LEG)
       band(g, '#151515', BODY, 0, 2)
       for (const s of ['right', 'left'] as const) fill(g, '#2f4270', [LEG[s][0] + 1, LEG[s][1], 1, 12]) // stripe
     }
   },
   ninja: {
     helmet: true,
-    layer1: (g) => {
+    layer1: (g, f) => {
       // Hood and mask: everything but a band across the eyes, where the skin shows through.
-      fillNet(g, '#17171c', HEAD)
+      fillNet(g, f.cottonBlack, HEAD)
       g.clearRect(9, 11, 6, 3)
       fill(g, '#24242b', [8, 10, 8, 1]) // brow fold
       fill(g, '#24242b', [8, 14, 8, 1]) // mask edge
       fill(g, '#b3202a', [24, 10, 8, 1]) // headband tails at the back
       fill(g, '#b3202a', [27, 11, 1, 3])
       fill(g, '#b3202a', [29, 11, 1, 2])
-      fillNet(g, '#17171c', BODY)
-      fill(g, '#24242b', [21, 20, 3, 5]) // wrap-over fold
+      fillNet(g, f.cottonBlack, BODY)
+      fill(g, 'rgba(255, 255, 255, 0.06)', [21, 20, 3, 5]) // wrap-over fold
       band(g, '#b3202a', BODY, 8, 10) // sash
-      fillNet(g, '#17171c', ARM)
+      fillNet(g, f.cottonBlack, ARM)
       band(g, '#3a3a42', ARM, 8, 12) // arm wraps
       band(g, '#24242b', LEG, 10, 12) // tabi
     },
-    layer2: (g) => {
-      fillNet(g, '#17171c', BODY)
-      fillNet(g, '#17171c', LEG)
+    layer2: (g, f) => {
+      fillNet(g, f.cottonBlack, BODY)
+      fillNet(g, f.cottonBlack, LEG)
       band(g, '#b3202a', BODY, 0, 1)
       band(g, '#3a3a42', LEG, 6, 10) // shin wraps
     }
@@ -355,9 +377,9 @@ function suitTexture(paint: (g: G, f: Fabrics) => void, images: FabricImages): T
   g.scale(SUIT_SCALE, SUIT_SCALE)
   paint(g, fabricStyles(g, images))
   const t = new THREE.CanvasTexture(c)
+  // Crisp pixels up close; mipmaps when far away, so fine weaves like chain mail don't shimmer into moiré.
   t.magFilter = THREE.NearestFilter
-  t.minFilter = THREE.NearestFilter
-  t.generateMipmaps = false
+  t.minFilter = THREE.LinearMipmapLinearFilter
   t.colorSpace = THREE.SRGBColorSpace
   return t
 }
@@ -607,7 +629,7 @@ export async function buildOutfit(id: OutfitId, slim: boolean): Promise<BuiltOut
         ])
       })
       // Blue cloak from the shoulders.
-      body(block(mat('#1a3f86'), [-4.6, -13, -3.8], [4.6, 0.2, -3.15]))
+      body(clothBlock(images, 'woolBlue', [-4.6, -13, -3.8], [4.6, 0.2, -3.15], '#b0b0b0'))
       held = buildSword()
       break
     }
@@ -630,22 +652,19 @@ export async function buildOutfit(id: OutfitId, slim: boolean): Promise<BuiltOut
           [black, [-4.25, 5, -4.25], [4.25, 5.6, 4.25]]
         ])
       })
-      body(block(mat('#7a1418'), [-4.6, -15, -3.8], [4.6, -6, -3.1])) // coat skirt
+      body(clothBlock(images, 'woolRed', [-4.6, -15, -3.8], [4.6, -6, -3.1], '#c0c0c0')) // coat skirt
       held = buildCutlass()
       break
     }
     case 'police': {
-      const navy = mat('#1c2a4a')
-      parts.push({
-        part: 'head',
-        object: headPiece([
-          [navy, [-4.5, 7.6, -4.5], [4.5, 9.4, 4.5]],
-          [navy, [-5, 9.4, -5], [5, 10.4, 5.3]], // crown
-          [mat('#121212'), [-4.6, 7.6, 4.4], [4.6, 7.9, 6.6]], // peak
-          [mat('#121212'), [-4.55, 7.9, -4.55], [4.55, 8.4, 4.55]], // band
-          [mat('#f2c14e', 0.2), [-0.8, 8.6, 4.5], [0.8, 10, 4.75]] // badge
-        ])
-      })
+      const cap = headPiece([
+        [mat('#121212'), [-4.6, 7.6, 4.4], [4.6, 7.9, 6.6]], // peak
+        [mat('#121212'), [-4.55, 7.9, -4.55], [4.55, 8.4, 4.55]], // band
+        [mat('#f2c14e', 0.2), [-0.8, 8.6, 4.5], [0.8, 10, 4.75]] // badge
+      ])
+      cap.add(clothBlock(images, 'twillNavy', [-4.5, 7.6, -4.5], [4.5, 9.4, 4.5]))
+      cap.add(clothBlock(images, 'twillNavy', [-5, 9.4, -5], [5, 10.4, 5.3])) // crown
+      parts.push({ part: 'head', object: cap })
       break
     }
     case 'ninja': {
