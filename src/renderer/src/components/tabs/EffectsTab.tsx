@@ -11,7 +11,16 @@ type NumKey = { [K in keyof EffectSettings]: EffectSettings[K] extends number ? 
 type BoolKey = { [K in keyof EffectSettings]: EffectSettings[K] extends boolean ? K : never }[keyof EffectSettings]
 
 /** A shared slider bound to one effect setting. */
-function FxSlider({ k, ...rest }: { k: NumKey; label: string; min: number; max: number; step: number }): ReactNode {
+export function FxSlider({
+  k,
+  ...rest
+}: {
+  k: NumKey
+  label: string
+  min: number
+  max: number
+  step: number
+}): ReactNode {
   const value = useStore((s) => s.effects[k])
   return (
     <Slider
@@ -23,7 +32,7 @@ function FxSlider({ k, ...rest }: { k: NumKey; label: string; min: number; max: 
   )
 }
 
-function FxGroup({
+export function FxGroup({
   k,
   label,
   children,
@@ -56,11 +65,11 @@ function FxGroup({
 }
 
 export function EffectsTab(): ReactNode {
-  const { sunAzimuth, sunElevation } = useStore((s) => s.settings)
   const setSettings = useStore((s) => s.setSettings)
   const setEffects = useStore((s) => s.setEffects)
-  const { sunColor, shadowTint, highlightTint, showSun, cleanOverlays, crtOverLayers, streakColor, depthOfField } =
-    useStore((s) => s.effects)
+  const { shadowTint, highlightTint, cleanOverlays, crtOverLayers, streakColor, depthOfField } = useStore(
+    (s) => s.effects
+  )
   const putSunInView = (): void => {
     const sun = sunInView(viewport.camera)
     if (sun) setSettings(sun)
@@ -165,53 +174,6 @@ export function EffectsTab(): ReactNode {
             onChange={(on) => setEffects({ crtOverLayers: on, ...(on && { cleanOverlays: true }) })}
           />
         </FxGroup>
-      </ColorSection>
-
-      <ColorSection id="fx-light" title="Light & sun" color="#fb923c">
-        <FxGroup k="bloom" label="Bloom (glow)">
-          <FxSlider k="bloomIntensity" label="Intensity" min={0} max={3} step={0.05} />
-          <FxSlider k="bloomThreshold" label="Threshold" min={0} max={1} step={0.01} />
-        </FxGroup>
-        <FxGroup k="godRays" label="God rays" onEnable={putSunInView}>
-          <FxSlider k="godRaysIntensity" label="Intensity" min={0} max={1.5} step={0.01} />
-          <label className="field">
-            <span>Sun colour</span>
-            <input type="color" value={sunColor} onChange={(e) => setEffects({ sunColor: e.target.value })} />
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={showSun} onChange={(e) => setEffects({ showSun: e.target.checked })} />
-            <span>Show the sun disc</span>
-          </label>
-        </FxGroup>
-        <Group id="fx-sun" title="Sun position" defaultOpen>
-          <button onClick={putSunInView}>Put sun in view</button>
-          <label className="field slider">
-            <span>Sun direction</span>
-            <input
-              type="range"
-              min={-180}
-              max={180}
-              value={sunAzimuth}
-              onChange={(e) => setSettings({ sunAzimuth: Number(e.target.value) })}
-            />
-            <em>{sunAzimuth}°</em>
-          </label>
-          <label className="field slider">
-            <span>Sun height</span>
-            <input
-              type="range"
-              min={2}
-              max={89}
-              value={sunElevation}
-              onChange={(e) => setSettings({ sunElevation: Number(e.target.value) })}
-            />
-            <em>{sunElevation}°</em>
-          </label>
-          <Hint>
-            The sun aims the scene's main light (and shadows in the lit modes) and the god rays: put it just behind a
-            tree, player or build for the strongest rays. Effects are included in the export.
-          </Hint>
-        </Group>
       </ColorSection>
     </div>
   )

@@ -96,7 +96,7 @@ const TABS: TabDef[] = [
     label: 'Sky',
     icon: CloudSun,
     title: 'Sky',
-    subtitle: 'Presets or your own HDRI panorama',
+    subtitle: 'Sky presets, your own HDRI, the sun, bloom and god rays',
     body: () => <SkyTab />
   },
   {
@@ -112,7 +112,7 @@ const TABS: TabDef[] = [
     label: 'Look',
     icon: WandSparkles,
     title: 'Look',
-    subtitle: 'Colour grading, lens and light effects',
+    subtitle: 'Colour grading, lens and film effects',
     body: () => <EffectsTab />
   }
 ]
