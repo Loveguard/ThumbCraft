@@ -2,10 +2,13 @@ import { Effect, EffectAttribute, Pass } from 'postprocessing'
 import * as THREE from 'three'
 import { HELPER_LAYER } from '../overlay'
 
-// Paper cutout: the players (and optionally mobs) look cut out of a printed photo with scissors-and-fingers,
-// sitting on the scene with a torn white paper border and a soft drop shadow. The whole frame then reads as a
-// photo snapped on Fujifilm stock (red halation glow around highlights, Fuji colour) and printed on paper that
-// has been folded and handled (creases, crumple shading, paper fibre).
+// The film-print looks, each switched on separately (one pass draws whichever are on):
+// - Paper cutout: the players (and optionally mobs) look torn out of a printed photo, sitting on the scene with a
+//   ragged white paper border and a soft drop shadow.
+// - Film halation: a red-orange glow bleeding around bright highlights, like film without an anti-halation layer.
+// - Fujifilm colour: teal-leaning greens, lifted cool shadows, warm soft highlights.
+// - Light leak: warm orange-red light fogging in from one edge of the frame, like a camera back opened too soon.
+// - Paper folds: the picture printed on paper that has been folded and handled (creases, crumpling, fibre).
 //
 // Each frame, before the effect runs: the subjects are drawn alone into a mask (with their depth, so a tree in
 // front of a player still covers them), the mask is turned into a distance field at a fixed 720p-scale size (so
@@ -140,6 +143,8 @@ uniform float shadow;
 uniform float folds;
 uniform float halation;
 uniform float fuji;
+uniform float leak;
+uniform float leakX;
 uniform float seed;
 
 float hash(vec2 p) {
@@ -239,6 +244,17 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   col += hal * (1.0 - clamp(col, 0.0, 1.0));
   col = mix(col, fujiColour(col), fuji);
 
+  // The light leak: a warm, uneven blob pouring in from above the frame, hottest (yellow-orange) at its core
+  // and red where it fades, with a faint wash over the whole frame.
+  if (leak > 0.0) {
+    vec2 q = (p - vec2(leakX * aspect * 720.0, 800.0)) / vec2(300.0, 560.0);
+    float k = exp(-dot(q, q) * 1.4) * (0.55 + 0.9 * fbm(p / 170.0 + 7.0));
+    k = clamp(k, 0.0, 1.4);
+    vec3 tint = mix(vec3(0.9, 0.08, 0.02), vec3(1.0, 0.55, 0.16), smoothstep(0.35, 1.0, k));
+    vec3 light = (tint * k + vec3(0.03, 0.012, 0.0)) * leak;
+    col += light * (1.0 - clamp(col, 0.0, 1.0) * 0.6);
+  }
+
   // The print: folds, crumpled-paper shading and paper fibre.
   if (folds > 0.0) {
     vec2 mid = vec2(aspect * 360.0, 360.0);
@@ -268,6 +284,8 @@ export interface PaperLook {
   folds: number
   halation: number
   fuji: number
+  leak: number
+  leakX: number
 }
 
 export class PaperEffect extends Effect {
@@ -309,7 +327,17 @@ export class PaperEffect extends Effect {
   })
   /** Objects currently on the mask layer, so ones that stop being subjects can be taken off it. */
   private tagged = new Set<THREE.Object3D>()
-  private look: PaperLook = { cutout: true, edge: 12, rough: 0.6, shadow: 0.5, folds: 0.5, halation: 0.5, fuji: 0.6 }
+  private look: PaperLook = {
+    cutout: true,
+    edge: 12,
+    rough: 0.6,
+    shadow: 0.5,
+    folds: 0.5,
+    halation: 0.5,
+    fuji: 0.6,
+    leak: 0,
+    leakX: 0.15
+  }
 
   constructor(
     private world: THREE.Scene,
@@ -330,6 +358,8 @@ export class PaperEffect extends Effect {
         ['folds', new THREE.Uniform(0.5)],
         ['halation', new THREE.Uniform(0.5)],
         ['fuji', new THREE.Uniform(0.6)],
+        ['leak', new THREE.Uniform(0)],
+        ['leakX', new THREE.Uniform(0.15)],
         ['seed', new THREE.Uniform(0.37)]
       ])
     })

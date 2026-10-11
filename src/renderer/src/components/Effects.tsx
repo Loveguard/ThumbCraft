@@ -54,7 +54,10 @@ export const hasEffects = (e: EffectSettings): boolean =>
   e.warp ||
   e.burst ||
   e.streaks ||
-  e.paper
+  hasFilmPrint(e)
+
+/** Any of the film-print looks (paper cutout, folds, halation, Fuji colour, light leak), which share one pass. */
+const hasFilmPrint = (e: EffectSettings): boolean => e.paper || e.folds || e.halation || e.fuji || e.lightLeak
 
 /** What the effect chain covers this frame (set while rendering the Effects component). */
 const chain = { active: false, includesOverlays: false }
@@ -175,8 +178,9 @@ function cutoutSubjects(): THREE.Object3D[] {
 }
 
 /**
- * The paper cutout as a step in the effect chain. It gets a pass of its own: sharing one, it would be sorted ahead
- * of bloom and the look (effects that read depth go first), and a blooming sky would wash its border away.
+ * The film-print looks as a step in the effect chain; whichever are off are drawn at zero. It gets a pass of its
+ * own: sharing one, it would be sorted ahead of bloom and the look (effects that read depth go first), and a
+ * blooming sky would wash the cutout border away.
  */
 function PaperPass({ e }: { e: EffectSettings }): ReactNode {
   const { scene, camera } = useThree()
@@ -185,15 +189,32 @@ function PaperPass({ e }: { e: EffectSettings }): ReactNode {
   useEffect(
     () =>
       effect.setLook({
-        cutout: true,
+        cutout: e.paper,
         edge: e.paperEdge,
         rough: e.paperRough,
         shadow: e.paperShadow,
-        folds: e.paperFolds,
-        halation: e.paperHalation,
-        fuji: e.paperFuji
+        folds: e.folds ? e.paperFolds : 0,
+        halation: e.halation ? e.paperHalation : 0,
+        fuji: e.fuji ? e.paperFuji : 0,
+        leak: e.lightLeak ? e.lightLeakAmount : 0,
+        leakX: e.lightLeakX
       }),
-    [effect, e.paperEdge, e.paperRough, e.paperShadow, e.paperFolds, e.paperHalation, e.paperFuji]
+    [
+      effect,
+      e.paper,
+      e.paperEdge,
+      e.paperRough,
+      e.paperShadow,
+      e.folds,
+      e.paperFolds,
+      e.halation,
+      e.paperHalation,
+      e.fuji,
+      e.paperFuji,
+      e.lightLeak,
+      e.lightLeakAmount,
+      e.lightLeakX
+    ]
   )
   useEffect(() => () => pass.dispose(), [pass])
   return <primitive object={pass} dispose={null} />
@@ -365,8 +386,8 @@ export function Effects(): ReactNode {
     )
   // The look comes after the manual adjustments, like a creative LUT after primary correction.
   if (e.look) effects.push(<LookPass key="look" look={e.look} intensity={e.lookIntensity} lutMediaId={e.lutMediaId} />)
-  // The paper print sits on the finished colour, under the lens and screen effects.
-  if (e.paper) effects.push(<PaperPass key="paper" e={e} />)
+  // The film print sits on the finished colour, under the lens and screen effects.
+  if (hasFilmPrint(e)) effects.push(<PaperPass key="paper" e={e} />)
   if (e.chromatic)
     effects.push(
       <ChromaticAberration
