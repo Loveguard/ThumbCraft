@@ -50,7 +50,7 @@ import { CutoutControls } from './CutoutControls'
 import { viewport } from './Viewport'
 import { defaultSkinUrl } from '../minecraft/builders'
 import { RENDER_MODES } from '../renderModes'
-import { TITLE_STYLES, TITLE_SWATCHES } from './tabs/SceneTabs'
+import { PIXEL_TEXT_LABEL, TITLE_STYLES, TITLE_SWATCHES } from './tabs/SceneTabs'
 
 export const KIND_ICON: Record<SceneObject['kind'], LucideIcon> = {
   terrain: Mountain,
@@ -493,7 +493,7 @@ const KIND_LABEL: Record<SceneObject['kind'], string> = {
   player: 'Player',
   image: 'Image',
   video: 'Video',
-  text: 'Title text',
+  text: 'Bold caption',
   pixelText: '3D text',
   mob: 'Mob',
   light: 'Light',
@@ -558,7 +558,14 @@ function Properties({ o }: { o: SceneObject }): ReactNode {
   const { update } = useStore.getState()
   const set = (patch: Partial<SceneObject>): void => update(o.id, patch)
   return (
-    <Section id="selection" title={KIND_LABEL[o.kind]}>
+    <Section
+      id="selection"
+      title={
+        o.kind === 'pixelText'
+          ? (TITLE_STYLES.find((t) => t.style === o.style)?.label ?? PIXEL_TEXT_LABEL)
+          : KIND_LABEL[o.kind]
+      }
+    >
       <div className="obj-title">
         <input
           value={o.name}
@@ -637,7 +644,7 @@ function Properties({ o }: { o: SceneObject }): ReactNode {
             <textarea rows={2} value={o.text} onChange={(e) => set({ text: e.target.value })} />
           </label>
           <div className="segmented">
-            {([{ style: 'plain', label: 'Font', color: '#ffffff' }, ...TITLE_STYLES] as const).map((t) => (
+            {([{ style: 'plain', label: PIXEL_TEXT_LABEL, color: '#ffffff' }, ...TITLE_STYLES] as const).map((t) => (
               <button
                 key={t.style}
                 className={(o.style ?? 'plain') === t.style ? 'active' : ''}
