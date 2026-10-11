@@ -59,8 +59,17 @@ export function EffectsTab(): ReactNode {
   const { sunAzimuth, sunElevation } = useStore((s) => s.settings)
   const setSettings = useStore((s) => s.setSettings)
   const setEffects = useStore((s) => s.setEffects)
-  const { sunColor, shadowTint, highlightTint, showSun, cleanOverlays, crtOverLayers, streakColor, depthOfField } =
-    useStore((s) => s.effects)
+  const {
+    sunColor,
+    shadowTint,
+    highlightTint,
+    showSun,
+    cleanOverlays,
+    crtOverLayers,
+    streakColor,
+    depthOfField,
+    paperMobs
+  } = useStore((s) => s.effects)
   const putSunInView = (): void => {
     const sun = sunInView(viewport.camera)
     if (sun) setSettings(sun)
@@ -154,6 +163,24 @@ export function EffectsTab(): ReactNode {
         </FxGroup>
         <FxGroup k="grain" label="Film grain">
           <FxSlider k="grainAmount" label="Amount" min={0} max={0.6} step={0.01} />
+        </FxGroup>
+        <FxGroup k="paper" label="Paper cutout">
+          <FxSlider k="paperEdge" label="Torn border" min={0} max={24} step={0.5} />
+          <FxSlider k="paperRough" label="Ripped edge" min={0} max={1} step={0.01} />
+          <FxSlider k="paperShadow" label="Drop shadow" min={0} max={1} step={0.01} />
+          <FxSlider k="paperFolds" label="Folds & paper" min={0} max={1} step={0.01} />
+          <FxSlider k="paperHalation" label="Halation glow" min={0} max={1.5} step={0.01} />
+          <FxSlider k="paperFuji" label="Fujifilm colour" min={0} max={1} step={0.01} />
+          <Toggle
+            label="Mobs too"
+            title="Off: only players get the torn paper border. On: mobs get it as well"
+            checked={paperMobs}
+            onChange={(on) => setEffects({ paperMobs: on })}
+          />
+          <Hint>
+            Players look cut out of a photo and stuck on the scene, and the whole picture looks like a folded print shot
+            on Fujifilm. Set Torn border to 0 for just the film and fold look.
+          </Hint>
         </FxGroup>
         <FxGroup k="crt" label="CRT TV">
           <FxSlider k="crtAmount" label="Scanlines & mask" min={0} max={1} step={0.01} />

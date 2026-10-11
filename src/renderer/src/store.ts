@@ -326,6 +326,19 @@ export interface EffectSettings {
   streakAmount: number
   streakThreshold: number
   streakColor: string
+  /**
+   * Paper cutout: players (and mobs, if chosen) get a torn white paper border and a drop shadow, and the frame
+   * looks like a folded Fujifilm print (halation glow, Fuji colour, creases and paper fibre).
+   */
+  paper: boolean
+  paperMobs: boolean
+  /** Border width in 720p pixels. */
+  paperEdge: number
+  paperRough: number
+  paperShadow: number
+  paperFolds: number
+  paperHalation: number
+  paperFuji: number
   /** The colour look (a 3D LUT): a built-in look's id, 'custom' for an imported .cube file, or null. */
   look: string | null
   /** 0 = original colour … 1 = the full look. */
@@ -378,6 +391,14 @@ export const NO_EFFECTS: EffectSettings = {
   streakAmount: 0.6,
   streakThreshold: 1.2,
   streakColor: '#7fb8ff',
+  paper: false,
+  paperMobs: false,
+  paperEdge: 12,
+  paperRough: 0.6,
+  paperShadow: 0.5,
+  paperFolds: 0.5,
+  paperHalation: 0.5,
+  paperFuji: 0.6,
   look: null,
   lookIntensity: 1,
   lutMediaId: null,
