@@ -15,7 +15,7 @@ import starrobeUrl from '../assets/outfits/starrobe.png'
 import webbingUrl from '../assets/outfits/webbing.png'
 import leatherUrl from '../assets/outfits/leather.png'
 
-export type OutfitId = 'king' | 'astronaut' | 'soldier' | 'wizard'
+export type OutfitId = 'king' | 'astronaut' | 'soldier' | 'wizard' | 'knight' | 'pirate' | 'police' | 'ninja'
 
 export const OUTFITS: { id: OutfitId; label: string; hint: string }[] = [
   { id: 'king', label: 'King', hint: 'Crown, red velvet cloak with an ermine collar and a gold sceptre' },
@@ -25,7 +25,15 @@ export const OUTFITS: { id: OutfitId; label: string; hint: string }[] = [
     hint: 'Quilted white space suit, gold-visored helmet and a life-support pack'
   },
   { id: 'soldier', label: 'Soldier', hint: 'Camo uniform, combat helmet, webbing vest and a field pack' },
-  { id: 'wizard', label: 'Wizard', hint: 'Pointed hat, starry robe and a staff with a glowing orb' }
+  { id: 'wizard', label: 'Wizard', hint: 'Pointed hat, starry robe and a staff with a glowing orb' },
+  {
+    id: 'knight',
+    label: 'Knight',
+    hint: 'Great helm with a plume, chain mail, a blue tabard with a gold cross and a sword'
+  },
+  { id: 'pirate', label: 'Pirate', hint: 'Tricorn hat, eyepatch, red captain’s coat, tall boots and a cutlass' },
+  { id: 'police', label: 'Police', hint: 'Peaked cap with a badge, blue shirt and tie, duty belt and navy trousers' },
+  { id: 'ninja', label: 'Ninja', hint: 'Black hood that shows only the eyes, red sash, wrapped shins and a katana' }
 ]
 
 /** Fabric tiles: 128px squares that repeat seamlessly, each spanning 32 pixels of the model. */
@@ -111,6 +119,13 @@ const band = (g: G, c: Paint, n: Record<string, Rect>, from: number, to: number)
     const [x, y, w] = n[s]
     fill(g, c, [x, y + from, w, to - from])
   }
+}
+/** Chain mail: rows of rings, every other row shifted by one. */
+const chain = (g: G, n: Record<string, Rect>): void => {
+  fillNet(g, '#8d939a', n)
+  g.fillStyle = '#5d636b'
+  for (const [x0, y0, w, h] of Object.values(n))
+    for (let y = y0; y < y0 + h; y++) for (let x = x0 + ((y - y0) % 2); x < x0 + w; x += 2) g.fillRect(x, y, 1, 1)
 }
 /** Darkens a net by `amount` (0…1), for the shadowed under-layer of a suit. */
 const shade = (g: G, n: Record<string, Rect>, amount: number): void => fillNet(g, `rgba(0, 0, 0, ${amount})`, n)
@@ -218,6 +233,115 @@ const SUITS: Record<OutfitId, SuitArt> = {
       fillNet(g, f.starrobe, BODY)
       fillNet(g, f.starrobe, LEG)
       shade(g, LEG, 0.2)
+    }
+  },
+  knight: {
+    helmet: true,
+    layer1: (g, f) => {
+      // Great helm: steel with a dark eye slit and breathing holes.
+      fillNet(g, '#b9bec4', HEAD)
+      band(g, '#8d939a', HEAD, 7, 8)
+      for (const s of SIDES) fill(g, '#9aa0a7', [HEAD[s][0], HEAD[s][1], HEAD[s][2], 1])
+      fill(g, '#1b1d20', [9, 11, 6, 1]) // eye slit
+      fill(g, '#d8dce0', [11, 12, 2, 4]) // nose guard
+      for (const x of [9, 10, 13, 14]) fill(g, '#2a2d31', [x, 14, 1, 1])
+      chain(g, BODY)
+      chain(g, ARM)
+      // Tabard front and back with a gold cross.
+      for (const [x, y] of [
+        [20, 20],
+        [32, 20]
+      ] as const) {
+        fill(g, '#1f4fa8', [x, y, 8, 12])
+        fill(g, '#f2c14e', [x + 3, y + 1, 2, 7])
+        fill(g, '#f2c14e', [x + 1, y + 3, 6, 2])
+      }
+      band(g, f.leather, BODY, 8, 9) // sword belt
+      band(g, '#b9bec4', ARM, 0, 3) // pauldrons
+      band(g, '#b9bec4', ARM, 9, 12) // gauntlets
+      band(g, '#b9bec4', LEG, 7, 12) // sabatons
+      fill(g, '#6b7078', LEG.bottom)
+    },
+    layer2: (g) => {
+      chain(g, BODY)
+      chain(g, LEG)
+      band(g, '#1f4fa8', BODY, 0, 4) // tabard skirt
+      band(g, '#b9bec4', LEG, 4, 6) // knee cops
+    }
+  },
+  pirate: {
+    helmet: false,
+    layer1: (g, f) => {
+      // Red captain's coat, open over a white shirt, with gold buttons.
+      fillNet(g, '#9b1b1f', BODY)
+      fill(g, '#efe6d2', [22, 20, 4, 12])
+      fill(g, '#d9cfb8', [23, 21, 2, 2]) // shirt ruffle
+      for (const y of [22, 25, 28]) {
+        fill(g, '#f2c14e', [21, y, 1, 1])
+        fill(g, '#f2c14e', [26, y, 1, 1])
+      }
+      band(g, f.leather, BODY, 8, 10) // wide belt
+      fill(g, '#f2c14e', [23, 28, 2, 2]) // buckle
+      fillNet(g, '#9b1b1f', ARM)
+      band(g, '#efe6d2', ARM, 10, 11) // shirt cuffs
+      band(g, '#f2c14e', ARM, 9, 10) // braid
+      band(g, f.leather, LEG, 5, 12) // tall boots
+      band(g, '#3b2a1c', LEG, 5, 6) // boot tops
+      fill(g, '#2a1d14', LEG.bottom)
+    },
+    layer2: (g, f) => {
+      fillNet(g, '#9b1b1f', BODY) // coat tails
+      fillNet(g, '#3c3a46', LEG) // breeches
+      shade(g, BODY, 0.25)
+      band(g, f.leather, BODY, 0, 1)
+    }
+  },
+  police: {
+    helmet: false,
+    layer1: (g) => {
+      fillNet(g, '#7fa6d6', BODY) // shirt
+      fill(g, '#1c2a4a', [23, 20, 2, 7]) // tie
+      fill(g, '#f2c14e', [21, 21, 1, 2]) // badge
+      fill(g, '#1c2a4a', [26, 21, 1, 1]) // pocket button
+      for (const s of SIDES) fill(g, '#2b4a7a', [BODY[s][0], BODY[s][1], BODY[s][2], 1]) // collar
+      band(g, '#151515', BODY, 9, 11) // duty belt
+      fill(g, '#c9c9c9', [23, 29, 2, 1]) // buckle
+      fill(g, '#2a2a2a', [20, 30, 2, 2]) // radio pouch
+      fillNet(g, '#7fa6d6', ARM)
+      band(g, '#2b4a7a', ARM, 0, 2) // shoulder patches
+      band(g, '#151515', LEG, 9, 12) // shoes
+      fill(g, '#0d0d0d', LEG.bottom)
+    },
+    layer2: (g) => {
+      fillNet(g, '#1c2a4a', BODY)
+      fillNet(g, '#1c2a4a', LEG)
+      band(g, '#151515', BODY, 0, 2)
+      for (const s of ['right', 'left'] as const) fill(g, '#2f4270', [LEG[s][0] + 1, LEG[s][1], 1, 12]) // stripe
+    }
+  },
+  ninja: {
+    helmet: true,
+    layer1: (g) => {
+      // Hood and mask: everything but a band across the eyes, where the skin shows through.
+      fillNet(g, '#17171c', HEAD)
+      g.clearRect(9, 11, 6, 3)
+      fill(g, '#24242b', [8, 10, 8, 1]) // brow fold
+      fill(g, '#24242b', [8, 14, 8, 1]) // mask edge
+      fill(g, '#b3202a', [24, 10, 8, 1]) // headband tails at the back
+      fill(g, '#b3202a', [27, 11, 1, 3])
+      fill(g, '#b3202a', [29, 11, 1, 2])
+      fillNet(g, '#17171c', BODY)
+      fill(g, '#24242b', [21, 20, 3, 5]) // wrap-over fold
+      band(g, '#b3202a', BODY, 8, 10) // sash
+      fillNet(g, '#17171c', ARM)
+      band(g, '#3a3a42', ARM, 8, 12) // arm wraps
+      band(g, '#24242b', LEG, 10, 12) // tabi
+    },
+    layer2: (g) => {
+      fillNet(g, '#17171c', BODY)
+      fillNet(g, '#17171c', LEG)
+      band(g, '#b3202a', BODY, 0, 1)
+      band(g, '#3a3a42', LEG, 6, 10) // shin wraps
     }
   }
 }
@@ -367,6 +491,52 @@ function buildStaff(): HeldProp {
   })
 }
 
+function buildSword(): HeldProp {
+  return rodProp(mat('#d6dbe0', 0.05), 22, (g, end) => {
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(7, 1.3, 1.6), mat('#f2c14e', 0.1))
+    guard.position.y = -end + 5
+    g.add(guard)
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4.6, 1.5), mat('#4a2f1b'))
+    grip.position.y = -end + 2.2
+    g.add(grip)
+    g.add(cube(mat('#f2c14e', 0.1), 2, -end - 0.4))
+  })
+}
+
+function buildCutlass(): HeldProp {
+  return rodProp(mat('#c9ced3', 0.05), 18, (g, end) => {
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(4.5, 2.6, 1.6), mat('#c79a2e', 0.1)) // basket hilt
+    guard.position.y = -end + 4.2
+    g.add(guard)
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.4, 1.5), mat('#2b1b10'))
+    grip.position.y = -end + 1.6
+    g.add(grip)
+  })
+}
+
+function buildKatana(): HeldProp {
+  return rodProp(mat('#dfe3e8', 0.08), 26, (g, end) => {
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(3, 0.8, 3), mat('#2a2a2a'))
+    guard.position.y = -end + 6.5
+    g.add(guard)
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(1.5, 6.2, 1.5), mat('#1a1a1f'))
+    grip.position.y = -end + 3.1
+    g.add(grip)
+    for (const y of [-end + 1.2, -end + 3.1, -end + 5]) {
+      const wrap = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.6, 1.7), mat('#b3202a'))
+      wrap.position.y = y
+      g.add(wrap)
+    }
+  })
+}
+
+/** A head piece made of flat boxes, given in pixels in the head's space (the head spans y 0…8, its face at +z). */
+function headPiece(pieces: [THREE.Material, Vec, Vec][]): THREE.Group {
+  const group = new THREE.Group()
+  for (const [m, a, b] of pieces) group.add(block(m, a, b))
+  return group
+}
+
 export interface BuiltOutfit {
   /** Suit layers and extras, each to be added to the named part. */
   parts: { part: PartName; object: THREE.Object3D }[]
@@ -424,6 +594,70 @@ export async function buildOutfit(id: OutfitId, slim: boolean): Promise<BuiltOut
       parts.push({ part: 'head', object: buildWizardHat(images) })
       body(clothBlock(images, 'starrobe', [-4.8, -16, -3.7], [4.8, 0.2, -3.1], '#a0a0a0'))
       held = buildStaff()
+      break
+    }
+    case 'knight': {
+      const red = mat('#c0262f')
+      parts.push({
+        part: 'head',
+        object: headPiece([
+          [mat('#8d939a'), [-1, 8.4, -1.5], [1, 9.6, 1.5]],
+          [red, [-0.8, 9.6, -2.5], [0.8, 12, 1.5]],
+          [red, [-0.7, 10, -4], [0.7, 11.6, -2.5]]
+        ])
+      })
+      // Blue cloak from the shoulders.
+      body(block(mat('#1a3f86'), [-4.6, -13, -3.8], [4.6, 0.2, -3.15]))
+      held = buildSword()
+      break
+    }
+    case 'pirate': {
+      const black = mat('#18161a')
+      const gold = mat('#d9a93a', 0.1)
+      parts.push({
+        part: 'head',
+        object: headPiece([
+          // Tricorn: a crown, a wide brim and three upturned sides, trimmed in gold.
+          [black, [-4.4, 8, -4.4], [4.4, 10.2, 4.4]],
+          [black, [-6, 8, -6], [6, 8.8, 6]],
+          [black, [-6, 8.8, -6], [-4.4, 11, 4]],
+          [black, [4.4, 8.8, -6], [6, 11, 4]],
+          [black, [-4.4, 8.8, -6], [4.4, 11, -4.4]],
+          [gold, [-6.05, 10.6, -6.05], [6.05, 11.05, 4.05]],
+          [mat('#e8e2d4'), [-1, 9, 4.4], [1, 10.4, 4.6]], // skull badge
+          // Eyepatch and its strap.
+          [black, [1, 3.4, 4.05], [3, 5.4, 4.3]],
+          [black, [-4.25, 5, -4.25], [4.25, 5.6, 4.25]]
+        ])
+      })
+      body(block(mat('#7a1418'), [-4.6, -15, -3.8], [4.6, -6, -3.1])) // coat skirt
+      held = buildCutlass()
+      break
+    }
+    case 'police': {
+      const navy = mat('#1c2a4a')
+      parts.push({
+        part: 'head',
+        object: headPiece([
+          [navy, [-4.5, 7.6, -4.5], [4.5, 9.4, 4.5]],
+          [navy, [-5, 9.4, -5], [5, 10.4, 5.3]], // crown
+          [mat('#121212'), [-4.6, 7.6, 4.4], [4.6, 7.9, 6.6]], // peak
+          [mat('#121212'), [-4.55, 7.9, -4.55], [4.55, 8.4, 4.55]], // band
+          [mat('#f2c14e', 0.2), [-0.8, 8.6, 4.5], [0.8, 10, 4.75]] // badge
+        ])
+      })
+      break
+    }
+    case 'ninja': {
+      // A second katana sheathed across the back.
+      const scabbard = new THREE.Group()
+      scabbard.add(block(mat('#141418'), [-0.8, -9, -0.6], [0.8, 9, 0.6]))
+      scabbard.add(block(mat('#b3202a'), [-0.9, 9, -0.7], [0.9, 10, 0.7]))
+      scabbard.add(block(mat('#1a1a1f'), [-0.7, 10, -0.5], [0.7, 14, 0.5]))
+      scabbard.position.set(0, -6 * PLAYER_PIXEL, -3.8 * PLAYER_PIXEL)
+      scabbard.rotation.z = Math.PI / 4
+      body(scabbard)
+      held = buildKatana()
       break
     }
   }

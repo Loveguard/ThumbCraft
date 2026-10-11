@@ -400,7 +400,7 @@ export function PlayersTab(): ReactNode {
       </div>
       <Hint label="About outfits">
         Custom suits made for ThumbCraft, worn instead of armour. Any player can wear one: select it and pick an outfit
-        under Equipment. The sceptre or staff goes in the main hand while it is empty.
+        under Equipment. The sword, staff or other prop goes in the main hand while it is empty.
       </Hint>
     </div>
   )
