@@ -300,3 +300,30 @@ export function buildTree(kind: TreeKind, seed: number): TerrainData {
     return [leaves, { persistent: 'true', distance: '1' }]
   })
 }
+
+/**
+ * A dungeon room like the game's: mossy cobblestone walls, floor and ceiling, a mob spawner at the back between
+ * two chests, cobwebs in the top corners and wall torches. Open on the +z side so the camera can look in.
+ */
+export function buildDungeon(width = 15, depth = 14, height = 7): TerrainData {
+  const c = Math.floor(width / 2)
+  const back = 1 // first air row inside the back wall
+  return blockBox(width, height, depth, (x, y, z) => {
+    const r = hash(x, y, z, 13)
+    const wall = x === 0 || x === width - 1 || z === 0 || y === 0 || y === height - 1
+    if (wall) {
+      if (y === 0) return r < 0.55 ? 'mossy_cobblestone' : 'cobblestone'
+      return r < 0.35 ? 'mossy_cobblestone' : r < 0.42 ? 'stone' : 'cobblestone'
+    }
+    if (z === back && x === c && y === 1) return 'spawner'
+    if (z === back && (x === c - 3 || x === c + 3) && y === 1) return ['chest', { facing: 'south' }]
+    // Torches on the side walls and the back wall, either side of the spawner.
+    if (y === 3 && x === 1 && (z === 3 || z === 8)) return ['wall_torch', { facing: 'east' }]
+    if (y === 3 && x === width - 2 && (z === 3 || z === 8)) return ['wall_torch', { facing: 'west' }]
+    if (y === 3 && z === back && (x === c - 5 || x === c + 5)) return ['wall_torch', { facing: 'south' }]
+    // Cobwebs tucked into the top corners and along the ceiling's edge.
+    const edge = x === 1 || x === width - 2 || z === back
+    if (y === height - 2 && edge && r < 0.3) return 'cobweb'
+    return null
+  })
+}

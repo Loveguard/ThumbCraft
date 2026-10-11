@@ -2,7 +2,7 @@
 // framed by a saved camera shot. Everything is a normal scene object afterwards, so users just edit the text
 // and swap in their own skin.
 import { buildTower, buildTrunk, type BackdropId } from '@shared/minecraft/backdrops'
-import { buildGlassPane, ruinBlocks, scrambleBlocks } from '@shared/minecraft/props'
+import { buildDungeon, buildGlassPane, ruinBlocks, scrambleBlocks } from '@shared/minecraft/props'
 import type { TerrainData } from '@shared/types'
 import { VFX_PRESETS, type VfxType } from './vfx'
 import * as THREE from 'three'
@@ -208,7 +208,7 @@ function turn(yaw: number, pitch = 0): Vec3 {
 /** Where a rider sits on a horse standing at `at`, turned and leaning like the horse. */
 function saddleOf(at: Vec3, yaw: number, pitch = 0): Vec3 {
   const d = THREE.MathUtils.degToRad
-  const seat = new THREE.Vector3(0, 0.8, -0.1).applyEuler(new THREE.Euler(d(pitch), d(yaw), 0, 'YXZ'))
+  const seat = new THREE.Vector3(0, 0.85, -0.1).applyEuler(new THREE.Euler(d(pitch), d(yaw), 0, 'YXZ'))
   return [at[0] + seat.x, at[1] + seat.y, at[2] + seat.z]
 }
 
@@ -227,21 +227,34 @@ const HORDE_HERO: Vec3 = [-0.42, 0, 2.2]
 export const TEMPLATES: Template[] = [
   {
     id: 'reaction',
-    name: 'Shocked find',
-    hint: 'Big two-line title on the left, you shocked on the right in a cave glittering with diamonds',
+    name: 'The Warden found me',
+    hint: 'Big two-line title on the left, you terrified on the right as the Warden looms out of the dark',
     backdrop: 'cave',
     sky: 'night',
     look: 'teal-orange',
     effects: { bloom: true, bloomIntensity: 0.7, bloomThreshold: 0.7, vignette: true, vignetteDarkness: 0.6 },
-    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.3, fog: true },
-    players: [{ name: 'Steve', pose: 'Pointing', tweak: { head: [-5, 0, 0] }, at: [1.05, 0, 1.6], yaw: -60 }],
-    vfx: [
-      { effect: 'shine', at: [2.2, 1.2, -1.5], color: '#8ff0ff', density: 0.4, scale: 1.1 },
-      { effect: 'embers', at: [0.5, -0.5, -2], color: '#7df9ff', density: 0.4, scale: 0.8 }
+    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.25, fog: true },
+    players: [
+      {
+        name: 'Steve',
+        pose: 'Shocked',
+        tweak: { head: [-10, 0, 0], rightArm: [-35, 0, -65], leftArm: [-35, 0, 65] },
+        at: [1.15, 0, 1.9],
+        yaw: -25
+      }
     ],
+    mobs: [
+      {
+        mob: 'warden',
+        at: [1.45, 0, -3.0],
+        yaw: -20,
+        parts: { right_arm: [-70, 0, 0], left_arm: [-55, 0, 0], head: [10, 0, 0] }
+      }
+    ],
+    vfx: [{ effect: 'embers', at: [1.2, -0.5, -1.5], color: '#29dfeb', density: 0.4, scale: 0.9 }],
     texts: [
       {
-        text: 'I FOUND',
+        text: 'THE WARDEN',
         color: '#ffffff',
         style: 'Bold white',
         screen: [-0.36, 0.36],
@@ -249,7 +262,7 @@ export const TEMPLATES: Template[] = [
         look: { font: '"Anton", Impact, sans-serif', outlineWidth: 10, outline2Width: 0 }
       },
       {
-        text: 'DIAMONDS',
+        text: 'FOUND ME',
         color: '#b8fff4',
         style: 'Diamond',
         screen: [-0.36, -0.1],
@@ -258,16 +271,20 @@ export const TEMPLATES: Template[] = [
       }
     ],
     lights: [
-      { at: [0.2, 2.2, 4.4], aim: [1.05, 1.6, 1.6], color: '#ffc27a', intensity: 160, range: 8 },
-      { at: [2.6, 2.2, -0.5], color: '#5fe8ff', intensity: 90, range: 6 },
-      { at: [-2.5, 1.6, -3.5], color: '#5fe8ff', intensity: 120, range: 9 }
+      { at: [0.4, 2.5, 4.4], aim: [1.15, 1.6, 1.9], color: '#ffc27a', intensity: 260, range: 8 },
+      { at: [0.9, 1.9, 3.3], color: '#ffd8b0', intensity: 8, range: 2.5 },
+      { at: [1.3, 2.8, -1.7], color: '#5fe8ff', intensity: 35, range: 2.5 },
+      // Sculk glow on the Warden, from in front and from behind.
+      { at: [0.6, 2.6, 0.2], aim: [1.45, 2.6, -3.0], color: '#29dfeb', intensity: 240, range: 6 },
+      { at: [2, 3.4, -5.4], color: '#1fb5c9', intensity: 120, range: 6 },
+      { at: [-2.5, 1.6, -3.5], color: '#1d7f9a', intensity: 80, range: 9 }
     ],
     camera: { position: [0, 1.45, 4.6], target: [0, 1.4, 0] },
     fov: 40
   },
   {
     id: 'survival',
-    name: 'Survival with my horse',
+    name: 'Horseback survival',
     hint: 'Big two-line title on the left, you on a rearing horse bursting out of the dark on the right',
     backdrop: 'forest',
     sky: 'night',
@@ -278,10 +295,11 @@ export const TEMPLATES: Template[] = [
       {
         name: 'Steve',
         pose: 'Sitting',
-        tweak: { head: [0, -20, 0], leftArm: [-165, 0, -15] },
-        at: saddleOf(SURVIVAL_HORSE, -55, -30),
-        yaw: -55,
-        pitch: -30,
+        tweak: { head: [0, 30, 0], rightArm: [-160, 0, 15] },
+        at: saddleOf(SURVIVAL_HORSE, -75, -30),
+        yaw: -75,
+        // Leaning into the rear, less tilted than the horse.
+        pitch: -15,
         equipment: { head: 'diamond' }
       }
     ],
@@ -289,7 +307,7 @@ export const TEMPLATES: Template[] = [
       {
         mob: 'horse',
         at: SURVIVAL_HORSE,
-        yaw: -55,
+        yaw: -75,
         pitch: -30,
         texture: 'entity/horse/horse_creamy',
         parts: { right_front_leg: [-50, 0, 0], left_front_leg: [-75, 0, 0], head_parts: [-15, 0, 0] }
@@ -311,13 +329,6 @@ export const TEMPLATES: Template[] = [
         screen: [-0.33, -0.1],
         height: 0.42,
         look: { font: '"Anton", Impact, sans-serif' }
-      },
-      {
-        text: 'WITH MY HORSE',
-        color: '#ffffff',
-        screen: [-0.34, -0.46],
-        height: 0.12,
-        look: { font: '"Anton", Impact, sans-serif', outlineColor: '#e0161b', outlineWidth: 34, shadow: true }
       }
     ],
     lights: [
@@ -332,8 +343,8 @@ export const TEMPLATES: Template[] = [
   {
     id: 'versus',
     name: 'Versus showdown',
-    hint: 'Two armoured fighters face off at the edges of the frame, weapons crossing, title across the top',
-    backdrop: 'cave',
+    hint: 'Two armoured fighters face off in a mossy dungeon, weapons crossing, a big VS between them',
+    backdrop: null,
     sky: 'night',
     look: 'teal-orange',
     effects: { bloom: true, bloomIntensity: 0.7, bloomThreshold: 0.7, vignette: true, vignetteDarkness: 0.45 },
@@ -356,13 +367,27 @@ export const TEMPLATES: Template[] = [
         equipment: { head: 'diamond', chest: 'diamond', legs: 'diamond', feet: 'diamond', mainHand: 'bow' }
       }
     ],
-    texts: [{ text: 'BATTLE', color: YELLOW, style: 'Gold', screen: [0, 0.68], height: 0.3 }],
+    props: [{ name: 'Dungeon', build: () => buildDungeon(), at: [0, -1, 0] }],
+    texts: [
+      {
+        text: 'VS',
+        color: '#ffffff',
+        style: 'Bold white',
+        screen: [0, 0.48],
+        height: 0.5,
+        look: { outlineColor: '#141414', outline2Color: '#000000' }
+      }
+    ],
     lights: [
       { at: [-0.4, 2.4, 3.4], aim: [-1.1, 1.6, 0.3], color: '#ffe0a8', intensity: 70, range: 9 },
       { at: [0.4, 2.4, 3.4], aim: [1.1, 1.6, 0.3], color: '#c8f6ff', intensity: 70, range: 9 },
-      { at: [-3, 2.2, -5], color: '#ff9a3c', intensity: 45, range: 8 },
-      { at: [3, 2.2, -5], color: '#ff9a3c', intensity: 45, range: 8 },
-      { at: [0, 1.2, -7], color: '#ff6a2a', intensity: 25, range: 7 }
+      // The dungeon's wall torches.
+      { at: [-6, 2.6, -3.5], color: '#ff9a3c', intensity: 18, range: 7 },
+      { at: [6, 2.6, -3.5], color: '#ff9a3c', intensity: 18, range: 7 },
+      { at: [-5, 2.6, -5], color: '#ff9a3c', intensity: 18, range: 6 },
+      { at: [5, 2.6, -5], color: '#ff9a3c', intensity: 18, range: 6 },
+      // Spawner glow at the back.
+      { at: [0, 0.8, -4.8], color: '#ff6a2a', intensity: 18, range: 4 }
     ],
     camera: { position: [0, 1.6, 3.15], target: [0, 1.6, -1] },
     fov: 40
@@ -511,7 +536,7 @@ export const TEMPLATES: Template[] = [
   {
     id: 'poster',
     name: 'Poster title',
-    hint: 'A crowned giant looms over three players running at you, the title split either side of its head',
+    hint: 'A crowned giant looms over three players running at you, with open sky either side of its head for your own title',
     backdrop: 'nether',
     sky: 'color',
     skyColor: '#a3101a',
@@ -552,24 +577,7 @@ export const TEMPLATES: Template[] = [
       { name: 'Alex', pose: 'Sprinting', at: [0, 0, 0.6], yaw: 0 },
       { name: 'Steve', pose: 'Running', at: [1.05, 0, 0.2], yaw: -12, equipment: { mainHand: 'diamond_sword' } }
     ],
-    texts: [
-      {
-        text: 'FANS',
-        color: '#ffffff',
-        style: 'Bold white',
-        screen: [-0.6, 0.54],
-        height: 0.3,
-        look: { font: '"Bungee", sans-serif', outline2Color: '#7a0008' }
-      },
-      {
-        text: 'SMP',
-        color: '#ffffff',
-        style: 'Bold white',
-        screen: [0.6, 0.54],
-        height: 0.3,
-        look: { font: '"Bungee", sans-serif', outline2Color: '#7a0008' }
-      }
-    ],
+    texts: [],
     lights: [
       { at: [0, 3, 5.5], aim: [0, 1, 0.3], color: '#ffffff', intensity: 40, range: 10 },
       { at: [0, 6, -14], color: '#ff2a2a', intensity: 400, range: 24 },
