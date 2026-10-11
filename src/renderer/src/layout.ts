@@ -10,6 +10,11 @@ interface LayoutState {
   toggleAssetTab: (id: string) => void
   openAssetTab: (id: string) => void
   toggleFocus: () => void
+  /** Layer groups shown open in the Layers list; every other group sits folded into its one row. */
+  openGroups: string[]
+  /** Clicking a group's row: folded opens like a dropdown, open folds back up. */
+  toggleGroup: (groupId: string) => void
+  openGroup: (groupId: string) => void
 }
 
 export const useLayout = create<LayoutState>((set) => ({
@@ -17,5 +22,13 @@ export const useLayout = create<LayoutState>((set) => ({
   focus: false,
   toggleAssetTab: (id) => set((s) => ({ assetTab: s.assetTab === id && !s.focus ? null : id, focus: false })),
   openAssetTab: (id) => set({ assetTab: id, focus: false }),
-  toggleFocus: () => set((s) => ({ focus: !s.focus }))
+  toggleFocus: () => set((s) => ({ focus: !s.focus })),
+  openGroups: [],
+  toggleGroup: (groupId) =>
+    set((s) => ({
+      openGroups: s.openGroups.includes(groupId)
+        ? s.openGroups.filter((g) => g !== groupId)
+        : [...s.openGroups, groupId]
+    })),
+  openGroup: (groupId) => set((s) => (s.openGroups.includes(groupId) ? s : { openGroups: [...s.openGroups, groupId] }))
 }))

@@ -4,6 +4,7 @@ import {
   Box,
   BringToFront,
   ChevronDown,
+  ChevronRight,
   Eye,
   EyeOff,
   Image as ImageIcon,
@@ -21,6 +22,7 @@ import {
   MoveUpRight,
   Copy,
   Folder,
+  FolderOpen,
   Group as GroupIcon,
   Ungroup,
   type LucideIcon
@@ -47,6 +49,7 @@ import { TextProperties } from './TextProperties'
 import { BACKDROPS } from '@shared/minecraft/backdrops'
 import { applyReadyMadeBiome } from '../sceneActions'
 import { CutoutControls } from './CutoutControls'
+import { useLayout } from '../layout'
 import { viewport } from './Viewport'
 import { defaultSkinUrl } from '../minecraft/builders'
 import { RENDER_MODES } from '../renderModes'
@@ -153,7 +156,11 @@ export function pushAlongView(amount: number): void {
 function Layers(): ReactNode {
   const objects = useStore((s) => s.objects)
   const selected = useStore(useShallow((s) => selection(s)))
-  const { selectOnly, select, toggleSelect, setSelection, update, remove, updateMany } = useStore.getState()
+  const selectedId = useStore((s) => s.selectedId)
+  const openGroups = useLayout((s) => s.openGroups)
+  const { selectOnly, select, toggleSelect, setSelection, update, remove, updateMany, removeSelected } =
+    useStore.getState()
+  const { toggleGroup, openGroup } = useLayout.getState()
   const rows = [...objects].reverse()
   // Layers sharing a name get numbered ("Zombie", "Zombie 2") so they can be told apart.
   const labels = new Map<string, string>()
@@ -163,6 +170,11 @@ function Layers(): ReactNode {
     seen.set(o.name, n)
     labels.set(o.id, n > 1 ? `${o.name} ${n}` : o.name)
   }
+  // Picking one member on its own (Alt+click in the viewport) unfolds its group so the row can be seen.
+  const loneGroup = selected.length === 1 ? objects.find((o) => o.id === selectedId)?.groupId : undefined
+  useEffect(() => {
+    if (loneGroup) openGroup(loneGroup)
+  }, [loneGroup, openGroup])
   // Click: that layer alone. Ctrl+click: add or remove it. Shift+click: everything from the last pick to here.
   const pick = (e: MouseEvent, id: string): void => {
     if (e.ctrlKey || e.metaKey) return toggleSelect(id)
@@ -191,21 +203,39 @@ function Layers(): ReactNode {
       >
         {rows.map((o, i) => {
           const Icon = KIND_ICON[o.kind]
-          // A group's members sit together; a folder row heads each run of them.
+          // A group's members sit together under one folder row. Folded, the row stands in for all of them;
+          // clicking it selects the group and opens it like a dropdown, clicking again folds it back.
           const head = !!o.groupId && rows[i - 1]?.groupId !== o.groupId
+          const open = !!o.groupId && openGroups.includes(o.groupId)
           const members = head ? objects.filter((x) => x.groupId === o.groupId) : []
           const groupSelected = head && members.every((m) => selected.includes(m.id))
           const groupVisible = members.some((m) => m.visible)
+          // Folded groups name what they hold, top layer first, so two groups can be told apart.
+          const contents = members
+            .slice()
+            .reverse()
+            .map((m) => labels.get(m.id))
+            .join(', ')
+          const FolderIcon = open ? FolderOpen : Folder
+          const Chevron = open ? ChevronDown : ChevronRight
           return (
             <Fragment key={o.id}>
               {head && (
                 <li
-                  className={`group-row ${groupSelected ? 'active' : ''} ${groupVisible ? '' : 'hidden'}`}
-                  title="Click to select the whole group; Ctrl+Shift+G ungroups"
-                  onClick={(e) => (e.ctrlKey || e.metaKey ? toggleSelect(o.id) : select(o.id))}
+                  className={`group-row ${open ? 'open' : ''} ${groupSelected ? 'active' : ''} ${groupVisible ? '' : 'hidden'}`}
+                  title={`Click to select the group and ${open ? 'fold it' : 'show what is inside'}; Ctrl+Shift+G ungroups`}
+                  onClick={(e) => {
+                    if (e.ctrlKey || e.metaKey) return toggleSelect(o.id)
+                    select(o.id)
+                    toggleGroup(o.groupId!)
+                  }}
                 >
-                  <Folder size={15} className="kind" />
-                  <span className="name">Group · {members.length}</span>
+                  <Chevron size={13} className="group-chev" />
+                  <FolderIcon size={15} className="kind" />
+                  <span className="name">
+                    Group <span className="count">{members.length}</span>
+                    {!open && <span className="contents">{contents}</span>}
+                  </span>
                   <button
                     className="icon-btn sm"
                     title={groupVisible ? 'Hide group' : 'Show group'}
@@ -216,37 +246,50 @@ function Layers(): ReactNode {
                   >
                     {groupVisible ? <Eye size={15} /> : <EyeOff size={15} />}
                   </button>
+                  <button
+                    className="icon-btn sm danger"
+                    title="Delete group"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      select(o.id)
+                      removeSelected()
+                    }}
+                  >
+                    <Trash2 size={15} />
+                  </button>
                 </li>
               )}
-              <li
-                className={`${o.groupId ? 'in-group' : ''} ${selected.includes(o.id) ? 'active' : ''} ${o.visible ? '' : 'hidden'}`}
-                data-kind={o.kind}
-                style={{ '--kind': KIND_COLOR[o.kind] } as CSSProperties}
-                onClick={(e) => pick(e, o.id)}
-              >
-                <Icon size={15} className="kind" />
-                <span className="name">{labels.get(o.id)}</span>
-                <button
-                  className="icon-btn sm"
-                  title={o.visible ? 'Hide' : 'Show'}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    update(o.id, { visible: !o.visible })
-                  }}
+              {(!o.groupId || open) && (
+                <li
+                  className={`${o.groupId ? 'in-group' : ''} ${selected.includes(o.id) ? 'active' : ''} ${o.visible ? '' : 'hidden'}`}
+                  data-kind={o.kind}
+                  style={{ '--kind': KIND_COLOR[o.kind] } as CSSProperties}
+                  onClick={(e) => pick(e, o.id)}
                 >
-                  {o.visible ? <Eye size={15} /> : <EyeOff size={15} />}
-                </button>
-                <button
-                  className="icon-btn sm danger"
-                  title="Delete (Del)"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    remove(o.id)
-                  }}
-                >
-                  <Trash2 size={15} />
-                </button>
-              </li>
+                  <Icon size={15} className="kind" />
+                  <span className="name">{labels.get(o.id)}</span>
+                  <button
+                    className="icon-btn sm"
+                    title={o.visible ? 'Hide' : 'Show'}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      update(o.id, { visible: !o.visible })
+                    }}
+                  >
+                    {o.visible ? <Eye size={15} /> : <EyeOff size={15} />}
+                  </button>
+                  <button
+                    className="icon-btn sm danger"
+                    title="Delete (Del)"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      remove(o.id)
+                    }}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </li>
+              )}
             </Fragment>
           )
         })}
