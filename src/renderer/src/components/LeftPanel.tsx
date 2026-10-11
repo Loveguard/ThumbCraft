@@ -31,8 +31,8 @@ interface TabDef {
 }
 
 /**
- * One rail icon per kind of thing you can add; each opens a single asset panel (Canva/Figma pattern). The icons
- * carry no captions: the name and what it adds show on hover, and clicking the open one folds the panel away.
+ * One rail icon per kind of thing you can add; each opens a single asset panel (Canva/Figma pattern). A short
+ * caption sits under each icon, what it adds shows on hover, and clicking the open one folds the panel away.
  */
 const TABS: TabDef[] = [
   {
@@ -130,12 +130,11 @@ export function LeftPanel(): ReactNode {
             key={t.id}
             className={`rail-item ${t.id === current?.id ? 'active' : ''}`}
             onClick={() => toggle(t.id)}
-            aria-label={t.label}
             aria-pressed={t.id === current?.id}
-            data-tip={t.title}
-            data-tip-sub={t.subtitle}
+            data-tip={t.subtitle}
           >
             <t.icon size={20} strokeWidth={1.7} />
+            <span>{t.label}</span>
           </button>
         ))}
       </nav>

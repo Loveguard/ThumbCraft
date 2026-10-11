@@ -134,7 +134,7 @@ ThumbCraft is light. If your PC can run Minecraft, it can run ThumbCraft, and mo
 
 ## How to use it
 
-The icons on the left open one panel at a time (hover one for its name; click it again to fold the panel away),
+The labelled icons on the left open one panel at a time (click the open one again to fold the panel away),
 and the panel on the right edits whatever you've selected. Every editing tool (move, rotate, scale, undo, camera
 angles, saved view, frame all, grid, snap, rulers) sits in the dock under the canvas. **Hide panels** (the last dock
 button, or **\\**) clears both side panels away so the thumbnail fills the window.
@@ -176,7 +176,7 @@ button, or **\\**) clears both side panels away so the thumbnail fills the windo
 | **Ctrl+A**                    | Select everything except the ground       |
 | **Ctrl+G / Ctrl+Shift+G**     | Group / ungroup the selection             |
 | **Shift+R**                   | Rulers and centre guides                  |
-| **\\**                         | Hide / show the side panels               |
+| **\\**                        | Hide / show the side panels               |
 | **Ctrl+Z / Ctrl+Y**           | Undo / redo (camera moves included)       |
 | **Ctrl+D**                    | Duplicate the selection                   |
 | **Delete**                    | Remove the selection                      |
