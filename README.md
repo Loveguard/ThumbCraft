@@ -29,13 +29,13 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 
 <table>
   <tr>
-    <td><img src="docs/images/scene-0.jpg" alt="Shocked find: a player in a torch-lit cave staring at diamonds"></td>
-    <td><img src="docs/images/scene-1.jpg" alt="100 days stranded: a player on a desert island"></td>
-    <td><img src="docs/images/scene-2.jpg" alt="Versus showdown: a low-angle shot of two players"></td>
+    <td><img src="docs/images/scene-0.jpg" alt="Shocked find: a big two-line title beside a player pointing at it in a diamond cave"></td>
+    <td><img src="docs/images/scene-1.jpg" alt="Survival with my horse: a big two-line title beside a player on a rearing horse"></td>
+    <td><img src="docs/images/scene-2.jpg" alt="Versus showdown: two armoured players face off under a BATTLE title"></td>
   </tr>
   <tr>
     <td align="center"><sub>Shocked find</sub></td>
-    <td align="center"><sub>100 days stranded</sub></td>
+    <td align="center"><sub>Survival with my horse</sub></td>
     <td align="center"><sub>Versus showdown</sub></td>
   </tr>
 </table>

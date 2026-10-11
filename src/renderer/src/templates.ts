@@ -7,7 +7,7 @@ import type { TerrainData } from '@shared/types'
 import { VFX_PRESETS, type VfxType } from './vfx'
 import * as THREE from 'three'
 import { textureCandidates, type MobModels } from '@shared/minecraft/entityModels'
-import { POSES } from '@shared/minecraft/playerModel'
+import { POSES, type Pose } from '@shared/minecraft/playerModel'
 import { lookSettings, type LookId } from './grading'
 import { assetUrl } from './minecraft/assets'
 import { defaultSkinUrl } from './minecraft/builders'
@@ -31,6 +31,7 @@ import {
   type Equipment,
   type SceneSettings,
   type SkyPreset,
+  type TextObject,
   type Vec3
 } from './store'
 import { FONTS, TEXT_STYLES } from './textStyles'
@@ -45,9 +46,13 @@ interface PlayerSpec {
   skin?: string
   slim?: boolean
   pose: keyof typeof POSES
+  /** Joint changes on top of the pose (degrees), e.g. a head turned toward the camera. */
+  tweak?: Partial<Pose>
   at: Vec3
   /** Turn in degrees (0 faces the camera). */
   yaw: number
+  /** Lean forward (+) or back (−) in degrees, e.g. riding a rearing horse. */
+  pitch?: number
   equipment?: Partial<Equipment>
   scale?: number
   /** Fetch this Minecraft account's skin once the scene is up (keeps the default skin if it fails). */
@@ -84,6 +89,8 @@ interface MobSpec {
   mob: string
   at: Vec3
   yaw: number
+  /** Lean forward (+) or back (−) in degrees, e.g. a horse rearing up. */
+  pitch?: number
   /** Preferred texture (e.g. the angry wolf); otherwise the model's best match. */
   texture?: string
   /** Extra rotation per model part, e.g. zombie arms held out in front. */
@@ -113,6 +120,13 @@ interface TextSpec {
   style?: string
   /** Placed in the scene far behind the players (they stand in front of it) instead of drawn on top. */
   behind?: boolean
+  /** Overrides on top of the style (font, outline…). */
+  look?: Partial<
+    Pick<
+      TextObject,
+      'font' | 'outlineColor' | 'outlineWidth' | 'outline2Color' | 'outline2Width' | 'shadow' | 'glow' | 'gradient'
+    >
+  >
 }
 
 export interface Template {
@@ -177,12 +191,26 @@ function glassesOn(at: Vec3, yaw: number, scale = 1): { at: Vec3; rotation: Vec3
 }
 
 const YELLOW = '#ffe14d'
-const RED = '#ff3b3b'
 const DAY: Partial<SceneSettings> = { renderMode: 'cinematic', sunStrength: 1, ambientStrength: 1 }
 /** Title text floats this far in front of the camera (it is drawn on top, so depth only sets its size). */
 const TEXT_DEPTH = 2
 /** How far behind the camera a backdrop title sits (well behind the players, so they stand in front of it). */
 const BEHIND_DEPTH = 14
+
+/** Rotation (degrees) for something turned by `yaw` and then leaning forward by `pitch` about its own sides. */
+function turn(yaw: number, pitch = 0): Vec3 {
+  const d = THREE.MathUtils.degToRad
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(d(pitch), d(yaw), 0, 'YXZ'))
+  const e = new THREE.Euler().setFromQuaternion(q, 'XYZ')
+  return [e.x, e.y, e.z].map((r) => Math.round(THREE.MathUtils.radToDeg(r) * 10) / 10) as Vec3
+}
+
+/** Where a rider sits on a horse standing at `at`, turned and leaning like the horse. */
+function saddleOf(at: Vec3, yaw: number, pitch = 0): Vec3 {
+  const d = THREE.MathUtils.degToRad
+  const seat = new THREE.Vector3(0, 0.8, -0.1).applyEuler(new THREE.Euler(d(pitch), d(yaw), 0, 'YXZ'))
+  return [at[0] + seat.x, at[1] + seat.y, at[2] + seat.z]
+}
 
 /** Yaw (degrees) that turns something at `from` to face `to`. */
 const toward = (from: Vec3, to: Vec3): number =>
@@ -191,215 +219,363 @@ const toward = (from: Vec3, to: Vec3): number =>
 /** Zombies and skeletons hold their arms out in front, like in game. */
 const ARMS_OUT: Record<string, Vec3> = { right_arm: [-90, 0, 0], left_arm: [-85, 0, 0] }
 
-/** Shallow depth of field focused on a point of the frame (x right, y down). */
-const focusOn = (x: number, y: number, blur = 3): Partial<EffectSettings> => ({
-  depthOfField: true,
-  dofBlur: blur,
-  dofRange: 0.35,
-  focusPoints: [{ x, y }]
-})
-/** Diamond armour, helmet left off so the face shows. */
-const DIAMOND_KIT: Partial<Equipment> = { chest: 'diamond', legs: 'diamond', feet: 'diamond' }
+/** Where the horse rears in the survival shot. */
+const SURVIVAL_HORSE: Vec3 = [1.15, 0.3, 0.3]
 /** Where you stand in the horde shot; the mobs turn toward it. */
-const HORDE_HERO: Vec3 = [-0.5, 0, 3.2]
+const HORDE_HERO: Vec3 = [-0.42, 0, 2.2]
 
 export const TEMPLATES: Template[] = [
   {
     id: 'reaction',
     name: 'Shocked find',
-    hint: 'Close on you pointing back at a glowing diamond vein, title in the open cave',
+    hint: 'Big two-line title on the left, you shocked on the right in a cave glittering with diamonds',
     backdrop: 'cave',
     sky: 'night',
     look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 1.3, bloomThreshold: 0.5, vignette: true, vignetteDarkness: 0.6 },
-    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.25, fog: true },
-    players: [{ name: 'Steve', pose: 'Pointing', at: [-0.75, 0, 1.4], yaw: 55 }],
+    effects: { bloom: true, bloomIntensity: 0.7, bloomThreshold: 0.7, vignette: true, vignetteDarkness: 0.6 },
+    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.3, fog: true },
+    players: [{ name: 'Steve', pose: 'Pointing', tweak: { head: [-5, 0, 0] }, at: [1.05, 0, 1.6], yaw: -60 }],
     vfx: [
-      { effect: 'shine', at: [0.9, 0, -4.5], color: '#8ff0ff', density: 0.6, scale: 1.8 },
-      { effect: 'embers', at: [0.9, -0.5, -4.5], color: '#7df9ff', density: 0.4, scale: 0.8 }
+      { effect: 'shine', at: [2.2, 1.2, -1.5], color: '#8ff0ff', density: 0.4, scale: 1.1 },
+      { effect: 'embers', at: [0.5, -0.5, -2], color: '#7df9ff', density: 0.4, scale: 0.8 }
     ],
-    texts: [{ text: 'I FOUND IT...', color: '#ffffff', style: 'Bold white', screen: [0.42, 0.3], height: 0.24 }],
+    texts: [
+      {
+        text: 'I FOUND',
+        color: '#ffffff',
+        style: 'Bold white',
+        screen: [-0.36, 0.36],
+        height: 0.3,
+        look: { font: '"Anton", Impact, sans-serif', outlineWidth: 10, outline2Width: 0 }
+      },
+      {
+        text: 'DIAMONDS',
+        color: '#b8fff4',
+        style: 'Diamond',
+        screen: [-0.36, -0.1],
+        height: 0.42,
+        look: { font: '"Anton", Impact, sans-serif' }
+      }
+    ],
     lights: [
-      { at: [0.9, 1.2, -4], color: '#5fe8ff', intensity: 160, range: 14 },
-      { at: [0.6, 2.2, 3.6], aim: [-0.75, 1.5, 1.4], color: '#ffc27a', intensity: 70, range: 7 },
-      { at: [-1.5, 2.2, 0], color: '#5fe8ff', intensity: 30, range: 4 }
+      { at: [0.2, 2.2, 4.4], aim: [1.05, 1.6, 1.6], color: '#ffc27a', intensity: 160, range: 8 },
+      { at: [2.6, 2.2, -0.5], color: '#5fe8ff', intensity: 90, range: 6 },
+      { at: [-2.5, 1.6, -3.5], color: '#5fe8ff', intensity: 120, range: 9 }
     ],
-    camera: { position: [0.4, 1.8, 4.0], target: [-0.1, 1.35, -1] },
-    fov: 42
+    camera: { position: [0, 1.45, 4.6], target: [0, 1.4, 0] },
+    fov: 40
   },
   {
     id: 'survival',
-    name: '100 days stranded',
-    hint: 'Worm’s-eye victory into the setting sun, title across the top',
-    backdrop: 'island',
-    sky: 'clear',
-    look: 'golden',
-    effects: {
-      bloom: true,
-      bloomIntensity: 0.6,
-      bloomThreshold: 0.75,
-      godRays: true,
-      godRaysIntensity: 0.35,
-      vignette: true
-    },
-    settings: { ...DAY, sunAzimuth: 180, sunElevation: 30 },
+    name: 'Survival with my horse',
+    hint: 'Big two-line title on the left, you on a rearing horse bursting out of the dark on the right',
+    backdrop: 'forest',
+    sky: 'night',
+    look: 'pop',
+    effects: { bloom: true, bloomIntensity: 0.7, bloomThreshold: 0.65, vignette: true, vignetteDarkness: 0.65 },
+    settings: { renderMode: 'cinematic', sunStrength: 0.15, ambientStrength: 0.55, fog: true },
     players: [
       {
         name: 'Steve',
-        pose: 'Victory',
-        at: [0, 0, 0.8],
-        yaw: 0,
-        equipment: { ...DIAMOND_KIT, mainHand: 'diamond_sword' }
+        pose: 'Sitting',
+        tweak: { head: [0, -20, 0], leftArm: [-165, 0, -15] },
+        at: saddleOf(SURVIVAL_HORSE, -55, -30),
+        yaw: -55,
+        pitch: -30,
+        equipment: { head: 'diamond' }
       }
     ],
-    texts: [{ text: '100 DAYS', color: YELLOW, style: 'Gold', screen: [0, 0.68], height: 0.26 }],
-    camera: { position: [0.15, 0.35, 2.9], target: [0, 1.6, 0.8] },
-    fov: 50
+    mobs: [
+      {
+        mob: 'horse',
+        at: SURVIVAL_HORSE,
+        yaw: -55,
+        pitch: -30,
+        texture: 'entity/horse/horse_creamy',
+        parts: { right_front_leg: [-50, 0, 0], left_front_leg: [-75, 0, 0], head_parts: [-15, 0, 0] }
+      }
+    ],
+    texts: [
+      {
+        text: 'MINECRAFT',
+        color: '#ffffff',
+        style: 'Bold white',
+        screen: [-0.31, 0.36],
+        height: 0.33,
+        look: { font: '"Anton", Impact, sans-serif', outlineColor: '#000000', outlineWidth: 10, outline2Width: 0 }
+      },
+      {
+        text: 'SURVIVAL',
+        color: YELLOW,
+        style: 'Gold',
+        screen: [-0.33, -0.1],
+        height: 0.42,
+        look: { font: '"Anton", Impact, sans-serif' }
+      },
+      {
+        text: 'WITH MY HORSE',
+        color: '#ffffff',
+        screen: [-0.34, -0.46],
+        height: 0.12,
+        look: { font: '"Anton", Impact, sans-serif', outlineColor: '#e0161b', outlineWidth: 34, shadow: true }
+      }
+    ],
+    lights: [
+      { at: [-0.2, 2.2, 3.4], aim: [1.2, 1.4, 0.3], color: '#ffe2b8', intensity: 220, range: 9 },
+      { at: [0.6, 1.6, 2.6], color: '#ffd29a', intensity: 70, range: 5 },
+      { at: [2.6, 2.6, -0.8], color: '#3dff6a', intensity: 90, range: 4 },
+      { at: [-1.5, 3, -4], color: '#2fbf4a', intensity: 50, range: 6 }
+    ],
+    camera: { position: [0, 1.4, 5.0], target: [0, 1.4, 0] },
+    fov: 40
   },
   {
     id: 'versus',
     name: 'Versus showdown',
-    hint: 'Two fighters close at the edges of the frame, VS between them',
-    backdrop: 'meadow',
-    sky: 'sunset',
+    hint: 'Two armoured fighters face off at the edges of the frame, weapons crossing, title across the top',
+    backdrop: 'cave',
+    sky: 'night',
     look: 'teal-orange',
-    effects: { bloom: false, vignette: true, ...focusOn(0.2, 0.35, 2.5) },
-    settings: { ...DAY, sunAzimuth: 0, sunElevation: 10 },
+    effects: { bloom: true, bloomIntensity: 0.7, bloomThreshold: 0.7, vignette: true, vignetteDarkness: 0.45 },
+    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.6, fog: true },
     players: [
       {
         name: 'Steve',
-        pose: 'Sword swing',
-        at: [-0.95, 0, 0.6],
+        pose: 'Lunge',
+        tweak: { head: [0, -10, 0], rightArm: [-60, 40, 0], rightForearm: [-20, 0, 0] },
+        at: [-1.12, 0, 0.3],
         yaw: 60,
-        equipment: { chest: 'diamond', mainHand: 'diamond_sword' }
+        equipment: { head: 'gold', chest: 'gold', legs: 'gold', feet: 'gold', mainHand: 'diamond_sword' }
       },
       {
         name: 'Alex',
         pose: 'Bow aim',
-        at: [0.95, 0, 0.6],
+        tweak: { head: [0, 10, 0] },
+        at: [1.12, 0, 0.3],
         yaw: -60,
-        equipment: { chest: 'netherite', legs: 'netherite', mainHand: 'bow' }
+        equipment: { head: 'diamond', chest: 'diamond', legs: 'diamond', feet: 'diamond', mainHand: 'bow' }
       }
     ],
-    texts: [{ text: 'VS', color: RED, style: 'Fire', screen: [0, 0.3], height: 0.4 }],
+    texts: [{ text: 'BATTLE', color: YELLOW, style: 'Gold', screen: [0, 0.68], height: 0.3 }],
     lights: [
-      { at: [-2.5, 2.5, 2.5], color: '#4fb8ff', intensity: 60, range: 8 },
-      { at: [2.5, 2.5, 2.5], color: '#ff5a3c', intensity: 60, range: 8 }
+      { at: [-0.4, 2.4, 3.4], aim: [-1.1, 1.6, 0.3], color: '#ffe0a8', intensity: 70, range: 9 },
+      { at: [0.4, 2.4, 3.4], aim: [1.1, 1.6, 0.3], color: '#c8f6ff', intensity: 70, range: 9 },
+      { at: [-3, 2.2, -5], color: '#ff9a3c', intensity: 45, range: 8 },
+      { at: [3, 2.2, -5], color: '#ff9a3c', intensity: 45, range: 8 },
+      { at: [0, 1.2, -7], color: '#ff6a2a', intensity: 25, range: 7 }
     ],
-    camera: { position: [0, 1.35, 2.7], target: [0, 1.3, 0] },
-    fov: 44
+    camera: { position: [0, 1.6, 3.15], target: [0, 1.6, -1] },
+    fov: 40
   },
   {
     id: 'nether',
     name: 'Nether leap',
-    hint: 'Sprinting along the edge of a lava ravine, ghast in the dark',
+    hint: 'Big two-line title on the left, you sprinting along a glowing lava ravine on the right',
     backdrop: 'ravine',
-    sky: 'nether',
+    sky: 'color',
+    skyColor: '#1c0604',
     look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 1.1, bloomThreshold: 0.55, vignette: true },
-    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.45, fog: true },
-    players: [{ name: 'Steve', pose: 'Sprinting', at: [0, 1.4, 1.2], yaw: 30 }],
-    mobs: [{ mob: 'ghast', at: [3, 4.5, -9], yaw: -20 }],
+    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, vignetteDarkness: 0.55 },
+    settings: { renderMode: 'cinematic', sunStrength: 0, ambientStrength: 0.5, fog: true },
+    players: [
+      { name: 'Steve', pose: 'Sprinting', at: [0, 1.4, 1.2], yaw: -30, equipment: { mainHand: 'diamond_sword' } }
+    ],
     vfx: [{ effect: 'embers', at: [0, -2, 0], color: '#ff9c3a', density: 0.7, scale: 1.4 }],
-    texts: [{ text: 'ESCAPE?!', color: RED, style: 'Fire', screen: [0.42, 0.45], height: 0.28 }],
+    texts: [
+      {
+        text: 'ESCAPE THE',
+        color: '#ffffff',
+        style: 'Bold white',
+        screen: [-0.36, 0.36],
+        height: 0.3,
+        look: { font: '"Anton", Impact, sans-serif', outlineWidth: 10, outline2Width: 0 }
+      },
+      {
+        text: 'NETHER',
+        color: '#ffe85c',
+        style: 'Fire',
+        screen: [-0.36, -0.1],
+        height: 0.46,
+        look: { font: '"Anton", Impact, sans-serif' }
+      }
+    ],
     lights: [
       { at: [0, -2.5, 1.2], color: '#ff6a1f', intensity: 120, range: 14 },
-      { at: [1.8, 3.4, 3.4], aim: [0, 2.6, 1.2], color: '#ffd2a1', intensity: 80, range: 8 }
+      { at: [-1.2, 3.6, 4], aim: [0, 2.4, 1.2], color: '#ffd2a1', intensity: 140, range: 8 }
     ],
-    camera: { position: [1.8, 3.0, 3.9], target: [0.8, 2.3, 0.2] },
-    fov: 44
+    camera: { position: [-1.1, 2.45, 5.2], target: [-1.1, 2.4, 0] },
+    fov: 40
   },
   {
     id: 'squad',
     name: 'Squad incoming',
-    hint: 'Close on your worried face as the squad charges in behind',
+    hint: 'You big in the foreground, glancing back at a squad in matching armour closing in',
     backdrop: 'forest',
-    sky: 'night',
+    sky: 'clear',
     look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, ...focusOn(0.28, 0.42, 3.5) },
-    settings: { renderMode: 'cinematic', sunStrength: 0.15, ambientStrength: 0.35, fog: true },
+    effects: { bloom: true, bloomIntensity: 0.6, bloomThreshold: 0.75, vignette: true, vignetteDarkness: 0.4 },
+    settings: {
+      renderMode: 'cinematic',
+      sunStrength: 0.8,
+      ambientStrength: 0.95,
+      sunAzimuth: 200,
+      sunElevation: 40,
+      fog: true
+    },
     players: [
-      { name: 'Steve', pose: 'Blocking', at: [-0.95, 0, 2.6], yaw: 30, equipment: { mainHand: 'iron_sword' } },
+      {
+        name: 'Steve',
+        pose: 'Standing',
+        tweak: { head: [5, 35, 0], rightArm: [-20, 0, 10] },
+        at: [-0.42, 0, 2.2],
+        yaw: 35,
+        equipment: { mainHand: 'netherite_sword' }
+      },
       ...(
         [
-          ['Kai', 'kai', false, [1.0, 0, -1.0], 'Sprinting', 'netherite_sword'],
-          ['Noor', 'noor', true, [2.4, 0, -2.6], 'Sword swing', 'diamond_sword'],
-          ['Efe', 'efe', true, [0.1, 0, -3.6], 'Sprinting', 'netherite_sword']
+          ['Kai', 'kai', false, [1.3, 0, -0.1], 'Blocking', 'diamond_sword'],
+          ['Noor', 'noor', true, [0.65, 0, -0.65], 'Standing', 'netherite_sword'],
+          ['Efe', 'efe', true, [1.95, 0, -0.65], 'Sword swing', 'diamond_sword'],
+          ['Sunny', 'sunny', false, [0.2, 0, -1.3], 'Standing', 'iron_sword'],
+          ['Zuri', 'zuri', false, [2.55, 0, -1.2], 'Blocking', 'netherite_sword']
         ] as const
       ).map(([name, skin, slim, at, pose, sword]) => ({
         name,
         skin,
         slim,
         at: [...at] as Vec3,
-        yaw: toward([...at] as Vec3, [-0.95, 0, 2.6]),
+        yaw: toward([...at] as Vec3, [-0.42, 0, 4.5]),
         pose,
-        equipment: { chest: 'leather', legs: 'leather', feet: 'leather', leatherColor: '#7d3fd8', mainHand: sword }
+        equipment: {
+          ...(name !== 'Noor' && name !== 'Sunny' && { head: 'leather' }),
+          chest: 'leather',
+          legs: 'leather',
+          feet: 'leather',
+          leatherColor: '#8a3fe0',
+          mainHand: sword
+        }
       }))
     ],
-    texts: [{ text: 'HUNTED', color: '#ff3b3b', style: 'Horror', screen: [0.42, 0.52], height: 0.3 }],
+    texts: [],
     lights: [
-      { at: [2.2, 7, 1.5], aim: [1.5, 0.5, -2.5], color: '#d9c4ff', intensity: 380, range: 30 },
-      { at: [0.8, 2.2, 5], aim: [-0.95, 1.5, 2.6], color: '#ffd9a8', intensity: 70, range: 9 }
+      { at: [0.9, 2.2, 4.6], aim: [-0.42, 1.7, 2.2], color: '#ffd9a8', intensity: 110, range: 8 },
+      { at: [1.6, 3.2, 3.2], aim: [1.3, 1.3, -0.6], color: '#e2c8ff', intensity: 120, range: 10 },
+      { at: [1.2, 4, -4], color: '#fff2d6', intensity: 120, range: 14 }
     ],
-    camera: { position: [0.2, 1.55, 5.6], target: [-0.35, 1.45, 1.4] },
-    fov: 36
+    camera: { position: [0, 1.4, 4.0], target: [0.2, 1.4, -1] },
+    fov: 40
   },
   {
     id: 'horde',
     name: 'Mob horde',
-    hint: 'Close on you, sword up, as the horde closes in behind',
+    hint: 'You big in the foreground, sword ready, glancing back as the horde closes in',
     backdrop: 'forest',
     sky: 'night',
     look: 'teal-orange',
-    effects: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, vignette: true, ...focusOn(0.25, 0.4, 3.5) },
-    settings: { renderMode: 'cinematic', sunStrength: 0.25, ambientStrength: 0.55, fog: true },
-    players: [{ name: 'Steve', pose: 'Blocking', at: HORDE_HERO, yaw: 25, equipment: { mainHand: 'diamond_sword' } }],
+    effects: { bloom: true, bloomIntensity: 0.7, bloomThreshold: 0.7, vignette: true, vignetteDarkness: 0.5 },
+    settings: { renderMode: 'cinematic', sunStrength: 0.3, ambientStrength: 0.7, fog: true },
+    players: [
+      {
+        name: 'Steve',
+        pose: 'Standing',
+        tweak: { head: [5, 35, 0], rightArm: [-10, 0, 8], rightForearm: [-25, 0, 0] },
+        at: HORDE_HERO,
+        yaw: 35,
+        equipment: { mainHand: 'diamond_sword' }
+      }
+    ],
     mobs: (
       [
-        ['zombie', [1.3, 0, 1.2]],
-        ['zombie', [2.5, 0, 0.1]],
-        ['skeleton', [0.3, 0, -0.6]],
-        ['creeper', [3.2, 0, -1.6]]
+        ['zombie', [1.3, 0, -0.3]],
+        ['skeleton', [0.55, 0, -0.9]],
+        ['zombie', [2.05, 0, -0.9]],
+        ['creeper', [0.05, 0, -1.6]],
+        ['zombie', [2.7, 0, -1.6]],
+        ['skeleton', [1.45, 0, -2.0]]
       ] as const
     ).map(([mob, at]) => ({
       mob,
       at: [...at] as Vec3,
-      yaw: toward([...at] as Vec3, HORDE_HERO),
+      yaw: toward([...at] as Vec3, [-0.42, 0, 4.5]),
       ...(mob !== 'creeper' && { parts: ARMS_OUT })
     })),
-    texts: [{ text: '1 VS 100', color: '#ffffff', style: 'Bold white', screen: [0.42, 0.5], height: 0.26 }],
+    texts: [{ text: '1 VS 100', color: '#ffffff', style: 'Bold white', screen: [0.45, 0.64], height: 0.28 }],
     lights: [
-      { at: [0.8, 2.5, 5.6], aim: [-0.5, 1.5, 3.2], color: '#ffd9a8', intensity: 90, range: 8 },
-      { at: [-1.5, 3, 1.5], aim: [-0.5, 1.5, 3.2], color: '#8fe8ff', intensity: 120, range: 8 },
-      { at: [1.8, 3.5, -0.5], aim: [1.8, 1, 0.5], color: '#9fd8ff', intensity: 150, range: 10 }
+      { at: [0.9, 2.2, 4.6], aim: [-0.42, 1.7, 2.2], color: '#ffd9a8', intensity: 80, range: 8 },
+      { at: [1.6, 3.2, 3.2], aim: [1.3, 1.3, -0.9], color: '#9fe0ff', intensity: 130, range: 10 },
+      { at: [1.2, 4, -4], color: '#b8ffd0', intensity: 100, range: 14 }
     ],
-    camera: { position: [0.5, 1.45, 5.6], target: [0.3, 1.3, 0] },
+    camera: { position: [0, 1.4, 4.0], target: [0.2, 1.4, -1] },
     fov: 40
   },
   {
     id: 'poster',
     name: 'Poster title',
-    hint: 'You mid-sprint in front of two giant lines of poster type that fill the frame',
-    backdrop: null,
+    hint: 'A crowned giant looms over three players running at you, the title split either side of its head',
+    backdrop: 'nether',
     sky: 'color',
-    skyColor: '#ff4b1f',
+    skyColor: '#a3101a',
     look: 'pop',
-    effects: { bloom: false, vignette: false },
-    settings: { ...DAY, sunAzimuth: 150, sunElevation: 35, fog: false },
+    effects: { bloom: true, bloomIntensity: 0.4, bloomThreshold: 0.85, vignette: true, vignetteDarkness: 0.55 },
+    settings: {
+      renderMode: 'cinematic',
+      sunStrength: 0.4,
+      ambientStrength: 0.7,
+      sunAzimuth: 180,
+      sunElevation: 35,
+      fog: true
+    },
     players: [
       {
-        name: 'Steve',
+        name: 'Giant',
+        pose: 'Zombie walk',
+        tweak: {
+          head: [8, 0, 0],
+          rightArm: [-80, -28, 0],
+          leftArm: [-80, 28, 0],
+          rightForearm: [-45, 0, 0],
+          leftForearm: [-45, 0, 0]
+        },
+        at: [0, -7.2, -6],
+        yaw: 0,
+        scale: 7,
+        equipment: { head: 'gold', chest: 'netherite' }
+      },
+      {
+        name: 'Kai',
+        skin: 'kai',
         pose: 'Running',
-        at: [0, 0, 0],
-        yaw: 25,
-        equipment: { ...DIAMOND_KIT, mainHand: 'diamond_sword' }
-      }
+        at: [-1.05, 0, 0.3],
+        yaw: 12,
+        equipment: { mainHand: 'diamond_sword' }
+      },
+      { name: 'Alex', pose: 'Sprinting', at: [0, 0, 0.6], yaw: 0 },
+      { name: 'Steve', pose: 'Running', at: [1.05, 0, 0.2], yaw: -12, equipment: { mainHand: 'diamond_sword' } }
     ],
     texts: [
-      { text: 'HARDCORE\nSURVIVAL', color: '#111111', style: 'Brutal', screen: [0, 0.02], height: 1.22, behind: true }
+      {
+        text: 'FANS',
+        color: '#ffffff',
+        style: 'Bold white',
+        screen: [-0.6, 0.54],
+        height: 0.3,
+        look: { font: '"Bungee", sans-serif', outline2Color: '#7a0008' }
+      },
+      {
+        text: 'SMP',
+        color: '#ffffff',
+        style: 'Bold white',
+        screen: [0.6, 0.54],
+        height: 0.3,
+        look: { font: '"Bungee", sans-serif', outline2Color: '#7a0008' }
+      }
     ],
-    lights: [{ at: [1.5, 2.5, 3.5], aim: [0, 1.2, 0], color: '#ffffff', intensity: 60, range: 10 }],
-    camera: { position: [0, 1.2, 3.3], target: [0, 1.32, 0] },
+    lights: [
+      { at: [0, 3, 5.5], aim: [0, 1, 0.3], color: '#ffffff', intensity: 40, range: 10 },
+      { at: [0, 6, -14], color: '#ff2a2a', intensity: 400, range: 24 },
+      { at: [0, 6, -1.5], aim: [0, 4, -5], color: '#ffb3a0', intensity: 60, range: 9 }
+    ],
+    camera: { position: [0, 0.9, 6.3], target: [0, 1.95, 0] },
     fov: 40
   },
   // ---- Unlocked with the secret code: recreations of Loveguard's latest thumbnails.
@@ -508,11 +684,11 @@ export async function applyTemplate(t: Template): Promise<void> {
       name: p.name,
       skinUrl: textures.has(skin) ? assetUrl(skin) : defaultSkinUrl(slim),
       slim,
-      pose: structuredClone(POSES[p.pose]),
+      pose: { ...structuredClone(POSES[p.pose]), ...structuredClone(p.tweak ?? {}) },
       ...(p.equipment && { equipment: { ...NO_EQUIPMENT, ...p.equipment } }),
       visible: true,
       position: p.at,
-      rotation: [0, p.yaw, 0],
+      rotation: turn(p.yaw, p.pitch),
       scale: p.scale ?? 1
     })
   }
@@ -554,7 +730,8 @@ export async function applyTemplate(t: Template): Promise<void> {
       shadow: true,
       onTop: !x.behind,
       visible: true,
-      ...TEXT_STYLES.find((st) => st.name === x.style)?.style
+      ...TEXT_STYLES.find((st) => st.name === x.style)?.style,
+      ...x.look
     })
   for (const spec of t.lights ?? []) {
     const l: LightSpec = Array.isArray(spec) ? { at: spec } : spec
@@ -699,7 +876,7 @@ async function addTemplateMobs(mobs: MobSpec[]): Promise<void> {
       partRotations: m.parts ?? {},
       visible: true,
       position: m.at,
-      rotation: [0, m.yaw, 0],
+      rotation: turn(m.yaw, m.pitch),
       scale: m.scale ?? 1
     })
   }
