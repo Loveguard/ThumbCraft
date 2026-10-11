@@ -34,7 +34,7 @@ describe('scene props', async () => {
 })
 
 describe('quick props', async () => {
-  const { buildEndPortal, buildEnchantingSetup, buildStarterHouse } = await import('@shared/minecraft/props')
+  const { buildEndPortal, buildEnchantingSetup, buildSpawnerDungeon } = await import('@shared/minecraft/props')
   const count = (t: ReturnType<typeof buildEndPortal>, name: string): number =>
     Array.from(t.blocks).filter((i) => t.palette[i].name === `minecraft:${name}`).length
   it('the end portal is a full ring of twelve eyed frames round nine portal blocks', () => {
@@ -50,9 +50,9 @@ describe('quick props', async () => {
     expect(count(t, 'enchanting_table')).toBe(1)
     expect(count(t, 'bookshelf')).toBeGreaterThanOrEqual(15)
   })
-  it('the starter house has a two-part door and a stair roof', () => {
-    const t = buildStarterHouse()
-    expect(count(t, 'oak_door')).toBe(2)
-    expect(count(t, 'spruce_stairs')).toBeGreaterThan(0)
+  it('the dungeon has its spawner in the middle and two chests', () => {
+    const t = buildSpawnerDungeon()
+    expect(count(t, 'spawner')).toBe(1)
+    expect(count(t, 'chest')).toBe(2)
   })
 })

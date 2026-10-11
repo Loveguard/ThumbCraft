@@ -9,11 +9,10 @@ import {
   buildEndPortal,
   buildNetherPortal,
   buildSkyIsland,
-  buildStarterHouse,
+  buildSpawnerDungeon,
   buildTntStack,
   buildTreasurePile
 } from '@shared/minecraft/props'
-import { startTreeBrush, stopBrush, TREE_CHOICES, useBrush } from '../../brush'
 import type { TerrainData } from '@shared/types'
 import { placeNew } from '../../placement'
 import { addTerrain } from '../../sceneActions'
@@ -84,10 +83,10 @@ function PieceCard({ kind, busy, onAdd }: { kind: PieceKind; busy: string; onAdd
 
 /** Small hand-built builds that thumbnails use a lot, ready in one click. */
 const QUICK_PROPS: { id: string; label: string; build: () => TerrainData }[] = [
-  { id: 'starter-house', label: 'Starter house', build: buildStarterHouse },
   { id: 'portal', label: 'Nether portal', build: buildNetherPortal },
   { id: 'end-portal', label: 'End portal', build: buildEndPortal },
   { id: 'enchanting', label: 'Enchanting setup', build: buildEnchantingSetup },
+  { id: 'dungeon', label: 'Spawner dungeon', build: buildSpawnerDungeon },
   { id: 'treasure', label: 'Treasure pile', build: buildTreasurePile },
   { id: 'tnt', label: 'TNT stack', build: buildTntStack },
   { id: 'sky-island', label: 'Sky island', build: buildSkyIsland }
@@ -153,58 +152,23 @@ function BeaconCard(): ReactNode {
   )
 }
 
-/** Turn on to plant trees with each click on the scene; pick a kind or mix them. */
-function TreeBrush(): ReactNode {
-  const trees = useBrush((s) => s.trees)
-  return (
-    <div className="tree-brush">
-      <button
-        className={trees ? 'primary' : ''}
-        onClick={() => (trees ? stopBrush() : startTreeBrush('mixed'))}
-        title="Plant trees by clicking on the ground (Esc to stop)"
-      >
-        {trees ? 'Stop tree brush' : 'Tree brush'}
-      </button>
-      {trees && (
-        <>
-          <div className="chips">
-            {TREE_CHOICES.map((c) => (
-              <button
-                key={c.id}
-                className={`chip ${trees === c.id ? 'active' : ''}`}
-                onClick={() => startTreeBrush(c.id)}
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
-          <p className="hint">Click the ground to plant a tree. Each one is a little different. Esc stops.</p>
-        </>
-      )}
-    </div>
-  )
-}
-
 function QuickProps(): ReactNode {
   return (
-    <>
-      <div className="card-grid">
-        {QUICK_PROPS.map((p) => (
-          <button
-            key={p.id}
-            className="asset-card"
-            title={p.label}
-            aria-label={p.label}
-            onClick={() => addProp(p.build(), p.label)}
-          >
-            <PropIcon id={p.id} build={p.build} />
-            <span className="asset-name">{p.label}</span>
-          </button>
-        ))}
-        <BeaconCard />
-      </div>
-      <TreeBrush />
-    </>
+    <div className="card-grid">
+      {QUICK_PROPS.map((p) => (
+        <button
+          key={p.id}
+          className="asset-card"
+          title={p.label}
+          aria-label={p.label}
+          onClick={() => addProp(p.build(), p.label)}
+        >
+          <PropIcon id={p.id} build={p.build} />
+          <span className="asset-name">{p.label}</span>
+        </button>
+      ))}
+      <BeaconCard />
+    </div>
   )
 }
 

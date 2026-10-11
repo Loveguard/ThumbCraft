@@ -3859,14 +3859,6 @@ textarea:focus {
   background: var(--glass-sheen), var(--glass-strong);
 }
 
-/* Quick props: the tree brush under the grid. */
-.tree-brush {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-}
-
 /* Layers tinted by kind (KIND_COLOR in RightPanel): a soft wash, a coloured edge and icon. */
 .layers li[data-kind] {
   position: relative;

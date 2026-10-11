@@ -199,44 +199,20 @@ export function buildSkyIsland(): TerrainData {
 }
 
 /**
- * A cosy starter house (7×6): cobblestone footing, oak-log corners, plank walls with glass windows, a door with
- * a torch beside it, a gabled spruce roof with an overhang and a cobblestone chimney. The door faces +z.
+ * A monster-spawner dungeon: a mossy cobblestone room (7×7) with the spawner in the middle and a chest in two
+ * corners, open at the front and the top so the camera sees in.
  */
-export function buildStarterHouse(): TerrainData {
-  const w = 9 // roof width, one block of overhang each side
-  const d = 8 // roof depth, likewise
-  return blockBox(w, 9, d, (x, y, z) => {
-    const wallX = x === 1 || x === w - 2
-    const wallZ = z === 1 || z === d - 2
-    const inside = x >= 1 && x <= w - 2 && z >= 1 && z <= d - 2
-    // Chimney through the back of the roof.
-    if (x === w - 3 && z === 2 && y >= 4) return 'cobblestone'
-    if (y >= 4) {
-      // Gabled roof: stair rows climbing from front and back to a ridge along x.
-      const k = y - 4
-      if (z === k) return ['spruce_stairs', { facing: 'south', half: 'bottom', shape: 'straight' }]
-      if (z === d - 1 - k) return ['spruce_stairs', { facing: 'north', half: 'bottom', shape: 'straight' }]
-      // Gable ends filled with planks under the roof.
-      if (wallX && z > k && z < d - 1 - k) return 'oak_planks'
-      return null
-    }
-    // Torch beside the door, on the front wall.
-    if (z === d - 1 && x === 3 && y === 2) return ['wall_torch', { facing: 'south' }]
-    if (!inside) return null
-    if (y === 0) return 'cobblestone'
-    if (!wallX && !wallZ) return null
-    if (wallX && wallZ) return ['oak_log', { axis: 'y' }]
-    // Door in the middle of the front wall.
-    if (z === d - 2 && x === 4 && y <= 2)
-      return ['oak_door', { facing: 'north', half: y === 1 ? 'lower' : 'upper', hinge: 'left', open: 'false' }]
-    // Windows: two on the front, one on each side, one on the back.
-    if (y === 2) {
-      if (wallZ && (x === 2 || x === w - 3)) return 'glass'
-      if (wallX && (z === 3 || z === 4)) return 'glass'
-      if (z === 1 && x === 4) return 'glass'
-    }
-    if (y === 3) return ['stripped_oak_log', { axis: 'x' }]
-    return 'oak_planks'
+export function buildSpawnerDungeon(): TerrainData {
+  return blockBox(7, 4, 7, (x, y, z) => {
+    const r = hash(x, y, z, 53)
+    const stone = r < 0.45 ? 'mossy_cobblestone' : 'cobblestone'
+    if (y === 0) return stone
+    if (x === 3 && z === 3) return y === 1 ? 'spawner' : null
+    if (y === 1 && z === 1 && (x === 1 || x === 5)) return ['chest', { facing: 'south', type: 'single' }]
+    // Back and side walls, crumbling towards the front and the top.
+    const wall = z === 0 || x === 0 || x === 6
+    if (!wall) return null
+    return hash(x, y, z, 54) < 0.25 + (y / 4) * 0.2 + (z / 6) * 0.35 ? null : stone
   })
 }
 
@@ -272,50 +248,5 @@ export function buildEndPortal(): TerrainData {
     // Each frame faces the middle.
     const facing = dz === -2 ? 'south' : dz === 2 ? 'north' : dx === -2 ? 'east' : 'west'
     return ['end_portal_frame', { facing, eye: 'true' }]
-  })
-}
-
-export type TreeKind = 'oak' | 'birch' | 'spruce' | 'dark_oak'
-
-/** One tree for the tree brush, varied by `seed`; its trunk stands at the centre of the box. */
-export function buildTree(kind: TreeKind, seed: number): TerrainData {
-  const rnd = (i: number): number => hash(seed, i, 7, 13)
-  if (kind === 'spruce') {
-    const height = 7 + Math.floor(rnd(1) * 4)
-    const n = 7
-    const c = 3
-    return blockBox(n, height + 1, n, (x, y, z) => {
-      const ring = Math.max(Math.abs(x - c), Math.abs(z - c))
-      if (x === c && z === c && y < height) return ['spruce_log', { axis: 'y' }]
-      if (y < 2) return null
-      // Cone of alternating wide and narrow layers, a single block at the tip.
-      const fromTop = height - y
-      const radius = fromTop <= 0 ? 0 : Math.min(3, Math.floor((fromTop + 1) / 2) - (fromTop % 2 ? 0 : 1))
-      if (ring <= radius && !(ring === radius && radius > 1 && Math.abs(x - c) === Math.abs(z - c)))
-        return ['spruce_leaves', { persistent: 'true', distance: '1' }]
-      return null
-    })
-  }
-  const log = kind === 'birch' ? 'birch_log' : kind === 'dark_oak' ? 'dark_oak_log' : 'oak_log'
-  const leaves = `${kind}_leaves`
-  const thick = kind === 'dark_oak'
-  const height = (kind === 'birch' ? 5 : 4) + Math.floor(rnd(1) * 3)
-  const n = thick ? 8 : 7
-  const c = 3
-  return blockBox(n, height + 2, n, (x, y, z) => {
-    const inTrunk = thick ? (x === c || x === c + 1) && (z === c || z === c + 1) : x === c && z === c
-    if (inTrunk && y < height) return [log, { axis: 'y' }]
-    const cx = thick ? c + 0.5 : c
-    const dx = Math.abs(x - cx)
-    const dz = Math.abs(z - cx)
-    const ly = y - (height - 2)
-    if (ly < 0) return null
-    // Two wide layers, then a narrow cross on top, with random gaps at the corners like the game's trees.
-    const r = ly <= 1 ? 2 : 1
-    if (dx > r + (thick ? 0.5 : 0) || dz > r + (thick ? 0.5 : 0)) return null
-    if (ly === 3 && dx > 0.5 && dz > 0.5 && !thick) return null
-    const corner = dx >= r && dz >= r
-    if (corner && hash(x, y, z, seed) < 0.6) return null
-    return [leaves, { persistent: 'true', distance: '1' }]
   })
 }
