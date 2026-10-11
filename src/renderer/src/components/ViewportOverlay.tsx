@@ -10,14 +10,23 @@ import {
   Grid3x3,
   Magnet,
   Maximize,
-  Trash2
+  Maximize2,
+  Minimize2,
+  Move3d,
+  Redo2,
+  Rotate3d,
+  Ruler,
+  Scale3d,
+  Trash2,
+  Undo2,
+  type LucideIcon
 } from 'lucide-react'
-import { cameraBridge, useStore } from '../store'
+import { useShallow } from 'zustand/react/shallow'
+import { cameraBridge, useStore, type TransformMode } from '../store'
+import { useLayout } from '../layout'
 import { pushAlongView } from './RightPanel'
-import { hasEffects } from './Effects'
 import { StartPanel } from './StartPanel'
 import { drawnBox, viewport } from './Viewport'
-import { RENDER_MODES } from '../renderModes'
 import { useDismiss } from '../useDismiss'
 
 /** Bounding box of the given objects (or all visible objects). */
@@ -123,22 +132,136 @@ function CameraMenu({ onClose }: { onClose: () => void }): ReactNode {
   )
 }
 
-/** Floating UI drawn over the 3D canvas: view info, selection actions and view tools. */
-export function ViewportOverlay(): ReactNode {
-  const selectedId = useStore((s) => s.selectedId)
-  const selected = useStore((s) => s.objects.find((o) => o.id === s.selectedId))
-  const { showGrid, snap, renderMode, fov, shot } = useStore((s) => s.settings)
-  const effectsOn = useStore((s) => hasEffects(s.effects))
-  const { setSettings, duplicateSelected, removeSelected } = useStore.getState()
+const TOOLS: { mode: TransformMode; icon: LucideIcon; label: string; key: string }[] = [
+  { mode: 'translate', icon: Move3d, label: 'Move', key: 'W' },
+  { mode: 'rotate', icon: Rotate3d, label: 'Rotate', key: 'E' },
+  { mode: 'scale', icon: Scale3d, label: 'Scale', key: 'R' }
+]
+
+/**
+ * The one toolbar: transform tools, undo, camera and view aids, docked under the canvas. Icons only; each names
+ * itself and its shortcut on hover.
+ */
+function Dock(): ReactNode {
+  const mode = useStore((s) => s.transformMode)
+  const canUndo = useStore((s) => s.past.length > 0)
+  const canRedo = useStore((s) => s.future.length > 0)
+  const { showGrid, snap, shot, showRulers } = useStore(
+    useShallow((s) => ({
+      showGrid: s.settings.showGrid,
+      snap: s.settings.snap,
+      shot: s.settings.shot,
+      showRulers: !!s.settings.showRulers
+    }))
+  )
+  const focus = useLayout((s) => s.focus)
+  const { setSettings, setTransformMode, undo, redo } = useStore.getState()
   const [menu, setMenu] = useState(false)
   const closeMenu = useCallback(() => setMenu(false), [])
 
   return (
+    <div className="float-bar view-bar dock" role="toolbar" aria-label="Tools">
+      {TOOLS.map((t) => (
+        <button
+          key={t.mode}
+          className={`icon-btn ${mode === t.mode ? 'active' : ''}`}
+          data-tip={`${t.label}  ${t.key}`}
+          aria-label={t.label}
+          onClick={() => setTransformMode(t.mode)}
+        >
+          <t.icon size={17} />
+        </button>
+      ))}
+      <i className="dock-gap" />
+      <button className="icon-btn" data-tip="Undo  Ctrl Z" aria-label="Undo" disabled={!canUndo} onClick={undo}>
+        <Undo2 size={17} />
+      </button>
+      <button className="icon-btn" data-tip="Redo  Ctrl Y" aria-label="Redo" disabled={!canRedo} onClick={redo}>
+        <Redo2 size={17} />
+      </button>
+      <i className="dock-gap" />
+      <div className="menu-anchor">
+        <button
+          className={`icon-btn ${menu ? 'active' : ''}`}
+          onClick={() => setMenu(!menu)}
+          data-tip={menu ? undefined : 'Camera angles'}
+          aria-label="Camera angles"
+          aria-expanded={menu}
+        >
+          <Camera size={17} />
+        </button>
+        {menu && <CameraMenu onClose={closeMenu} />}
+      </div>
+      <button
+        className={`icon-btn ${shot ? 'shot-set' : ''}`}
+        onClick={() => (shot ? returnToShot() : saveShot())}
+        data-tip={shot ? 'Back to saved view  C' : 'Save this view  C'}
+        aria-label={shot ? 'Back to saved view' : 'Save this view'}
+      >
+        {shot ? <Clapperboard size={17} /> : <BookmarkPlus size={17} />}
+      </button>
+      <button
+        className="icon-btn"
+        onClick={() => {
+          const box = boundsOf()
+          if (box) frame(box)
+        }}
+        data-tip="Fit everything in view"
+        aria-label="Fit everything in view"
+      >
+        <Maximize size={17} />
+      </button>
+      <i className="dock-gap" />
+      <button
+        className={`icon-btn ${showGrid ? 'active' : ''}`}
+        onClick={() => setSettings({ showGrid: !showGrid })}
+        data-tip="Ground grid (never exported)"
+        aria-label="Ground grid"
+        aria-pressed={showGrid}
+      >
+        <Grid3x3 size={17} />
+      </button>
+      <button
+        className={`icon-btn ${snap ? 'active' : ''}`}
+        onClick={() => setSettings({ snap: !snap })}
+        data-tip="Snap while moving  hold Shift"
+        aria-label="Snap while moving"
+        aria-pressed={snap}
+      >
+        <Magnet size={17} />
+      </button>
+      <button
+        className={`icon-btn ${showRulers ? 'active' : ''}`}
+        onClick={() => setSettings({ showRulers: !showRulers })}
+        data-tip="Rulers and centre guides  Shift R"
+        aria-label="Rulers and centre guides"
+        aria-pressed={showRulers}
+      >
+        <Ruler size={17} />
+      </button>
+      <i className="dock-gap" />
+      <button
+        className={`icon-btn ${focus ? 'active' : ''}`}
+        onClick={() => useLayout.getState().toggleFocus()}
+        data-tip={focus ? 'Show panels  \\' : 'Hide panels  \\'}
+        aria-label="Hide panels"
+        aria-pressed={focus}
+      >
+        {focus ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+      </button>
+    </div>
+  )
+}
+
+/** Floating UI drawn over the 3D canvas: the start panel, selection actions and the dock. */
+export function ViewportOverlay(): ReactNode {
+  const selectedId = useStore((s) => s.selectedId)
+  const selected = useStore((s) => s.objects.find((o) => o.id === s.selectedId))
+  const { duplicateSelected, removeSelected } = useStore.getState()
+
+  return (
     <div className="overlay">
       <StartPanel />
-      <div className="view-chip">
-        {RENDER_MODES.find((m) => m.id === renderMode)?.label} · FOV {fov}°{effectsOn ? ' · Effects on' : ''}
-      </div>
 
       <div
         className="float-bar selection-bar"
@@ -163,50 +286,7 @@ export function ViewportOverlay(): ReactNode {
         )}
       </div>
 
-      <div className="float-bar view-bar">
-        <div className="menu-anchor">
-          <button className={`tool ${menu ? 'active' : ''}`} onClick={() => setMenu(!menu)} title="Camera angles">
-            <Camera size={16} />
-            Camera
-          </button>
-          {menu && <CameraMenu onClose={closeMenu} />}
-        </div>
-        <button
-          className={`tool ${shot ? 'shot-set' : ''}`}
-          onClick={() => (shot ? returnToShot() : saveShot())}
-          title={shot ? 'Back to your saved view (C)' : 'Save the current view so you can return to it (C)'}
-        >
-          {shot ? <Clapperboard size={16} /> : <BookmarkPlus size={16} />}
-          {shot ? 'Back to view' : 'Save view'}
-        </button>
-        <button
-          className={`tool ${showGrid ? 'active' : ''}`}
-          onClick={() => setSettings({ showGrid: !showGrid })}
-          title="Show the ground grid (never exported)"
-        >
-          <Grid3x3 size={16} />
-          Grid
-        </button>
-        <button
-          className={`tool ${snap ? 'active' : ''}`}
-          onClick={() => setSettings({ snap: !snap })}
-          title="Snap to surfaces and corners while moving. Hold Shift to snap temporarily."
-        >
-          <Magnet size={16} />
-          Snap <kbd>⇧</kbd>
-        </button>
-        <button
-          className="tool"
-          onClick={() => {
-            const box = boundsOf()
-            if (box) frame(box)
-          }}
-          title="Fit everything in view"
-        >
-          <Maximize size={16} />
-          Frame all
-        </button>
-      </div>
+      <Dock />
     </div>
   )
 }

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronDown, Copy, FilePlus2, FolderOpen, History, Info, Save, SaveAll } from 'lucide-react'
+import { ChevronDown, Copy, FilePlus2, FolderOpen, History, Info, Keyboard, Save, SaveAll } from 'lucide-react'
 import type { RecentProject } from '@shared/api'
 import { duplicateAsTab, openProjectFile, openRecentProject, saveProject, startNewProject } from '../projectActions'
 import { useStore } from '../store'
 import { useDismiss } from '../useDismiss'
 import { AboutDialog } from './AboutDialog'
+import { ShortcutsDialog } from './ShortcutsDialog'
 
 export const timeAgo = (t: number): string => {
   const s = Math.round((Date.now() - t) / 1000)
@@ -22,6 +23,8 @@ export function ProjectMenu(): ReactNode {
   const closeMenu = useCallback(() => setOpen(false), [])
   const [recent, setRecent] = useState<RecentProject[]>([])
   const [about, setAbout] = useState(false)
+  const [keys, setKeys] = useState(false)
+  const mcVersion = useStore((s) => s.assets?.version)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -49,6 +52,11 @@ export function ProjectMenu(): ReactNode {
       </button>
       {open && (
         <div className="menu dropdown">
+          {mcVersion && (
+            <div className="menu-title" title="The newest Minecraft installed on this computer">
+              Minecraft {mcVersion}
+            </div>
+          )}
           <button onClick={() => run(startNewProject)}>
             <strong>
               <FilePlus2 size={14} /> New project <kbd>Ctrl N</kbd>
@@ -92,6 +100,11 @@ export function ProjectMenu(): ReactNode {
             </>
           )}
           <div className="menu-sep" />
+          <button onClick={() => run(() => setKeys(true))}>
+            <strong>
+              <Keyboard size={14} /> Keyboard shortcuts
+            </strong>
+          </button>
           <button onClick={() => run(() => setAbout(true))}>
             <strong>
               <Info size={14} /> About & licences
@@ -100,6 +113,7 @@ export function ProjectMenu(): ReactNode {
         </div>
       )}
       {about && <AboutDialog onClose={() => setAbout(false)} />}
+      {keys && <ShortcutsDialog onClose={() => setKeys(false)} />}
     </div>
   )
 }

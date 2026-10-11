@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import {
   Box,
   Castle,
@@ -19,6 +19,7 @@ import { MobsTab } from './tabs/MobsTab'
 import { SkyTab } from './tabs/SkyTab'
 import { VfxTab } from './tabs/VfxTab'
 import { MediaTab, PlayersTab, TextTab, WorldTab } from './tabs/SceneTabs'
+import { useLayout } from '../layout'
 
 interface TabDef {
   id: string
@@ -29,7 +30,10 @@ interface TabDef {
   body: () => ReactNode
 }
 
-/** One rail icon per kind of thing you can add; each opens a single asset panel (Canva/Figma pattern). */
+/**
+ * One rail icon per kind of thing you can add; each opens a single asset panel (Canva/Figma pattern). The icons
+ * carry no captions: the name and what it adds show on hover, and clicking the open one folds the panel away.
+ */
 const TABS: TabDef[] = [
   {
     id: 'biomes',
@@ -114,32 +118,37 @@ const TABS: TabDef[] = [
 ]
 
 export function LeftPanel(): ReactNode {
-  const [tab, setTab] = useState('biomes')
-  const current = TABS.find((t) => t.id === tab)!
+  const tab = useLayout((s) => s.assetTab)
+  const focus = useLayout((s) => s.focus)
+  const toggle = useLayout((s) => s.toggleAssetTab)
+  const current = focus ? undefined : TABS.find((t) => t.id === tab)
   return (
     <>
       <nav className="rail" aria-label="Add to scene">
         {TABS.map((t) => (
           <button
             key={t.id}
-            className={`rail-item ${t.id === tab ? 'active' : ''}`}
-            onClick={() => setTab(t.id)}
-            title={t.subtitle}
+            className={`rail-item ${t.id === current?.id ? 'active' : ''}`}
+            onClick={() => toggle(t.id)}
+            aria-label={t.label}
+            aria-pressed={t.id === current?.id}
+            data-tip={t.title}
+            data-tip-sub={t.subtitle}
           >
-            <t.icon size={21} strokeWidth={1.8} />
-            <span>{t.label}</span>
+            <t.icon size={20} strokeWidth={1.7} />
           </button>
         ))}
       </nav>
-      <aside className="asset-panel">
-        <header className="panel-header">
-          <h2>{current.title}</h2>
-          <p>{current.subtitle}</p>
-        </header>
-        <div className="panel-scroll" key={current.id}>
-          {current.body()}
-        </div>
-      </aside>
+      {current && (
+        <aside className="asset-panel">
+          <header className="panel-header" title={current.subtitle}>
+            <h2>{current.title}</h2>
+          </header>
+          <div className="panel-scroll" key={current.id}>
+            {current.body()}
+          </div>
+        </aside>
+      )}
     </>
   )
 }

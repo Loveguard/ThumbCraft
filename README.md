@@ -130,11 +130,14 @@ ThumbCraft is light. If your PC can run Minecraft, it can run ThumbCraft, and mo
 3. **Frame it.** Drag to orbit, right-drag to pan, scroll to zoom. Hold **Shift** while moving things to snap
    them onto surfaces.
 4. **Add drama** from the **FX**, **Lights** and **Look** tabs.
-5. **Export JPG.** The file is ready to upload to YouTube.
+5. **Export.** The file is ready to upload to YouTube; the arrow next to Export picks the size and file type.
 
 ## How to use it
 
-The tool rail on the left opens one panel at a time; the panel on the right edits whatever you've selected.
+The icons on the left open one panel at a time (hover one for its name; click it again to fold the panel away),
+and the panel on the right edits whatever you've selected. Every editing tool (move, rotate, scale, undo, camera
+angles, saved view, frame all, grid, snap, rulers) sits in the dock under the canvas. **Hide panels** (the last dock
+button, or **\\**) clears both side panels away so the thumbnail fills the window.
 
 - **Biomes:** swap in a ready-made backdrop instantly, or generate any real biome (needs Java; the first run
   takes up to a minute). **Import from your own world** cuts an area out of one of your saves.
@@ -157,7 +160,7 @@ The tool rail on the left opens one panel at a time; the panel on the right edit
   the properties panel.
 - **Split image** (tab bar, once two projects are open): two tabs side by side with a straight, torn-paper or
   lightning divider. Lean and position are adjustable.
-- **YouTube preview** (the screen button in the top bar): your thumbnail and other open tabs in the home feed, search, "up next" and on a
+- **YouTube preview** (**Preview** in the top bar): your thumbnail and other open tabs in the home feed, search, "up next" and on a
   phone. The video length sits in the bottom-right corner, so keep faces and text clear of it.
 - **Render mode** (Render & camera, right panel): Vanilla is exactly the game's look; Cinematic, Soft and
   Cartoon add a real sun with shadows.
@@ -173,6 +176,7 @@ The tool rail on the left opens one panel at a time; the panel on the right edit
 | **Ctrl+A**                    | Select everything except the ground       |
 | **Ctrl+G / Ctrl+Shift+G**     | Group / ungroup the selection             |
 | **Shift+R**                   | Rulers and centre guides                  |
+| **\\**                         | Hide / show the side panels               |
 | **Ctrl+Z / Ctrl+Y**           | Undo / redo (camera moves included)       |
 | **Ctrl+D**                    | Duplicate the selection                   |
 | **Delete**                    | Remove the selection                      |
