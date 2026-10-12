@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronDown, Download, MonitorPlay, Move3d, Redo2, Rotate3d, Ruler, Scale3d, Undo2 } from 'lucide-react'
+import { Check, ChevronDown, Download, Layers2, MonitorPlay } from 'lucide-react'
 import { YouTubePreview } from './components/YouTubePreview'
 import { TabBar } from './components/TabBar'
 import { LeftPanel } from './components/LeftPanel'
@@ -12,7 +12,8 @@ import { returnToShot, saveShot } from './components/ViewportOverlay'
 import { Viewport, viewport } from './components/Viewport'
 import { encodeExport, extensionOf, overYouTubeLimit, reportExportError, sizeLabel } from './exportImage'
 import { useShallow } from 'zustand/react/shallow'
-import { useStore, type TransformMode } from './store'
+import { useStore } from './store'
+import { useLayout } from './layout'
 import { captureFrame } from './capture'
 import { useDismiss } from './useDismiss'
 import logo from './assets/logo.png'
@@ -22,12 +23,6 @@ const EXPORT_SIZES: [number, number, string][] = [
   [1920, 1080, 'Full HD · 1920 × 1080'],
   [3840, 2160, '4K · 3840 × 2160'],
   [1080, 1920, 'Shorts · 1080 × 1920']
-]
-
-const TOOLS: { mode: TransformMode; icon: typeof Move3d; label: string; key: string }[] = [
-  { mode: 'translate', icon: Move3d, label: 'Move', key: 'W' },
-  { mode: 'rotate', icon: Rotate3d, label: 'Rotate', key: 'E' },
-  { mode: 'scale', icon: Scale3d, label: 'Scale', key: 'R' }
 ]
 
 /** Ticks several sizes and saves them all into one folder, named after the project. */
@@ -87,18 +82,73 @@ function BatchExport({ onClose }: { onClose: () => void }): ReactNode {
   )
 }
 
+/** Size, file type and batch export, folded behind the Export button's arrow. */
+function ExportMenu({ onClose }: { onClose: () => void }): ReactNode {
+  const ref = useRef<HTMLDivElement>(null)
+  useDismiss(ref, onClose)
+  const [batch, setBatch] = useState(false)
+  const [w, h, format] = useStore(
+    useShallow((s) => [s.settings.exportWidth, s.settings.exportHeight, s.settings.exportFormat])
+  )
+  const setSettings = useStore((s) => s.setSettings)
+  if (batch) return <BatchExport onClose={onClose} />
+  return (
+    <div className="menu export-menu" role="menu" ref={ref}>
+      <div className="menu-title">Size</div>
+      {EXPORT_SIZES.map(([ew, eh, label]) => {
+        const [name, dims] = label.split(' · ')
+        return (
+          <button
+            key={label}
+            role="menuitemradio"
+            aria-checked={ew === w && eh === h}
+            className={ew === w && eh === h ? 'checked' : ''}
+            onClick={() => setSettings({ exportWidth: ew, exportHeight: eh })}
+          >
+            <strong>
+              <Check size={14} className="tick" /> {name}
+            </strong>
+            <span>{dims}</span>
+          </button>
+        )
+      })}
+      <div className="menu-title">File type</div>
+      <div className="segmented">
+        <button
+          className={format === 'jpg' ? 'active' : ''}
+          title="Fits YouTube's 2 MB limit"
+          onClick={() => setSettings({ exportFormat: 'jpg' })}
+        >
+          JPG
+        </button>
+        <button
+          className={format === 'png' ? 'active' : ''}
+          title="Lossless, larger files"
+          onClick={() => setSettings({ exportFormat: 'png' })}
+        >
+          PNG
+        </button>
+      </div>
+      <div className="menu-sep" />
+      <button onClick={() => setBatch(true)}>
+        <strong>
+          <Layers2 size={14} /> Export several sizes…
+        </strong>
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Only what a session starts and ends with: the project on the left, preview and export on the right. Editing
+ * tools live in the dock at the bottom of the viewport.
+ */
 function TopBar(): ReactNode {
-  const assets = useStore((s) => s.assets)!
-  const mode = useStore((s) => s.transformMode)
-  const canUndo = useStore((s) => s.past.length > 0)
-  const showRulers = useStore((s) => !!s.settings.showRulers)
-  const canRedo = useStore((s) => s.future.length > 0)
   const [exportWidth, exportHeight, exportFormat] = useStore(
     useShallow((s) => [s.settings.exportWidth, s.settings.exportHeight, s.settings.exportFormat])
   )
-  const { setTransformMode, setSettings, setStatus, undo, redo } = useStore.getState()
-
-  const [batchOpen, setBatchOpen] = useState(false)
+  const setStatus = useStore((s) => s.setStatus)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const exportPng = async (): Promise<void> => {
     if (!viewport.capture) return
@@ -114,91 +164,39 @@ function TopBar(): ReactNode {
   return (
     <header className="topbar">
       <div className="brand">
-        <img className="brand-logo" src={logo} alt="" />
-        <strong>ThumbCraft</strong>
-        <i className="divider" />
+        <img className="brand-logo" src={logo} alt="ThumbCraft" title="ThumbCraft" />
         <ProjectMenu />
-        <span className="chip" title="The newest Minecraft installed on this computer">
-          Minecraft {assets.version}
-        </span>
-      </div>
-
-      <div className="toolgroup" role="toolbar" aria-label="Transform tools">
-        {TOOLS.map((t) => (
-          <button
-            key={t.mode}
-            className={`icon-btn ${mode === t.mode ? 'active' : ''}`}
-            title={`${t.label} (${t.key})`}
-            onClick={() => setTransformMode(t.mode)}
-          >
-            <t.icon size={18} />
-          </button>
-        ))}
-        <i className="divider" />
-        <button className="icon-btn" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={undo}>
-          <Undo2 size={18} />
-        </button>
-        <button className="icon-btn" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={redo}>
-          <Redo2 size={18} />
-        </button>
-        <i className="divider" />
-        <button
-          className={`icon-btn ${showRulers ? 'active' : ''}`}
-          title="Rulers and centre guides (Shift+R)"
-          aria-pressed={showRulers}
-          onClick={() => setSettings({ showRulers: !showRulers })}
-        >
-          <Ruler size={18} />
-        </button>
-        <button
-          className="icon-btn"
-          title="How it looks on YouTube: home feed, search, up next and on a phone"
-          onClick={() => setPreviewOpen(true)}
-        >
-          <MonitorPlay size={18} />
-        </button>
-        {previewOpen && <YouTubePreview onClose={() => setPreviewOpen(false)} />}
       </div>
 
       <div className="export">
-        <select
-          className="select-btn"
-          title="Export size"
-          value={`${exportWidth}x${exportHeight}`}
-          onChange={(e) => {
-            const [w, h] = e.target.value.split('x').map(Number)
-            setSettings({ exportWidth: w, exportHeight: h })
-          }}
+        <UpdateNotice />
+        <button
+          className="ghost"
+          title="How it looks on YouTube: home feed, search, up next and on a phone"
+          onClick={() => setPreviewOpen(true)}
         >
-          {EXPORT_SIZES.map(([w, h, label]) => (
-            <option key={label} value={`${w}x${h}`}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="select-btn"
-          title="File type: JPG fits YouTube's 2 MB limit, PNG is lossless"
-          value={exportFormat}
-          onChange={(e) => setSettings({ exportFormat: e.target.value as 'jpg' | 'png' })}
-        >
-          <option value="jpg">JPG · YouTube</option>
-          <option value="png">PNG · lossless</option>
-        </select>
+          <MonitorPlay size={16} />
+          Preview
+        </button>
+        {previewOpen && <YouTubePreview onClose={() => setPreviewOpen(false)} />}
         <div className="split-btn">
-          <button className="primary" onClick={() => void exportPng().catch(reportExportError)}>
+          <button
+            className="primary"
+            title={`Export ${exportWidth} × ${exportHeight} ${exportFormat.toUpperCase()}`}
+            onClick={() => void exportPng().catch(reportExportError)}
+          >
             <Download size={16} />
-            Export {exportFormat.toUpperCase()}
+            Export
           </button>
           <button
             className="primary chevron"
-            title="Export several sizes at once"
-            aria-expanded={batchOpen}
-            onClick={() => setBatchOpen((v) => !v)}
+            title="Size, file type and several sizes at once"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
           >
             <ChevronDown size={15} />
           </button>
-          {batchOpen && <BatchExport onClose={() => setBatchOpen(false)} />}
+          {menuOpen && <ExportMenu onClose={() => setMenuOpen(false)} />}
         </div>
       </div>
     </header>
@@ -211,42 +209,50 @@ function UpdateNotice(): ReactNode {
   useEffect(() => window.blockframe.onUpdate(setUpdate), [])
   if (!update) return null
   return update.ready ? (
-    <span className="update-notice">ThumbCraft {update.version} is ready: it installs when you close the app</span>
+    <span className="update-notice" title="It installs when you close the app">
+      {update.version} ready
+    </span>
   ) : (
-    <a
-      className="update-notice"
-      href={update.url}
-      target="_blank"
-      rel="noreferrer"
-      onClick={(e) => e.stopPropagation()}
-    >
-      ThumbCraft {update.version} is out: download it
+    <a className="update-notice" href={update.url} target="_blank" rel="noreferrer" title="Download the new version">
+      {update.version} is out
     </a>
   )
 }
 
-function StatusBar(): ReactNode {
+/**
+ * Messages (exports, errors, warnings) float briefly over the bottom of the viewport instead of filling a
+ * permanent status bar. Hovering keeps one up; clicking dismisses it.
+ */
+function StatusToast(): ReactNode {
   const status = useStore((s) => s.status)
-  const count = useStore((s) => s.objects.length)
+  const [paused, setPaused] = useState(false)
+  useEffect(() => {
+    if (!status || paused) return
+    const t = setTimeout(() => useStore.getState().setStatus(''), Math.min(15000, 5000 + status.length * 60))
+    return () => clearTimeout(t)
+  }, [status, paused])
+  if (!status) return null
   return (
-    <footer className="status" onClick={() => useStore.getState().setStatus('')}>
-      <span className={status ? 'status-msg' : ''}>
-        {status ||
-          'Drag to orbit · Right-drag to pan · Scroll to zoom · Hold Shift while moving to snap · Ctrl+Z to undo'}
-      </span>
-      <span className="status-right">
-        <UpdateNotice />
-        <span>
-          {count} {count === 1 ? 'layer' : 'layers'}
-        </span>
-      </span>
-    </footer>
+    <div
+      className="status-toast"
+      role="status"
+      title="Click to dismiss"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onClick={() => {
+        setPaused(false)
+        useStore.getState().setStatus('')
+      }}
+    >
+      {status}
+    </div>
   )
 }
 
 export function App(): ReactNode {
   const assets = useStore((s) => s.assets)
   const tabbed = useTabs((s) => s.tabs.length > 1)
+  const focus = useLayout((s) => s.focus)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -299,6 +305,7 @@ export function App(): ReactNode {
         // Everything but the ground, which is almost never meant to move with the rest.
         s.setSelection(s.objects.filter((o) => !(o.kind === 'terrain' && o.ground)).map((o) => o.id))
       } else if (e.ctrlKey || e.metaKey || e.altKey) return
+      else if (e.key === '\\') useLayout.getState().toggleFocus()
       else if (k === 'r' && e.shiftKey) s.setSettings({ showRulers: !s.settings.showRulers })
       else if (k === 'w') s.setTransformMode('translate')
       else if (k === 'e') s.setTransformMode('rotate')
@@ -320,7 +327,7 @@ export function App(): ReactNode {
 
   if (!assets) return <Setup />
   return (
-    <div className={`app ${tabbed ? 'with-tabs' : ''}`}>
+    <div className={`app ${tabbed ? 'with-tabs' : ''} ${focus ? 'focus' : ''}`}>
       <TopBar />
       <TabBar />
       <div className="workspace">
@@ -328,7 +335,7 @@ export function App(): ReactNode {
         <Viewport />
         <RightPanel />
       </div>
-      <StatusBar />
+      <StatusToast />
     </div>
   )
 }
