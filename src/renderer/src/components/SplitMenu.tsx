@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { Columns2, Download } from 'lucide-react'
 import { captureSplit } from '../capture'
-import { encodeExport, extensionOf } from '../exportImage'
+import { encodeExport, extensionOf, reportExportError } from '../exportImage'
 import { useStore, type SplitSettings } from '../store'
 import { tabProject, useTabs } from '../tabs'
 import { Slider } from './controls'
@@ -56,6 +56,8 @@ function SplitMenu({ onClose }: { onClose: () => void }): ReactNode {
       const name = `${nameOf(sp.left)} vs ${nameOf(sp.right)}`
       const file = await window.blockframe.savePng(url, `${name}.${extensionOf(exportFormat)}`)
       if (file) useStore.getState().setStatus(`Exported ${file}`)
+    } catch (e) {
+      reportExportError(e)
     } finally {
       setBusy(false)
     }

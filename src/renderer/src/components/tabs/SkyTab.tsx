@@ -1,6 +1,6 @@
 import { useRef, type ReactNode } from 'react'
 import { CloudRain, Snowflake, Sun, Upload } from 'lucide-react'
-import { registerMedia } from '../../media'
+import { registerFile } from '../../media'
 import { DAY_LIGHTING, NIGHT_LIGHTING, useStore, type SkyPreset, type WeatherType } from '../../store'
 import { sunInView } from '../Effects'
 import { PRESET_SUN } from '../SkyBackdrop'
@@ -87,7 +87,8 @@ export function SkyTab(): ReactNode {
     // Browsers report no type for .hdr/.exr, and the sky loader picks its decoder from the type.
     const ext = f.name.toLowerCase().split('.').pop() ?? ''
     const mime = SKY_TYPES[ext] ?? 'image/jpeg'
-    const media = registerMedia(f.name, mime, new Uint8Array(await f.arrayBuffer()))
+    const media = await registerFile(f, mime)
+    if (!media) return
     setSky({ preset: 'hdri', hdriMediaId: media.id, hdriName: f.name })
     setStatus(`Sky: ${f.name}`)
   }

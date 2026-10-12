@@ -76,7 +76,7 @@ export function TextProperties({ o }: { o: TextObject }): ReactNode {
             e.target.value = ''
             if (!f) return
             const media = await registerFile(f)
-            set({ fontMediaId: media.id })
+            if (media) set({ fontMediaId: media.id })
           }}
         />
       </label>

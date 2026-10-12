@@ -108,9 +108,9 @@ export function LightProperties({ o }: { o: LightObject }): ReactNode {
             onChange={async (e) => {
               const f = e.target.files?.[0]
               if (!f) return
-              const m = await registerFile(f)
-              set({ gobo: 'custom', goboMediaId: m.id })
               e.target.value = ''
+              const m = await registerFile(f)
+              if (m) set({ gobo: 'custom', goboMediaId: m.id })
             }}
           />
         </>

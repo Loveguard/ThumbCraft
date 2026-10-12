@@ -59,7 +59,7 @@ function writeIndex(entries: IndexEntry[]): void {
 }
 
 /** Writes atomically (temp file + rename) so a crash mid-save never corrupts the previous copy. */
-function writeAtomic(path: string, bytes: Uint8Array): void {
+export function writeAtomic(path: string, bytes: Uint8Array): void {
   const tmp = `${path}.tmp`
   writeFileSync(tmp, bytes)
   renameSync(tmp, path)

@@ -1,6 +1,7 @@
 import { app } from 'electron'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { writeAtomic } from './projects'
 
 interface Settings {
   lastJar?: string
@@ -20,5 +21,6 @@ export function readSettings(): Settings {
 }
 
 export function updateSettings(patch: Partial<Settings>): void {
-  writeFileSync(file(), JSON.stringify({ ...readSettings(), ...patch }, null, 2))
+  // Atomic, so a crash mid-write can't reset the EULA tick and the generator's default world.
+  writeAtomic(file(), new TextEncoder().encode(JSON.stringify({ ...readSettings(), ...patch }, null, 2)))
 }

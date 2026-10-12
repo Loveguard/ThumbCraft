@@ -2,7 +2,7 @@
 // the vanilla world generator places every block, and we read the result from its region files.
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { setPriority, totalmem } from 'node:os'
 import { delimiter, dirname, isAbsolute, join } from 'node:path'
@@ -249,8 +249,70 @@ export async function shutdownGenerator(quick = false): Promise<void> {
   if (idleTimer) clearTimeout(idleTimer)
   pending?.kill()
   pending = null
-  await session?.stop(quick ? 3000 : 20000)
+  const stopped = session
+  await stopped?.stop(quick ? 3000 : 20000)
   session = null
+  // Every blank-seed generation adds chunks at a new spot, so the default world only grows; it is a throwaway
+  // cache (finished areas are kept elsewhere), so start it over once it gets big.
+  if (stopped && folderSize(stopped.world()) > MAX_WORLD) removeQuietly(stopped.world())
+}
+
+/** The generator's worlds and caches are disposable: past these sizes and ages they are deleted. */
+const MAX_WORLD = 512 * 2 ** 20
+const KEEP_TERRAINS = 60
+const UNUSED_FOR = 30 * 24 * 60 * 60 * 1000
+
+function folderSize(dir: string): number {
+  let total = 0
+  try {
+    for (const e of readdirSync(dir, { withFileTypes: true }))
+      total += e.isDirectory() ? folderSize(join(dir, e.name)) : statSync(join(dir, e.name)).size
+  } catch {
+    // gone or unreadable: counts as empty
+  }
+  return total
+}
+
+/** Deletes a cache folder or file; one still locked (Windows) is left for the next clean-up. */
+function removeQuietly(path: string): void {
+  try {
+    rmSync(path, { recursive: true, force: true })
+  } catch {
+    // in use right now
+  }
+}
+
+/**
+ * Clears what earlier runs left behind: worlds of other seeds in this version's server folder, and the server
+ * folders of Minecraft versions not used for a month (each holds a server jar and its worlds).
+ */
+function cleanGeneratorCache(version: string, levelName: string): void {
+  const serverDir = cacheDir('server', version)
+  for (const name of readdirSync(serverDir))
+    if (name.startsWith('world_') && name !== levelName) removeQuietly(join(serverDir, name))
+  const root = cacheDir('server')
+  for (const other of readdirSync(root)) {
+    const props = join(root, other, 'server.properties')
+    if (other !== version && existsSync(props) && Date.now() - statSync(props).mtimeMs > UNUSED_FOR)
+      removeQuietly(join(root, other))
+  }
+}
+
+/** Ready-made areas for a version, biome or size nobody has asked for in a month. */
+function dropUnusedPools(): void {
+  const root = cacheDir('terrain-pool')
+  for (const name of existsSync(root) ? readdirSync(root) : [])
+    if (Date.now() - statSync(join(root, name)).mtimeMs > UNUSED_FOR) removeQuietly(join(root, name))
+}
+
+/** Keeps only the newest `keep` files (or folders) in a cache folder. */
+function keepNewest(dir: string, keep: number): void {
+  if (!existsSync(dir)) return
+  readdirSync(dir)
+    .map((name) => ({ path: join(dir, name), time: statSync(join(dir, name)).mtimeMs }))
+    .sort((a, b) => b.time - a.time)
+    .slice(keep)
+    .forEach((f) => removeQuietly(f.path))
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
@@ -308,7 +370,11 @@ async function ensureSession(version: string, seed: string, progress: Progress):
       throw new Error(
         `Java ${need}+ is required. Use "Install Java" in the Biomes tab (one click), or launch this version once in the official launcher.`
       )
-    const levelName = `world_${seed.replace(/[^A-Za-z0-9-]/g, '_').slice(0, 40)}`
+    // The exact seed's hash keeps seeds that read alike ("my seed", "my_seed") in separate worlds: Minecraft keeps a
+    // world's first seed, so a shared folder would quietly generate the other seed's terrain.
+    const seedHash = createHash('sha1').update(seed).digest('hex').slice(0, 8)
+    const levelName = `world_${seed.replace(/[^A-Za-z0-9-]/g, '_').slice(0, 24)}_${seedHash}`
+    cleanGeneratorCache(version, levelName)
     writeFileSync(join(serverDir, 'eula.txt'), 'eula=true\n')
     writeFileSync(join(serverDir, 'server.properties'), serverProperties(seed, await freePort(), levelName))
     progress({ stage: 'start', message: `Starting vanilla world generator (Java ${java.major})…` })
@@ -481,7 +547,7 @@ async function generateNow(job: Job, progress: Progress, signal?: AbortSignal): 
 // Finished areas on disk. Typed seeds are cached by exact request; blank-seed requests take a ready-made area
 // from a small pool that is refilled in the background, so popular biomes appear instantly.
 
-const CACHE_FORMAT = 1
+const CACHE_FORMAT = 2
 const hash = (o: unknown): string => createHash('sha1').update(JSON.stringify(o)).digest('hex').slice(0, 24)
 const exactFile = (j: Job): string =>
   cacheDir(
@@ -536,7 +602,10 @@ async function pump(): Promise<void> {
       const job = background.shift()!
       if (poolHas(job)) continue
       const done = exclusive(() => generateNow({ ...job, from: randomSpot() }, () => undefined)).then(
-        (t) => writeTerrain(join(poolDir(job), `${Date.now()}.bin`), t),
+        (t) => {
+          writeTerrain(join(poolDir(job), `${Date.now()}.bin`), t)
+          dropUnusedPools()
+        },
         () => undefined // a biome that can't be found nearby just isn't pre-generated
       )
       inflight = { job, done }
@@ -650,6 +719,7 @@ export async function generateTerrain(
           signal
         )
         writeTerrain(exactFile(job), t)
+        keepNewest(dirname(exactFile(job)), KEEP_TERRAINS)
         return t
       } finally {
         userWaiting--

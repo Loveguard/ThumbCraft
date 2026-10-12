@@ -10,7 +10,7 @@ import { RightPanel } from './components/RightPanel'
 import { Setup } from './components/Setup'
 import { returnToShot, saveShot } from './components/ViewportOverlay'
 import { Viewport, viewport } from './components/Viewport'
-import { encodeExport, extensionOf, sizeLabel } from './exportImage'
+import { encodeExport, extensionOf, overYouTubeLimit, reportExportError, sizeLabel } from './exportImage'
 import { useShallow } from 'zustand/react/shallow'
 import { useStore, type TransformMode } from './store'
 import { captureFrame } from './capture'
@@ -47,7 +47,14 @@ function BatchExport({ onClose }: { onClose: () => void }): ReactNode {
         dataUrl: await encodeExport(await captureFrame(w, h), format)
       })
     const dir = await window.blockframe.savePngs(images)
-    if (dir) useStore.getState().setStatus(`Exported ${images.length} thumbnails to ${dir}`)
+    const over = images.filter((i) => overYouTubeLimit(i.dataUrl)).length
+    if (dir)
+      useStore
+        .getState()
+        .setStatus(
+          `Exported ${images.length} thumbnails to ${dir}` +
+            (over ? `; ${over} of them ${over > 1 ? 'are' : 'is'} over YouTube's 2 MB limit` : '')
+        )
   }
   return (
     <div className="batch-export" role="dialog" ref={ref}>
@@ -73,7 +80,7 @@ function BatchExport({ onClose }: { onClose: () => void }): ReactNode {
         )
       })}
       <p className="hint">Every size uses the same camera, so check the framing of tall (Shorts) images.</p>
-      <button className="primary" disabled={!picked.size} onClick={() => void run()}>
+      <button className="primary" disabled={!picked.size} onClick={() => void run().catch(reportExportError)}>
         <Download size={15} /> Export {picked.size} {picked.size === 1 ? 'image' : 'images'}…
       </button>
     </div>
@@ -97,7 +104,11 @@ function TopBar(): ReactNode {
     if (!viewport.capture) return
     const url = await encodeExport(await captureFrame(exportWidth, exportHeight), exportFormat)
     const saved = await window.blockframe.savePng(url, `thumbnail.${extensionOf(exportFormat)}`)
-    if (saved) setStatus(`Exported ${saved} (${sizeLabel(url)})`)
+    if (saved)
+      setStatus(
+        `Exported ${saved} (${sizeLabel(url)})` +
+          (overYouTubeLimit(url) ? ": over YouTube's 2 MB limit, export a smaller size for YouTube" : '')
+      )
   }
 
   return (
@@ -175,7 +186,7 @@ function TopBar(): ReactNode {
           <option value="png">PNG · lossless</option>
         </select>
         <div className="split-btn">
-          <button className="primary" onClick={() => void exportPng()}>
+          <button className="primary" onClick={() => void exportPng().catch(reportExportError)}>
             <Download size={16} />
             Export {exportFormat.toUpperCase()}
           </button>

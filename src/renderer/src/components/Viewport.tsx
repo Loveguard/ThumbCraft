@@ -691,11 +691,14 @@ function Bridge(): null {
         cam.updateProjectionMatrix()
         renderFrame(gl, scene, cam, composer)
       }
-      renderAt(w, h, 1)
-      const url = gl.domElement.toDataURL('image/png')
-      helpers.forEach((o) => (o.visible = true))
-      renderAt(size.width, size.height, prevRatio)
-      return url
+      try {
+        renderAt(w, h, 1)
+        return gl.domElement.toDataURL('image/png')
+      } finally {
+        // Also when the render fails: the gizmos come back and the viewport returns to its own size.
+        helpers.forEach((o) => (o.visible = true))
+        renderAt(size.width, size.height, prevRatio)
+      }
     }
   }, [gl, scene, camera, size, controls])
   return null

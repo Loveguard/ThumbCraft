@@ -411,6 +411,7 @@ export function MediaTab(): ReactNode {
     for (const file of Array.from(files ?? [])) {
       // Keep the bytes so the file is saved inside the project.
       const media = await registerFile(file)
+      if (!media) continue
       const url = media.url
       const isVideo = file.type.startsWith('video/')
       const finish = (aspect: number): void =>
@@ -477,9 +478,12 @@ async function importModels(files: FileList | null): Promise<void> {
     useStore.getState().setStatus('Pick a .glb, .gltf or .obj file (plus its textures if it has separate ones).')
     return
   }
-  const extras = await Promise.all(list.filter((f) => !isModelFile(f.name)).map((f) => registerFile(f)))
+  const extras = (await Promise.all(list.filter((f) => !isModelFile(f.name)).map((f) => registerFile(f)))).filter(
+    (m) => !!m
+  )
   for (const file of mains) {
     const media = await registerFile(file)
+    if (!media) continue
     try {
       const model = await loadModel(media, extras)
       useStore.getState().add({

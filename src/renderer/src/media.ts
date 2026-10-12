@@ -24,8 +24,25 @@ export function registerMedia(name: string, mime: string, bytes: Uint8Array, id 
   return entry
 }
 
-export async function registerFile(file: File): Promise<MediaEntry> {
-  return registerMedia(file.name, file.type, new Uint8Array(await file.arrayBuffer()))
+/** Biggest single file a project may hold, and the whole project (opening refuses anything larger). */
+export const MAX_MEDIA = 256 * 2 ** 20
+export const MAX_PROJECT = 768 * 2 ** 20
+
+/**
+ * Keeps an imported file's bytes so the project can embed them. A file too big for a project to hold is
+ * refused here, with a message, instead of producing a project that saves but never opens again.
+ */
+export async function registerFile(file: File, mime = file.type): Promise<MediaEntry | null> {
+  if (file.size > MAX_MEDIA) {
+    useStore
+      .getState()
+      .setStatus(
+        `${file.name} is ${Math.round(file.size / 2 ** 20)} MB; projects can hold files up to ${MAX_MEDIA / 2 ** 20} MB. ` +
+          'Trim or compress it first.'
+      )
+    return null
+  }
+  return registerMedia(file.name, mime, new Uint8Array(await file.arrayBuffer()))
 }
 
 export function clearMedia(): void {
