@@ -86,6 +86,9 @@ jobs:
             release/*.blockmap
             release/latest*.yml
           if-no-files-found: error
+          # Only passed to the publish job a few minutes later; kept a day, so release builds don't fill the
+          # account's artifact storage (a full quota makes the upload, and so the whole release, fail).
+          retention-days: 1
 
   publish:
     needs: build
