@@ -6,6 +6,7 @@ import { encodeExport } from '../exportImage'
 import { assetUrl, loadImage } from '../minecraft/assets'
 import { openProjectFile, openRecentProject } from '../projectActions'
 import { useStore, type SkyPreset } from '../store'
+import { useLayout } from '../layout'
 import { applyTemplate, TEMPLATES, type Template } from '../templates'
 import { timeAgo } from './ProjectMenu'
 
@@ -206,7 +207,7 @@ export function StartPanel(): ReactNode {
         <SecretCode onUnlock={() => setUnlocked(true)} />
       )}
       <div className="row">
-        <button onClick={() => document.querySelector<HTMLButtonElement>('.rail-item')?.click()}>
+        <button onClick={() => useLayout.getState().openAssetTab('biomes')}>
           <Mountain size={16} /> Generate a real biome
         </button>
         <button onClick={() => void openProjectFile()}>

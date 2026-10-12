@@ -5,7 +5,8 @@ import * as THREE from 'three'
 import { fullPose } from '@shared/minecraft/playerModel'
 import type { TerrainData } from '@shared/types'
 import { viewport } from './components/Viewport'
-import { backgroundScenes, mediaIdsOf, mediaStore, pruneMedia, registerMedia } from './media'
+import { currentLookId } from './grading'
+import { backgroundScenes, MAX_MEDIA, MAX_PROJECT, mediaIdsOf, mediaStore, pruneMedia, registerMedia } from './media'
 import { defaultSkinUrl } from './minecraft/builders'
 import {
   DEFAULT_SETTINGS,
@@ -50,7 +51,8 @@ const u16 = (b: Uint8Array): Uint16Array => new Uint16Array(b.slice().buffer)
 /** Serialises the current scene. Only terrains and media still referenced by objects are included. */
 export function serializeProject(): Uint8Array {
   const s = useStore.getState()
-  const files: Record<string, Uint8Array> = {}
+  const files: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = {}
+  let total = 0
 
   // Blob URLs are session-only; strip them (they are rebuilt from the embedded bytes on open).
   const objects = s.objects.map((o) =>
@@ -66,6 +68,7 @@ export function serializeProject(): Uint8Array {
     terrains.push({ id, ...meta })
     files[`terrain/${id}/blocks.u16`] = bytesOf(blocks)
     files[`terrain/${id}/biomes.u16`] = bytesOf(biomes)
+    total += blocks.byteLength + biomes.byteLength
   }
 
   const mediaIds = new Set<string>()
@@ -77,7 +80,10 @@ export function serializeProject(): Uint8Array {
     const m = mediaStore.get(id)
     if (!m) continue
     media.push({ id, name: m.name, mime: m.mime })
-    files[`media/${id}`] = m.bytes
+    // Stored, not deflated: images and videos are already compressed, and re-zipping a big video on every
+    // autosave would freeze the window for seconds.
+    files[`media/${id}`] = [m.bytes, { level: 0 }]
+    total += m.bytes.byteLength
   }
 
   const cam = viewport.camera
@@ -98,8 +104,16 @@ export function serializeProject(): Uint8Array {
     terrains,
     media
   }
-  files['project.json'] = strToU8(JSON.stringify(json))
-  // Terrain and media are already dense/compressed; level 1 keeps saves fast.
+  const jsonBytes = strToU8(JSON.stringify(json))
+  files['project.json'] = jsonBytes
+  total += jsonBytes.length
+  // Opening refuses projects past these sizes, so never write one (it would save but never open again).
+  if (total > MAX_PROJECT)
+    throw new Error(
+      `This project holds ${Math.round(total / 2 ** 20)} MB of terrain and media; the limit is ${MAX_PROJECT / 2 ** 20} MB. ` +
+        'Remove a large video or image, then save again.'
+    )
+  // Level 1 keeps saves fast; the terrain still shrinks a lot.
   return zipSync(files, { level: 1 })
 }
 
@@ -108,9 +122,6 @@ export interface OpenedProject {
   minecraftVersion: string | null
 }
 
-/** Biggest single file a project may contain once unpacked, and the whole project. */
-const MAX_ENTRY = 256 * 2 ** 20
-const MAX_TOTAL = 768 * 2 ** 20
 const ENTRY = /^(project\.json|terrain\/[^/]+\/(blocks|biomes)\.u16|media\/[^/]+)$/
 
 /** Opens the zip and checks project.json, without touching the current scene (a bad file changes nothing). */
@@ -122,7 +133,7 @@ function readProjectFile(bytes: Uint8Array): { json: ProjectJson; files: Record<
       total += f.originalSize
       // Sizes are read before unpacking (and memory is reserved for them), so a tiny file claiming huge
       // contents is refused up front; real data never compresses better than about 1000:1.
-      if (f.originalSize > MAX_ENTRY || total > MAX_TOTAL || f.originalSize > f.size * 1100 + 4096)
+      if (f.originalSize > MAX_MEDIA || total > MAX_PROJECT || f.originalSize > f.size * 1100 + 4096)
         throw new Error('This project file is too large or damaged')
       return true
     }
@@ -193,7 +204,12 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
     future: [],
     // Merge with defaults so projects saved before a setting existed still open.
     settings: { ...DEFAULT_SETTINGS, ...settings },
-    effects: { ...NO_EFFECTS, ...json.effects },
+    effects: {
+      ...NO_EFFECTS,
+      ...json.effects,
+      // Looks cut when the list went down to six open as the look that replaced them.
+      look: json.effects?.look ? currentLookId(json.effects.look) : null
+    },
     sky: {
       ...DEFAULT_SKY,
       ...json.sky,

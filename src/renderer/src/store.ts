@@ -326,6 +326,26 @@ export interface EffectSettings {
   streakAmount: number
   streakThreshold: number
   streakColor: string
+  /** Paper cutout: players (and mobs, if chosen) get a torn white paper border and a drop shadow. */
+  paper: boolean
+  paperMobs: boolean
+  /** Border width in 720p pixels. */
+  paperEdge: number
+  paperRough: number
+  paperShadow: number
+  /** Paper folds: creases, crumpling and paper fibre over the whole picture. */
+  folds: boolean
+  paperFolds: number
+  /** Film halation: a red-orange glow around bright highlights. */
+  halation: boolean
+  paperHalation: number
+  /** Fujifilm colour. */
+  fuji: boolean
+  paperFuji: number
+  /** Light leak: warm light fogging in from the top edge; `lightLeakX` is where along it (0 left … 1 right). */
+  lightLeak: boolean
+  lightLeakAmount: number
+  lightLeakX: number
   /** The colour look (a 3D LUT): a built-in look's id, 'custom' for an imported .cube file, or null. */
   look: string | null
   /** 0 = original colour … 1 = the full look. */
@@ -378,6 +398,20 @@ export const NO_EFFECTS: EffectSettings = {
   streakAmount: 0.6,
   streakThreshold: 1.2,
   streakColor: '#7fb8ff',
+  paper: false,
+  paperMobs: false,
+  paperEdge: 12,
+  paperRough: 0.6,
+  paperShadow: 0.5,
+  folds: false,
+  paperFolds: 0.5,
+  halation: false,
+  paperHalation: 0.5,
+  fuji: false,
+  paperFuji: 0.7,
+  lightLeak: false,
+  lightLeakAmount: 0.8,
+  lightLeakX: 0.15,
   look: null,
   lookIntensity: 1,
   lutMediaId: null,

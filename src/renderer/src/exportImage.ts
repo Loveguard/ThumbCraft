@@ -1,7 +1,9 @@
 // Turns a captured PNG into the file the user asked for: a lossless PNG, or a JPG that fits YouTube's
 // 2 MB thumbnail limit (the highest quality that does).
 
+import { errorText } from './errors'
 import { decodeImage } from './image'
+import { useStore } from './store'
 
 export type ExportFormat = 'jpg' | 'png'
 
@@ -31,3 +33,10 @@ export async function encodeExport(png: string, format: ExportFormat): Promise<s
 export const extensionOf = (format: ExportFormat): string => (format === 'jpg' ? 'jpg' : 'png')
 
 export const sizeLabel = (dataUrl: string): string => `${(bytesOf(dataUrl) / 2 ** 20).toFixed(2)} MB`
+
+/** A JPG that stayed over YouTube's limit even at the lowest quality (busy 4K frames with grain can). */
+export const overYouTubeLimit = (dataUrl: string): boolean =>
+  dataUrl.startsWith('data:image/jpeg') && bytesOf(dataUrl) > YOUTUBE_LIMIT
+
+/** Says why an export failed (a locked or read-only file, a full disk…) instead of failing silently. */
+export const reportExportError = (e: unknown): void => useStore.getState().setStatus(`Export failed: ${errorText(e)}`)

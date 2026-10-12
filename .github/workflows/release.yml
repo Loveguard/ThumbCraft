@@ -40,6 +40,14 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      # Installed copies update from latest.yml, whose version comes from package.json, not the tag: a tag that
+      # doesn't match would publish a release no installed copy ever updates to.
+      - shell: bash
+        run: |
+          want="v$(node -p "require('./package.json').version")"
+          [[ "$TAG" == "$want" ]] || { echo "Tag $TAG doesn't match package.json ($want); bump the version first"; exit 1; }
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
       - run: npm ci
       - run: npm test
       # The mob-model helper ships compiled from its source here, never from a committed binary.

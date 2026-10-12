@@ -293,7 +293,7 @@ export async function applyEquipment(
 ): Promise<void> {
   const added: { parent: THREE.Object3D; object: THREE.Object3D }[] = []
   // An outfit replaces the armour (its suit is drawn on the armour layout).
-  const outfit = eq.outfit ? buildOutfit(eq.outfit, slim) : null
+  const outfit = eq.outfit ? await buildOutfit(eq.outfit, slim) : null
   for (const { part, object } of outfit?.parts ?? []) {
     const parent = player.getObjectByName(part)
     if (parent) added.push({ parent, object })
@@ -310,7 +310,13 @@ export async function applyEquipment(
   if (eq.mainHand) items.push({ id: eq.mainHand, left: false })
   if (eq.offHand) items.push({ id: eq.offHand, left: true })
   const built = await Promise.all(items.map(async (it) => ({ it, item: await buildItem(ctx, it.id) })))
-  if (!alive()) return
+  if (!alive()) {
+    // A newer change won (dragging the leather colour fires many): free what this one built, or it stays on the GPU.
+    for (const { object } of added) disposeObject(object)
+    for (const { item } of built) if (item) disposeObject(item.object)
+    if (outfit?.held) disposeObject(outfit.held.object)
+    return
+  }
 
   // Swap in one go so the model never shows half-dressed.
   const old: THREE.Object3D[] = []

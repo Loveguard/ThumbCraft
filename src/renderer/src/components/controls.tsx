@@ -1,5 +1,5 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { ChevronRight, CircleHelp } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CircleHelp } from 'lucide-react'
 
 /**
  * A number field that keeps what's being typed ("-", "0.", an empty box) instead of snapping to the store's
@@ -339,5 +339,81 @@ export function ColorSection({
       </button>
       {open && <div className="fx-section-body">{children}</div>}
     </section>
+  )
+}
+
+/** Lists longer than this open in pages instead of one long scroll. */
+export const PAGE_WHEN_OVER = 50
+/** Tiles per page in a paged list. */
+export const PAGE_SIZE = 12
+
+/**
+ * Splits `items` into pages of {@link PAGE_SIZE} once the list (or `count`, when the section's badge counts
+ * something else) is over {@link PAGE_WHEN_OVER}; shorter lists come back whole. Goes back to the first page
+ * whenever the list itself changes (a new search, another biome).
+ */
+export function usePaged<T>(
+  items: T[],
+  count = items.length
+): { shown: T[]; page: number; pages: number; setPage: (p: number) => void } {
+  const [state, setState] = useState({ items, page: 0 })
+  const paged = count > PAGE_WHEN_OVER
+  const pages = paged ? Math.max(1, Math.ceil(items.length / PAGE_SIZE)) : 1
+  const page = state.items === items ? Math.min(state.page, pages - 1) : 0
+  const setPage = (p: number): void => setState({ items, page: Math.max(0, Math.min(pages - 1, p)) })
+  return { shown: paged ? items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : items, page, pages, setPage }
+}
+
+/** The page numbers to offer: always the first and last, the current one and its neighbours, gaps as null. */
+export const pageButtons = (page: number, pages: number): (number | null)[] => {
+  const keep = new Set([0, pages - 1, page - 1, page, page + 1].filter((p) => p >= 0 && p < pages))
+  // A gap of one page is shown as that page rather than as "…".
+  for (const p of [1, pages - 2]) if (keep.has(p - 1) && keep.has(p + 1)) keep.add(p)
+  const out: (number | null)[] = []
+  ;[...keep]
+    .sort((a, b) => a - b)
+    .forEach((p, i, all) => {
+      if (i && p - all[i - 1] > 1) out.push(null)
+      out.push(p)
+    })
+  return out
+}
+
+/** The page selector at the foot of a paged list; nothing when the list fits on one page. */
+export function Pager({
+  page,
+  pages,
+  setPage
+}: {
+  page: number
+  pages: number
+  setPage: (p: number) => void
+}): ReactNode {
+  if (pages < 2) return null
+  return (
+    <nav className="pager" aria-label="Pages">
+      <button className="pager-step" disabled={page === 0} onClick={() => setPage(page - 1)} title="Previous page">
+        <ChevronLeft size={14} />
+      </button>
+      {pageButtons(page, pages).map((p, i) =>
+        p === null ? (
+          <span key={`gap${i}`} className="pager-gap">
+            …
+          </span>
+        ) : (
+          <button
+            key={p}
+            className={p === page ? 'active' : ''}
+            aria-current={p === page ? 'page' : undefined}
+            onClick={() => setPage(p)}
+          >
+            {p + 1}
+          </button>
+        )
+      )}
+      <button className="pager-step" disabled={page === pages - 1} onClick={() => setPage(page + 1)} title="Next page">
+        <ChevronRight size={14} />
+      </button>
+    </nav>
   )
 }

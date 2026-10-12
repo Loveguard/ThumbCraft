@@ -106,7 +106,7 @@ export function VfxTab(): ReactNode {
       </div>
       <Hint>
         Effects appear where you are looking; move and scale them with the gizmo. In the properties panel you can change
-        the colour, thickness and see-through, or reshuffle the puffs for a different shape. Bloom (Look tab) makes fire
+        the colour, thickness and see-through, or reshuffle the puffs for a different shape. Bloom (Sky tab) makes fire
         and sparks glow.
       </Hint>
       <hr />

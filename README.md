@@ -29,13 +29,13 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 
 <table>
   <tr>
-    <td><img src="docs/images/scene-0.jpg" alt="Shocked find: a player in a torch-lit cave staring at diamonds"></td>
-    <td><img src="docs/images/scene-1.jpg" alt="100 days stranded: a player on a desert island"></td>
-    <td><img src="docs/images/scene-2.jpg" alt="Versus showdown: a low-angle shot of two players"></td>
+    <td><img src="docs/images/scene-0.jpg" alt="The Warden found me: a big two-line title beside a terrified player with the Warden looming behind"></td>
+    <td><img src="docs/images/scene-1.jpg" alt="Horseback survival: a big two-line title beside a player riding a rearing horse"></td>
+    <td><img src="docs/images/scene-2.jpg" alt="Versus showdown: two armoured players face off in a dungeon under a big VS"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Shocked find</sub></td>
-    <td align="center"><sub>100 days stranded</sub></td>
+    <td align="center"><sub>The Warden found me</sub></td>
+    <td align="center"><sub>Horseback survival</sub></td>
     <td align="center"><sub>Versus showdown</sub></td>
   </tr>
 </table>
@@ -50,7 +50,7 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 | 🏠 **Builds**           | Every vanilla structure, from village houses to bastions and ancient cities, with isometric previews. You can also import `.schem`, `.litematic` and `.nbt` files.                                                                                                                                                                                                                   |
 | 🔥 **FX**               | Smoke, fog, fire, explosions, embers, magic, light beams, lightning strikes, **shine** (star glints that make loot and diamonds sparkle), rain and snow, plus particles straight from the game.                                                                                                                                                                                      |
 | 💡 **Lighting & looks** | Four render modes: Vanilla, Cinematic, Soft and Cartoon (the bright cel-shaded style of Minecraft's key art). Coloured lights, bloom, god rays and a movable sun. Film-style colour looks built as real 3D LUTs, plus your own `.cube` LUTs from DaVinci Resolve or Premiere.                                                                                                        |
-| 🎯 **Focus & lens**     | Drag a focus point onto anything and it stays sharp while the rest blurs; add more points for several subjects. Lens warp (curved-TV bulge or pinch, never black corners), speed burst, anamorphic streaks, chromatic aberration, vignette, film grain and a CRT TV look.                                                                                                            |
+| 🎯 **Focus & lens**     | Drag a focus point onto anything and it stays sharp while the rest blurs; add more points for several subjects. Lens warp (curved-TV bulge or pinch, never black corners), speed burst, anamorphic streaks, chromatic aberration, vignette, film grain, paper cutout, paper folds, film halation, Fujifilm colour, a light leak and a CRT TV look.                                   |
 | 🔤 **Text & media**     | Thumbnail-style outlined text with gradients and glow, 3D text in the Minecraft font, carved **stone titles** in any colour and front-on **Hardcore titles** (every O becomes the hardcore heart). Your own images, videos and 3D models, and one-click background removal. Anything can be set **always on top** with **flat lighting**, so a title never disappears behind a tree. |
 | 🗂️ **Tabs**             | Several projects open at once, one tab each. **Duplicate as new tab** makes a variant to try something without touching the original; put two tabs side by side as a **split image** ("Day 1 vs Day 100") with a straight, torn-paper or lightning divider.                                                                                                                          |
 | 🏷️ **Thumbnail kit**    | Bold arrows, circles, crosses, ticks, bursts and boxes in any colour, with outline and glow. Line thickness is adjustable, and so are an arrow's tail length and a circle's or box's width.                                                                                                                                                                                          |
@@ -130,11 +130,14 @@ ThumbCraft is light. If your PC can run Minecraft, it can run ThumbCraft, and mo
 3. **Frame it.** Drag to orbit, right-drag to pan, scroll to zoom. Hold **Shift** while moving things to snap
    them onto surfaces.
 4. **Add drama** from the **FX**, **Lights** and **Look** tabs.
-5. **Export JPG.** The file is ready to upload to YouTube.
+5. **Export.** The file is ready to upload to YouTube; the arrow next to Export picks the size and file type.
 
 ## How to use it
 
-The tool rail on the left opens one panel at a time; the panel on the right edits whatever you've selected.
+The labelled icons on the left open one panel at a time (click the open one again to fold the panel away),
+and the panel on the right edits whatever you've selected. Every editing tool (move, rotate, scale, undo, camera
+angles, saved view, frame all, grid, snap, rulers) sits in the dock under the canvas. **Hide panels** (the last dock
+button, or **\\**) clears both side panels away so the thumbnail fills the window.
 
 - **Biomes:** swap in a ready-made backdrop instantly, or generate any real biome (needs Java; the first run
   takes up to a minute). **Import from your own world** cuts an area out of one of your saves.
@@ -157,7 +160,7 @@ The tool rail on the left opens one panel at a time; the panel on the right edit
   the properties panel.
 - **Split image** (tab bar, once two projects are open): two tabs side by side with a straight, torn-paper or
   lightning divider. Lean and position are adjustable.
-- **YouTube preview** (the screen button in the top bar): your thumbnail and other open tabs in the home feed, search, "up next" and on a
+- **YouTube preview** (**Preview** in the top bar): your thumbnail and other open tabs in the home feed, search, "up next" and on a
   phone. The video length sits in the bottom-right corner, so keep faces and text clear of it.
 - **Render mode** (Render & camera, right panel): Vanilla is exactly the game's look; Cinematic, Soft and
   Cartoon add a real sun with shadows.
@@ -173,6 +176,7 @@ The tool rail on the left opens one panel at a time; the panel on the right edit
 | **Ctrl+A**                    | Select everything except the ground       |
 | **Ctrl+G / Ctrl+Shift+G**     | Group / ungroup the selection             |
 | **Shift+R**                   | Rulers and centre guides                  |
+| **\\**                        | Hide / show the side panels               |
 | **Ctrl+Z / Ctrl+Y**           | Undo / redo (camera moves included)       |
 | **Ctrl+D**                    | Duplicate the selection                   |
 | **Delete**                    | Remove the selection                      |

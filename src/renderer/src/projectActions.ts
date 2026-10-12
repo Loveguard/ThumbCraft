@@ -2,8 +2,8 @@
 import { pruneMedia } from './media'
 import type { ProjectMeta } from '@shared/api'
 import { loadProject, newProject, projectThumbnail, serializeProject } from './project'
-import { useStore } from './store'
-import { activeTabIsBlank, addTab, closeTab, duplicateTab, findTab, switchTab, useTabs } from './tabs'
+import { newProjectInfo, useStore } from './store'
+import { activeTabIsBlank, addTab, closeTab, duplicateTab, findTab, switchTab, tabProject, useTabs } from './tabs'
 import { errorText } from './errors'
 
 function meta(withThumbnail: boolean): ProjectMeta {
@@ -71,9 +71,21 @@ export async function openProjectFile(): Promise<void> {
     if (open) return showTab(open)
     await freeTab()
     afterOpen(loadProject(r.bytes, r.path))
+    giveOwnId()
   } catch (e) {
     report(e)
   }
+}
+
+/**
+ * A copy of a project that is already open (Save As keeps the id, so reopening the original is one) gets its
+ * own id, or both tabs would write the same recovery copy and Recent entry and wipe out each other's changes.
+ */
+function giveOwnId(): void {
+  const { tabs, active } = useTabs.getState()
+  const { id } = useStore.getState().project
+  if (tabs.some((t) => t.key !== active && tabProject(t).id === id))
+    useStore.getState().setProject({ id: newProjectInfo().id })
 }
 
 export async function openRecentProject(id: string): Promise<void> {

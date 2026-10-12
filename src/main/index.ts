@@ -365,8 +365,10 @@ app.whenReady().then(() => {
   })
 })
 
+// The window's last recovery-copy save cancels a quit that is under way (Electron's rule for a prevented close),
+// so after a quit started, the last window closing finishes it, on macOS too.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  if (process.platform !== 'darwin' || quitting) app.quit()
 })
 
 let quitting = false

@@ -17,6 +17,7 @@ import { OUTFITS } from '../../minecraft/outfits'
 import { errorText } from '../../errors'
 import { hexColor } from '../../image'
 import { FONTS } from '../../textStyles'
+import { blockLetterCells } from '../../minecraft/blockLetters'
 import { Group, Hint } from '../controls'
 
 const DIMENSIONS: { id: Dimension; label: string }[] = [
@@ -400,7 +401,7 @@ export function PlayersTab(): ReactNode {
       </div>
       <Hint label="About outfits">
         Custom suits made for ThumbCraft, worn instead of armour. Any player can wear one: select it and pick an outfit
-        under Equipment. The sceptre or staff goes in the main hand while it is empty.
+        under Equipment. The sword, staff or other prop goes in the main hand while it is empty.
       </Hint>
     </div>
   )
@@ -411,6 +412,7 @@ export function MediaTab(): ReactNode {
     for (const file of Array.from(files ?? [])) {
       // Keep the bytes so the file is saved inside the project.
       const media = await registerFile(file)
+      if (!media) continue
       const url = media.url
       const isVideo = file.type.startsWith('video/')
       const finish = (aspect: number): void =>
@@ -477,9 +479,12 @@ async function importModels(files: FileList | null): Promise<void> {
     useStore.getState().setStatus('Pick a .glb, .gltf or .obj file (plus its textures if it has separate ones).')
     return
   }
-  const extras = await Promise.all(list.filter((f) => !isModelFile(f.name)).map((f) => registerFile(f)))
+  const extras = (await Promise.all(list.filter((f) => !isModelFile(f.name)).map((f) => registerFile(f)))).filter(
+    (m) => !!m
+  )
   for (const file of mains) {
     const media = await registerFile(file)
+    if (!media) continue
     try {
       const model = await loadModel(media, extras)
       useStore.getState().add({
@@ -500,9 +505,12 @@ async function importModels(files: FileList | null): Promise<void> {
 
 /** The two title looks (carved stone, front-on hardcore) and the colour each starts with. */
 export const TITLE_STYLES = [
-  { style: 'stone', label: 'Stone', color: '#d9d4d1' },
+  { style: 'stone', label: 'Stone logo', color: '#d9d4d1' },
   { style: 'hardcore', label: 'Hardcore', color: '#f0261c' }
 ] as const
+
+/** Name of 3D text drawn in Minecraft's own font (no title style). */
+export const PIXEL_TEXT_LABEL = 'Pixel 3D'
 
 /** Quick colours for titles: stone, ores and gems. */
 export const TITLE_SWATCHES = [
@@ -516,76 +524,148 @@ export const TITLE_SWATCHES = [
   { name: 'Snow', color: '#ffffff' }
 ]
 
+// "Hi" in Minecraft's font, hand-copied for the Pixel 3D card (the real font loads with the game files).
+const PIXEL_SAMPLE = ['X...X.X', 'X...X..', 'X...X.X', 'XXXXX.X', 'X...X.X', 'X...X.X', 'X...X.X']
+
+/** A little block-lettering picture: the face on top of a darker copy nudged down-right, like extruded type. */
+function BlockSample({ rows, face, side }: { rows: string[]; face: string; side: string }): ReactNode {
+  const cells: [number, number][] = []
+  rows.forEach((r, y) => [...r].forEach((c, x) => c === 'X' && cells.push([x, y])))
+  const w = Math.max(...rows.map((r) => r.length))
+  return (
+    <svg viewBox={`-0.5 -0.5 ${w + 1.5} ${rows.length + 1.5}`} shapeRendering="crispEdges" aria-hidden>
+      {cells.map(([x, y]) => (
+        <rect key={`s${x},${y}`} x={x + 0.6} y={y + 0.6} width={1} height={1} fill={side} />
+      ))}
+      {cells.map(([x, y]) => (
+        <rect key={`f${x},${y}`} x={x} y={y} width={1} height={1} fill={face} />
+      ))}
+    </svg>
+  )
+}
+
+/** Rows of the block alphabet for a sample word (the same letters stone and hardcore titles are built from). */
+function blockRows(text: string): string[] {
+  const { filled, width, height } = blockLetterCells(text)
+  return Array.from({ length: height }, (_, y) =>
+    Array.from({ length: width }, (_, x) => (filled.has(`${x},${y}`) ? 'X' : '.')).join('')
+  )
+}
+
+interface TextType {
+  name: string
+  tags: string[]
+  blurb: string
+  sample: ReactNode
+  add: (text: string) => void
+}
+
+const TEXT_BASE = { visible: true, scale: 1 }
+
+const FLAT_TEXT: TextType[] = [
+  {
+    name: 'Bold caption',
+    tags: ['Outline', 'Any font'],
+    blurb: 'The classic YouTube title: thick outline and shadow, always readable.',
+    sample: <span className="caption-sample">EPIC!</span>,
+    add: (text) =>
+      useStore.getState().add({
+        ...TEXT_BASE,
+        id: newId('obj'),
+        kind: 'text',
+        name: `Caption: ${text.slice(0, 16)}`,
+        text,
+        color: '#ffe14d',
+        outlineColor: '#000000',
+        outlineWidth: 14,
+        font: FONTS[0].family,
+        shadow: true,
+        onTop: true,
+        ...placeNew('floating')
+      })
+  }
+]
+
+const BLOCK_TEXT: TextType[] = [
+  {
+    name: PIXEL_TEXT_LABEL,
+    tags: ['Game font', 'Extruded'],
+    blurb: 'The game’s own lettering, pushed out into blocks.',
+    sample: <BlockSample rows={PIXEL_SAMPLE} face="#ffffff" side="#6b6b6b" />,
+    add: (text) =>
+      useStore.getState().add({
+        ...TEXT_BASE,
+        id: newId('obj'),
+        kind: 'pixelText',
+        name: `${PIXEL_TEXT_LABEL}: ${text.slice(0, 16)}`,
+        text,
+        color: '#ffffff',
+        depth: 2,
+        shadow: true,
+        ...placeNew('floating')
+      })
+  },
+  ...TITLE_STYLES.map((t): TextType => ({
+    name: t.label,
+    tags: t.style === 'stone' ? ['Carved', 'Any colour'] : ['Red', 'O becomes ♥'],
+    blurb:
+      t.style === 'stone'
+        ? 'Chunky carved letters, like a game logo.'
+        : 'Front-on red letters; every O turns into the hardcore heart.',
+    sample:
+      t.style === 'stone' ? (
+        <BlockSample rows={blockRows('GO')} face="#d9d4d1" side="#5c5754" />
+      ) : (
+        <BlockSample rows={blockRows('G♥')} face="#f0261c" side="#4a0703" />
+      ),
+    add: (text) =>
+      useStore.getState().add({
+        ...TEXT_BASE,
+        id: newId('obj'),
+        kind: 'pixelText',
+        name: `${t.label}: ${text.slice(0, 16)}`,
+        text,
+        color: t.color,
+        depth: 4,
+        shadow: true,
+        style: t.style,
+        ...placeNew('floating')
+      })
+  }))
+]
+
+function TextTypeGrid({ types, text }: { types: TextType[]; text: string }): ReactNode {
+  return (
+    <div className="text-types">
+      {types.map((t) => (
+        <button key={t.name} className="text-type" title={t.blurb} onClick={() => t.add(text)}>
+          <span className="text-type-sample">{t.sample}</span>
+          <span className="text-type-name">{t.name}</span>
+          <span className="text-type-tags">
+            {t.tags.map((tag) => (
+              <span key={tag} className="text-tag">
+                {tag}
+              </span>
+            ))}
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function TextTab(): ReactNode {
   const [text, setText] = useState('EPIC BASE!')
-  const base = { visible: true, scale: 1 }
   return (
     <div className="tab-body">
       <label className="field col">
-        <span>Text</span>
+        <span>Your words</span>
         <textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} />
       </label>
-      <button
-        className="primary"
-        onClick={() =>
-          useStore.getState().add({
-            ...base,
-            id: newId('obj'),
-            kind: 'text',
-            name: `Text: ${text.slice(0, 16)}`,
-            text,
-            color: '#ffe14d',
-            outlineColor: '#000000',
-            outlineWidth: 14,
-            font: FONTS[0].family,
-            shadow: true,
-            onTop: true,
-            ...placeNew('floating')
-          })
-        }
-      >
-        Add title text
-      </button>
-      <button
-        onClick={() =>
-          useStore.getState().add({
-            ...base,
-            id: newId('obj'),
-            kind: 'pixelText',
-            name: `3D: ${text.slice(0, 16)}`,
-            text,
-            color: '#ffffff',
-            depth: 2,
-            shadow: true,
-            ...placeNew('floating')
-          })
-        }
-      >
-        Add 3D Minecraft-font text
-      </button>
-      <div className="row">
-        {TITLE_STYLES.map((t) => (
-          <button
-            key={t.style}
-            onClick={() =>
-              useStore.getState().add({
-                ...base,
-                id: newId('obj'),
-                kind: 'pixelText',
-                name: `${t.label}: ${text.slice(0, 16)}`,
-                text,
-                color: t.color,
-                depth: 4,
-                shadow: true,
-                style: t.style,
-                ...placeNew('floating')
-              })
-            }
-          >
-            Add {t.label.toLowerCase()} title
-          </button>
-        ))}
-      </div>
+      <h4>Flat · sits on top of the picture</h4>
+      <TextTypeGrid types={FLAT_TEXT} text={text} />
+      <h4>3D blocks · built into the scene</h4>
+      <TextTypeGrid types={BLOCK_TEXT} text={text} />
       <h4>Arrows & shapes</h4>
       <div className="sticker-grid">
         {STICKERS.map((k, i) => (
@@ -615,9 +695,8 @@ export function TextTab(): ReactNode {
         ))}
       </div>
       <Hint>
-        Arrows and shapes sit on the frame itself, on top of every effect, and stay put when the camera moves. 3D text
-        is extruded pixel-for-pixel from Minecraft's own font texture. Stone titles are carved logo-style blocks in any
-        colour; hardcore titles are front-on red letters where every O becomes the hardcore heart.
+        Click a card to add your words in that look; you can switch look, colour and font after. Flat captions and
+        arrows stay on top of everything; 3D text is lit like the world and can sit behind players.
       </Hint>
     </div>
   )
