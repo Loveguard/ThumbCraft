@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { fullPose } from '@shared/minecraft/playerModel'
 import type { TerrainData } from '@shared/types'
 import { viewport } from './components/Viewport'
+import { currentLookId } from './grading'
 import { backgroundScenes, MAX_MEDIA, MAX_PROJECT, mediaIdsOf, mediaStore, pruneMedia, registerMedia } from './media'
 import { defaultSkinUrl } from './minecraft/builders'
 import {
@@ -203,7 +204,12 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
     future: [],
     // Merge with defaults so projects saved before a setting existed still open.
     settings: { ...DEFAULT_SETTINGS, ...settings },
-    effects: { ...NO_EFFECTS, ...json.effects },
+    effects: {
+      ...NO_EFFECTS,
+      ...json.effects,
+      // Looks cut when the list went down to six open as the look that replaced them.
+      look: json.effects?.look ? currentLookId(json.effects.look) : null
+    },
     sky: {
       ...DEFAULT_SKY,
       ...json.sky,

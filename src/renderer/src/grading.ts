@@ -8,6 +8,7 @@
 // - lift / gamma / gain (ASC CDL style) shape shadows, midtones and highlights separately, per channel;
 // - contrast is an S-curve that bends around a mid-grey pivot but always keeps 0 → 0 and 1 → 1;
 // - vibrance boosts dull colours more than strong ones (and spares skin tones);
+// - hue bands nudge one family of colours (greens toward emerald, say) the way film stocks render them;
 // - split toning tints shadows and highlights, then restores each pixel's brightness.
 import { LookupTexture } from 'postprocessing'
 import * as THREE from 'three'
@@ -32,6 +33,11 @@ export interface Grade {
   /** Plain saturation multiplier offset (-1 … +1) and vibrance (smart saturation). */
   saturation?: number
   vibrance?: number
+  /**
+   * Per-hue tweaks, like a film stock's colour response: colours near `hue` (degrees, 0 red, 120 green,
+   * 240 blue) turn by `shift` degrees and gain `sat` saturation (-1 … +1). Greys are never touched.
+   */
+  hues?: { hue: number; shift?: number; sat?: number; width?: number }[]
   /** Tints for shadows and highlights (sRGB colours) and how strong each is. */
   shadows?: { color: string; amount: number }
   highlights?: { color: string; amount: number }
@@ -47,6 +53,26 @@ const luma = (c: RGB): number => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
 const hex = (color: string): RGB => {
   const c = new THREE.Color(color)
   return [c.r, c.g, c.b].map(linearToSrgb) as RGB
+}
+
+function rgbToHsv([r, g, b]: RGB): RGB {
+  const v = Math.max(r, g, b)
+  const d = v - Math.min(r, g, b)
+  const s = v > 1e-6 ? d / v : 0
+  let h = 0
+  if (d > 1e-6) {
+    if (v === r) h = ((g - b) / d) % 6
+    else if (v === g) h = (b - r) / d + 2
+    else h = (r - g) / d + 4
+  }
+  return [(h * 60 + 360) % 360, s, v]
+}
+function hsvToRgb([h, s, v]: RGB): RGB {
+  const f = (n: number): number => {
+    const k = (n + h / 60) % 6
+    return v - v * s * Math.max(0, Math.min(k, 4 - k, 1))
+  }
+  return [f(5), f(3), f(1)]
 }
 
 /**
@@ -100,6 +126,24 @@ export function gradeColor(input: RGB, g: Grade): RGB {
     const skin = c[0] > c[1] && c[1] > c[2] && sat > 0.2 && sat < 0.6 ? 0.5 : 1
     const s = 1 + (g.saturation ?? 0) + (g.vibrance ?? 0) * (1 - sat) * (1 - sat) * skin
     c = c.map((v) => l + (v - l) * s) as RGB
+  }
+
+  // Hue bands: turn and saturate one family of colours, keeping each pixel's brightness.
+  if (g.hues) {
+    const l = luma(c)
+    const [h, s, v] = rgbToHsv(c.map((x) => Math.max(0, x)) as RGB)
+    let dh = 0
+    let ds = 0
+    for (const band of g.hues) {
+      let d = Math.abs(h - band.hue) % 360
+      if (d > 180) d = 360 - d
+      const w = Math.exp(-((d / (band.width ?? 35)) ** 2)) * Math.min(1, s * 4)
+      dh += (band.shift ?? 0) * w
+      ds += (band.sat ?? 0) * w
+    }
+    c = hsvToRgb([(h + dh + 360) % 360, clamp01(s * (1 + ds)), v])
+    const now = luma(c)
+    if (now > 1e-4) c = c.map((x) => x * (l / now)) as RGB
   }
 
   // Split toning, then put the brightness back so tints never darken or wash out the image.
@@ -170,185 +214,156 @@ export interface Look {
 
 /**
  * Built-in looks, tuned for thumbnails: they change mood and colour, never readability. Each one keeps real
- * blacks and clean whites; the intensity slider takes any of them from a hint to the full grade.
+ * blacks and clean whites; the intensity slider takes any of them from a hint to the full grade. There are
+ * only six, and each one changes the picture in its own clearly different way.
  */
 export const LOOKS = [
   {
-    id: 'pop',
-    label: 'Thumbnail pop',
-    hint: 'Clean, bright and vivid: colours jump without anything clipping',
+    id: 'fuji',
+    label: 'Fuji film',
+    hint: 'Fujifilm colour negative: rich but natural colour, emerald greens, deep reds, soft film shoulder and a warm glow',
     grade: {
-      vibrance: 0.7,
-      saturation: 0.05,
-      contrast: 0.35,
-      exposure: 0.12,
       temperature: 0.06,
-      lift: [0.01, 0.01, 0.02]
+      tint: -0.05,
+      contrast: 0.38,
+      pivot: 0.42,
+      saturation: 0.06,
+      vibrance: 0.4,
+      hues: [
+        { hue: 100, shift: 32, sat: -0.08, width: 45 }, // greens lean cool emerald
+        { hue: 215, shift: -12, sat: 0.15 }, // skies lean cyan
+        { hue: 25, shift: -4, sat: 0.1, width: 25 }, // skin and wood stay warm
+        { hue: 355, shift: -8, sat: 0.2, width: 25 } // reds go deep and slightly magenta
+      ],
+      shadows: { color: '#1f6f6a', amount: 0.24 },
+      highlights: { color: '#ffd9b0', amount: 0.26 },
+      fade: 0.04,
+      ceiling: 0.97
+    },
+    extras: {
+      bloom: true,
+      bloomIntensity: 0.55,
+      bloomThreshold: 0.7,
+      grain: true,
+      grainAmount: 0.06,
+      vignette: true,
+      vignetteDarkness: 0.3
     }
   },
   {
     id: 'teal-orange',
-    label: 'Teal & orange',
-    hint: 'The blockbuster look: cool teal shade, warm skin and highlights',
+    label: 'Blockbuster',
+    hint: 'Teal and orange: cool teal shade and greens, warm glowing skin and highlights',
     grade: {
-      contrast: 0.35,
-      vibrance: 0.25,
-      shadows: { color: '#1f8a99', amount: 0.32 },
-      highlights: { color: '#ffa24d', amount: 0.35 },
+      contrast: 0.4,
+      vibrance: 0.3,
+      hues: [
+        { hue: 110, shift: 45, sat: -0.1, width: 45 }, // greens turn teal
+        { hue: 25, shift: 4, sat: 0.15 } // skin and wood glow orange
+      ],
+      shadows: { color: '#1a8a9c', amount: 0.42 },
+      highlights: { color: '#ff9a40', amount: 0.42 },
       lift: [0, 0.01, 0.02]
     },
-    extras: { vignette: true, vignetteDarkness: 0.35 }
-  },
-  {
-    id: 'golden',
-    label: 'Golden hour',
-    hint: 'Low warm sun, honey highlights, soft violet shade',
-    grade: {
-      temperature: 0.45,
-      exposure: 0.05,
-      contrast: 0.25,
-      vibrance: 0.3,
-      highlights: { color: '#ffb347', amount: 0.45 },
-      shadows: { color: '#6a4c93', amount: 0.25 },
-      gain: [1.04, 1, 0.94]
-    },
-    extras: {
-      bloom: true,
-      bloomIntensity: 0.6,
-      bloomThreshold: 0.75,
-      godRays: true,
-      godRaysIntensity: 0.6,
-      sunColor: '#ffc06b',
-      sunInView: true
-    }
-  },
-  {
-    id: 'cinema-cool',
-    label: 'Cinematic cool',
-    hint: 'Modern film: cool steel shade, neutral midtones, filmic contrast',
-    grade: {
-      temperature: -0.15,
-      contrast: 0.35,
-      saturation: -0.05,
-      vibrance: 0.15,
-      shadows: { color: '#2e5a87', amount: 0.25 },
-      highlights: { color: '#ffe2c4', amount: 0.15 },
-      fade: 0.015
-    },
-    extras: { vignette: true, vignetteDarkness: 0.4, grain: true, grainAmount: 0.05 }
-  },
-  {
-    id: 'bright-airy',
-    label: 'Bright & airy',
-    hint: 'Light and fresh: lifted shade and soft pastels that keep their colour',
-    grade: {
-      exposure: 0.2,
-      contrast: -0.25,
-      vibrance: 0.35,
-      lift: [0.04, 0.045, 0.06],
-      temperature: 0.05,
-      highlights: { color: '#fff1e0', amount: 0.2 }
-    }
-  },
-  {
-    id: 'film',
-    label: 'Vintage film',
-    hint: 'Warm film stock: matte blacks, creamy highlights, gentle green shade',
-    grade: {
-      temperature: 0.2,
-      contrast: 0.3,
-      saturation: -0.12,
-      fade: 0.06,
-      ceiling: 0.96,
-      shadows: { color: '#3f6b55', amount: 0.18 },
-      highlights: { color: '#ffd9a0', amount: 0.3 }
-    },
-    extras: { grain: true, grainAmount: 0.12, vignette: true, vignetteDarkness: 0.45 }
+    extras: { vignette: true, vignetteDarkness: 0.4 }
   },
   {
     id: 'night',
     label: 'Moonlight',
-    hint: 'Blue night that stays readable: deep but never muddy',
+    hint: 'Day for night: deep blue shade and silver-blue light that stays readable',
     grade: {
-      temperature: -0.55,
+      temperature: -0.6,
       exposure: -0.45,
       contrast: 0.3,
-      saturation: -0.2,
-      shadows: { color: '#1b2f6b', amount: 0.35 },
-      highlights: { color: '#cfe0ff', amount: 0.25 },
-      lift: [0.0, 0.01, 0.03]
+      saturation: -0.3,
+      shadows: { color: '#1b2f6b', amount: 0.4 },
+      highlights: { color: '#cfe0ff', amount: 0.3 },
+      lift: [0.0, 0.01, 0.035]
     },
     extras: { bloom: true, bloomIntensity: 0.7, bloomThreshold: 0.6, vignette: true, vignetteDarkness: 0.5 }
   },
   {
-    id: 'nether',
-    label: 'Nether heat',
-    hint: 'Fiery reds and ember orange with rich dark shade',
+    id: 'noir',
+    label: 'Noir',
+    hint: 'Black and white: hard contrast and a faint silver tone, for drama and flashbacks',
     grade: {
-      temperature: 0.35,
-      contrast: 0.3,
-      vibrance: 0.35,
-      shadows: { color: '#5c1010', amount: 0.25 },
-      highlights: { color: '#ff8c33', amount: 0.4 },
-      gain: [1.05, 0.98, 0.9]
+      saturation: -1,
+      contrast: 0.5,
+      exposure: 0.05,
+      shadows: { color: '#2a3a52', amount: 0.06 },
+      highlights: { color: '#fff0d6', amount: 0.05 }
     },
-    extras: { bloom: true, bloomIntensity: 0.8, bloomThreshold: 0.65 }
-  },
-  {
-    id: 'frost',
-    label: 'Frost',
-    hint: 'Icy blue-white air with crisp detail',
-    grade: {
-      temperature: -0.45,
-      exposure: 0.1,
-      contrast: 0.25,
-      saturation: -0.15,
-      highlights: { color: '#e6f6ff', amount: 0.35 },
-      shadows: { color: '#2d6f9e', amount: 0.22 },
-      lift: [0.01, 0.02, 0.04]
-    }
+    extras: { grain: true, grainAmount: 0.1, vignette: true, vignetteDarkness: 0.55 }
   },
   {
     id: 'horror',
-    label: 'Horror',
-    hint: 'Sickly green cast, drained colour, deep (but readable) shade',
+    label: 'Toxic',
+    hint: 'Horror: drained, sickly green with glowing greens and murky shade',
     grade: {
-      tint: -0.35,
+      tint: -0.4,
       temperature: -0.1,
       exposure: -0.05,
       contrast: 0.35,
-      saturation: -0.4,
-      shadows: { color: '#1d3b2a', amount: 0.3 },
-      highlights: { color: '#d8e6b0', amount: 0.2 }
+      saturation: -0.65,
+      hues: [{ hue: 115, shift: -28, sat: 1.2, width: 45 }], // anything green turns a glowing, sickly chartreuse
+      shadows: { color: '#123a24', amount: 0.35 },
+      highlights: { color: '#dcf0a0', amount: 0.3 }
     },
     extras: { vignette: true, vignetteDarkness: 0.65, grain: true, grainAmount: 0.12 }
   },
   {
-    id: 'bleach',
-    label: 'Gritty',
-    hint: 'Bleach-bypass action look: punchy contrast, metallic muted colour',
+    id: 'neon',
+    label: 'Neon',
+    hint: 'Synthwave: magenta shade, electric cyan light, colours pushed to glow',
     grade: {
-      contrast: 0.45,
-      saturation: -0.35,
-      vibrance: 0.1,
-      highlights: { color: '#f2ead8', amount: 0.15 },
-      shadows: { color: '#2b3540', amount: 0.3 }
+      tint: 0.3,
+      contrast: 0.35,
+      vibrance: 0.5,
+      saturation: 0.1,
+      hues: [
+        { hue: 100, shift: 65, width: 55 }, // greens turn cyan
+        { hue: 30, shift: -35, sat: 0.2, width: 30 } // oranges turn hot pink
+      ],
+      shadows: { color: '#8a1fb0', amount: 0.5 },
+      highlights: { color: '#3fe6ff', amount: 0.35 },
+      lift: [0.02, 0, 0.04]
     },
-    extras: { grain: true, grainAmount: 0.08, vignette: true, vignetteDarkness: 0.5 }
+    extras: { bloom: true, bloomIntensity: 0.9, bloomThreshold: 0.6, chromatic: true, chromaticAmount: 0.0015 }
   }
 ] satisfies Look[]
 
-export type LookId = (typeof LOOKS)[number]['id']
+/**
+ * Looks that were retired when the list was cut to six, and the look that now stands in for each, so saved
+ * projects and presets that name them still open with a close match.
+ */
+export const RETIRED_LOOKS = {
+  pop: 'fuji',
+  golden: 'fuji',
+  'bright-airy': 'fuji',
+  film: 'fuji',
+  'cinema-cool': 'teal-orange',
+  nether: 'teal-orange',
+  bleach: 'teal-orange',
+  frost: 'night'
+} as const satisfies Record<string, (typeof LOOKS)[number]['id']>
+
+export type LookId = (typeof LOOKS)[number]['id'] | keyof typeof RETIRED_LOOKS
+
+/** A look id as it is today: a retired look's id becomes the look that replaced it. */
+export function currentLookId(id: string): string {
+  return (RETIRED_LOOKS as Record<string, string>)[id] ?? id
+}
 
 /** Effect settings that switch a look on at full strength, with its lens and light extras. */
 export function lookSettings(id: string): Partial<EffectSettings> & { sunInView?: boolean } {
-  const look: Look | undefined = LOOKS.find((l) => l.id === id)
+  const look: Look | undefined = LOOKS.find((l) => l.id === currentLookId(id))
   return look ? { ...look.extras, look: look.id, lookIntensity: 1 } : { look: null }
 }
 
 const baked = new Map<string, LookupTexture>()
 /** The LUT for a built-in look (baked once, then reused). */
 export function lookLut(id: string): LookupTexture | null {
+  id = currentLookId(id)
   const look = LOOKS.find((l) => l.id === id)
   if (!look) return null
   let lut = baked.get(id)
