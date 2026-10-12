@@ -18,7 +18,6 @@ import { Rulers, rulerBridge, type ScreenRect } from './Rulers'
 import { StickerLayer } from './StickerLayer'
 import { SkyBackdrop } from './SkyBackdrop'
 import { snapPoint } from './snapping'
-import { plantTree, stopBrush, useBrush } from '../brush'
 import { ViewportOverlay } from './ViewportOverlay'
 import { applyMobPose, buildMob, mobModels } from '../minecraft/mobs'
 import {
@@ -1101,55 +1100,6 @@ function BoxSelect(): null {
   return null
 }
 
-/**
- * While the tree brush is on, a click on the scene plants a tree where it lands (instead of selecting). Esc or
- * the Builds tab's button turns it off.
- */
-function TreeBrushTool(): null {
-  const trees = useBrush((s) => s.trees)
-  const { gl, camera } = useThree()
-  useEffect(() => {
-    if (!trees) return
-    const area = gl.domElement.parentElement ?? gl.domElement
-    const ndc = new THREE.Vector2()
-    const ray = new THREE.Raycaster()
-    const up = new THREE.Vector3()
-    const click = (e: MouseEvent): void => {
-      if (e.button !== 0 || wasDrag(e)) return
-      // Swallow the click either way, so the brush never selects anything.
-      e.stopPropagation()
-      const r = gl.domElement.getBoundingClientRect()
-      ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
-      ray.setFromCamera(ndc, camera)
-      const targets = [...viewport.objects.values()].filter((o) => o.visible)
-      // The first solid surface under the cursor; trees only go on ground that faces up (block tops).
-      const hit = ray.intersectObjects(targets, true).find((h) => {
-        for (let p: THREE.Object3D | null = h.object; p; p = p.parent) if (!p.visible || isHelperObject(p)) return false
-        return !!h.face
-      })
-      if (!hit?.face) return
-      up.copy(hit.face.normal).transformDirection(hit.object.matrixWorld)
-      if (up.y < 0.6) {
-        useStore.getState().setStatus('Trees go on top of the ground: click a flat, upward-facing surface.')
-        return
-      }
-      plantTree([hit.point.x, hit.point.y, hit.point.z])
-    }
-    const key = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') stopBrush()
-    }
-    area.addEventListener('click', click, true)
-    window.addEventListener('keydown', key)
-    gl.domElement.style.cursor = 'crosshair'
-    return () => {
-      area.removeEventListener('click', click, true)
-      window.removeEventListener('keydown', key)
-      gl.domElement.style.cursor = ''
-    }
-  }, [trees, gl, camera])
-  return null
-}
-
 function Gizmo(): ReactNode {
   const selected = useStore(useShallow((s) => selection(s)))
   const selectedId = useStore((s) => s.selectedId)
@@ -1381,7 +1331,6 @@ export function Viewport(): ReactNode {
             <ShadowThrottle />
             <PointerTracker />
             <SelectionTracker />
-            <TreeBrushTool />
             <FovSync />
             <Environment />
             <SkyBackdrop />

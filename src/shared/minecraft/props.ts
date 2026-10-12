@@ -171,49 +171,6 @@ export function buildBeacon(): TerrainData {
   return blockBox(3, 2, 3, (x, y, z) => (y === 0 ? 'iron_block' : x === 1 && z === 1 ? 'beacon' : null))
 }
 
-/**
- * A grand watchtower (25 tall): a stone-brick shaft with deepslate corner buttresses and arrow slits, a carved
- * band halfway up, a wide spruce lookout with a railing and lanterns, a stepped dark-oak roof and a red flag.
- */
-export function buildWatchtower(): TerrainData {
-  const n = 13 // footprint including the lookout's overhang
-  const c = 6 // centre column
-  const shaft = 4 // shaft half-width (9×9)
-  const deck = 17 // lookout floor
-  return blockBox(n, 26, n, (x, y, z) => {
-    const dx = Math.abs(x - c)
-    const dz = Math.abs(z - c)
-    const ring = Math.max(dx, dz)
-    const r = hash(x, y, z, 77)
-    // Flagpole and flag on the roof's tip.
-    if (x === c && z === c && y >= 22) return y === 25 ? null : 'spruce_fence'
-    if (z === c && y >= 23 && y <= 24 && x > c && x <= c + 2) return 'red_wool'
-    // Roof: a stepped pyramid of dark oak over the lookout.
-    if (y >= deck + 3 && y <= 22) {
-      const step = 5 - (y - (deck + 3))
-      if (ring === step) return 'dark_oak_planks'
-      return null
-    }
-    // Lookout: an overhanging spruce floor, railing posts and lanterns on the corners.
-    if (y === deck) return ring <= 6 ? 'spruce_planks' : null
-    if (y === deck + 1) {
-      if (ring !== 6) return null
-      if (dx === 6 && dz === 6) return 'spruce_log'
-      return 'spruce_fence'
-    }
-    if (y === deck + 2) return dx === 6 && dz === 6 ? 'lantern' : null
-    if (ring > shaft) return null
-    // Shaft: hollow walls, a solid ground floor.
-    if (y === 0) return ring === shaft ? 'polished_andesite' : 'cobblestone'
-    if (ring < shaft) return null
-    if (dx === shaft && dz === shaft) return 'deepslate_bricks' // corner buttresses
-    if (y === 8 || y === deck - 1) return 'chiseled_stone_bricks'
-    // Arrow slits on each face, two levels.
-    if ((y === 5 || y === 6 || y === 12 || y === 13) && (dx === 0 || dz === 0)) return 'iron_bars'
-    return r < 0.18 ? 'mossy_stone_bricks' : r < 0.28 ? 'cracked_stone_bricks' : 'stone_bricks'
-  })
-}
-
 /** A floating sky island: grass on top, dirt and stone tapering to a point underneath, an oak tree on top. */
 export function buildSkyIsland(): TerrainData {
   const n = 11
@@ -241,63 +198,56 @@ export function buildSkyIsland(): TerrainData {
   })
 }
 
-/** A cave wall with a seam of exposed ores (diamond and emerald in deepslate), for "I found it" shots. */
-export function buildOreWall(): TerrainData {
-  const w = 9
-  const h = 6
-  return blockBox(w, h, 2, (x, y, z) => {
-    if (z === 1) return y >= 3 ? 'stone' : 'deepslate'
-    const r = hash(x, y, 0, 31)
-    const seam = Math.abs(y - 2 - Math.sin(x * 0.9) * 1.2) < 0.9
-    if (seam && r < 0.55) return y >= 3 ? 'diamond_ore' : 'deepslate_diamond_ore'
-    if (r > 0.94) return y >= 3 ? 'emerald_ore' : 'deepslate_emerald_ore'
-    if (r > 0.88) return y >= 3 ? 'gold_ore' : 'deepslate_gold_ore'
-    return y >= 3 ? (r < 0.2 ? 'andesite' : 'stone') : r < 0.2 ? 'tuff' : 'deepslate'
+/**
+ * A monster-spawner dungeon: a mossy cobblestone room (7×7) with the spawner in the middle and a chest in two
+ * corners, open at the front and the top so the camera sees in.
+ */
+export function buildSpawnerDungeon(): TerrainData {
+  return blockBox(7, 4, 7, (x, y, z) => {
+    const r = hash(x, y, z, 53)
+    const stone = r < 0.45 ? 'mossy_cobblestone' : 'cobblestone'
+    if (y === 0) return stone
+    if (x === 3 && z === 3) return y === 1 ? 'spawner' : null
+    if (y === 1 && z === 1 && (x === 1 || x === 5)) return ['chest', { facing: 'south', type: 'single' }]
+    // Back and side walls, crumbling towards the front and the top.
+    const wall = z === 0 || x === 0 || x === 6
+    if (!wall) return null
+    return hash(x, y, z, 54) < 0.25 + (y / 4) * 0.2 + (z / 6) * 0.35 ? null : stone
   })
 }
 
-export type TreeKind = 'oak' | 'birch' | 'spruce' | 'dark_oak'
+/** An enchanting setup: the table in the middle, two-high bookshelf walls round three sides, lanterns on top. */
+export function buildEnchantingSetup(): TerrainData {
+  return blockBox(5, 3, 5, (x, y, z) => {
+    const ring = Math.max(Math.abs(x - 2), Math.abs(z - 2))
+    if (ring === 0) return y === 0 ? 'enchanting_table' : null
+    if (ring !== 2) return null
+    if (z === 4 && x >= 1 && x <= 3) return null // open front
+    if (y === 2) return (x === 0 || x === 4) && z === 0 ? 'lantern' : null
+    return 'bookshelf'
+  })
+}
 
-/** One tree for the tree brush, varied by `seed`; its trunk stands at the centre of the box. */
-export function buildTree(kind: TreeKind, seed: number): TerrainData {
-  const rnd = (i: number): number => hash(seed, i, 7, 13)
-  if (kind === 'spruce') {
-    const height = 7 + Math.floor(rnd(1) * 4)
-    const n = 7
-    const c = 3
-    return blockBox(n, height + 1, n, (x, y, z) => {
-      const ring = Math.max(Math.abs(x - c), Math.abs(z - c))
-      if (x === c && z === c && y < height) return ['spruce_log', { axis: 'y' }]
-      if (y < 2) return null
-      // Cone of alternating wide and narrow layers, a single block at the tip.
-      const fromTop = height - y
-      const radius = fromTop <= 0 ? 0 : Math.min(3, Math.floor((fromTop + 1) / 2) - (fromTop % 2 ? 0 : 1))
-      if (ring <= radius && !(ring === radius && radius > 1 && Math.abs(x - c) === Math.abs(z - c)))
-        return ['spruce_leaves', { persistent: 'true', distance: '1' }]
-      return null
-    })
-  }
-  const log = kind === 'birch' ? 'birch_log' : kind === 'dark_oak' ? 'dark_oak_log' : 'oak_log'
-  const leaves = `${kind}_leaves`
-  const thick = kind === 'dark_oak'
-  const height = (kind === 'birch' ? 5 : 4) + Math.floor(rnd(1) * 3)
-  const n = thick ? 8 : 7
-  const c = 3
-  return blockBox(n, height + 2, n, (x, y, z) => {
-    const inTrunk = thick ? (x === c || x === c + 1) && (z === c || z === c + 1) : x === c && z === c
-    if (inTrunk && y < height) return [log, { axis: 'y' }]
-    const cx = thick ? c + 0.5 : c
-    const dx = Math.abs(x - cx)
-    const dz = Math.abs(z - cx)
-    const ly = y - (height - 2)
-    if (ly < 0) return null
-    // Two wide layers, then a narrow cross on top, with random gaps at the corners like the game's trees.
-    const r = ly <= 1 ? 2 : 1
-    if (dx > r + (thick ? 0.5 : 0) || dz > r + (thick ? 0.5 : 0)) return null
-    if (ly === 3 && dx > 0.5 && dz > 0.5 && !thick) return null
-    const corner = dx >= r && dz >= r
-    if (corner && hash(x, y, z, seed) < 0.6) return null
-    return [leaves, { persistent: 'true', distance: '1' }]
+/**
+ * The stronghold end portal: twelve frames with eyes in, round the black portal surface, on a cracked
+ * stone-brick floor.
+ */
+export function buildEndPortal(): TerrainData {
+  return blockBox(7, 2, 7, (x, y, z) => {
+    const dx = x - 3
+    const dz = z - 3
+    const ring = Math.max(Math.abs(dx), Math.abs(dz))
+    if (y === 0) {
+      // The game draws the portal surface in code, so a black floor under it stands in for the void.
+      if (ring <= 1) return 'black_concrete'
+      const r = hash(x, 0, z, 41)
+      return r < 0.2 ? 'mossy_stone_bricks' : r < 0.35 ? 'cracked_stone_bricks' : 'stone_bricks'
+    }
+    if (ring <= 1) return 'end_portal'
+    if (ring !== 2 || Math.abs(dx) === Math.abs(dz)) return null
+    // Each frame faces the middle.
+    const facing = dz === -2 ? 'south' : dz === 2 ? 'north' : dx === -2 ? 'east' : 'west'
+    return ['end_portal_frame', { facing, eye: 'true' }]
   })
 }
 
