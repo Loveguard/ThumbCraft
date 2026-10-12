@@ -293,7 +293,7 @@ export async function applyEquipment(
 ): Promise<void> {
   const added: { parent: THREE.Object3D; object: THREE.Object3D }[] = []
   // An outfit replaces the armour (its suit is drawn on the armour layout).
-  const outfit = eq.outfit ? buildOutfit(eq.outfit, slim) : null
+  const outfit = eq.outfit ? await buildOutfit(eq.outfit, slim) : null
   for (const { part, object } of outfit?.parts ?? []) {
     const parent = player.getObjectByName(part)
     if (parent) added.push({ parent, object })
