@@ -3040,9 +3040,34 @@ textarea:focus {
   border-radius: 2px;
 }
 
-/* Groups in the layer list: a folder row, members indented under it. */
+/* Groups in the layer list: a folder row that folds its members away, members indented under it when open. */
+.layers li.group-row {
+  padding-left: 2px;
+}
 .layers li.group-row .name {
   font-weight: 600;
+}
+.layers li.group-row .count {
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-2);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.layers li.group-row .contents {
+  margin-left: 8px;
+  color: var(--text-2);
+  font-weight: 400;
+}
+.layers .group-chev {
+  flex-shrink: 0;
+  margin-right: -4px;
+  color: var(--text-2);
+}
+.layers li.group-row.open .group-chev {
+  color: var(--text);
 }
 .layers li.in-group {
   padding-left: 28px;
