@@ -3006,6 +3006,10 @@ textarea:focus {
 .fx-section .fx-head input:checked {
   accent-color: var(--section);
 }
+/* The section body isn't a flex column like the tab body, so its rows don't need the pull-up for the gap. */
+.fx-section-body > .group + .group {
+  margin-top: 0;
+}
 .fx-section .group.fx.open {
   border-color: color-mix(in srgb, var(--section) 35%, rgba(255, 255, 255, 0.08));
 }

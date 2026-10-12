@@ -67,7 +67,7 @@ export function FxGroup({
 export function EffectsTab(): ReactNode {
   const setSettings = useStore((s) => s.setSettings)
   const setEffects = useStore((s) => s.setEffects)
-  const { shadowTint, highlightTint, cleanOverlays, crtOverLayers, streakColor, depthOfField } = useStore(
+  const { shadowTint, highlightTint, cleanOverlays, crtOverLayers, streakColor, depthOfField, paperMobs } = useStore(
     (s) => s.effects
   )
   const putSunInView = (): void => {
@@ -163,6 +163,35 @@ export function EffectsTab(): ReactNode {
         </FxGroup>
         <FxGroup k="grain" label="Film grain">
           <FxSlider k="grainAmount" label="Amount" min={0} max={0.6} step={0.01} />
+        </FxGroup>
+        <FxGroup k="paper" label="Paper cutout">
+          <FxSlider k="paperEdge" label="Torn border" min={0} max={24} step={0.5} />
+          <FxSlider k="paperRough" label="Ripped edge" min={0} max={1} step={0.01} />
+          <FxSlider k="paperShadow" label="Drop shadow" min={0} max={1} step={0.01} />
+          <Toggle
+            label="Mobs too"
+            title="Off: only players get the torn paper border. On: mobs get it as well"
+            checked={paperMobs}
+            onChange={(on) => setEffects({ paperMobs: on })}
+          />
+          <Hint>Players look torn out of a photo and stuck onto the scene, with a ragged paper border.</Hint>
+        </FxGroup>
+        <FxGroup k="folds" label="Paper folds">
+          <FxSlider k="paperFolds" label="Amount" min={0} max={1} step={0.01} />
+          <Hint>Creases, crumpling and paper fibre, as if the picture were a print that's been folded.</Hint>
+        </FxGroup>
+        <FxGroup k="halation" label="Film halation">
+          <FxSlider k="paperHalation" label="Glow" min={0} max={1.5} step={0.01} />
+          <Hint>A red-orange glow bleeding around bright highlights, like on real film.</Hint>
+        </FxGroup>
+        <FxGroup k="fuji" label="Fujifilm colour">
+          <FxSlider k="paperFuji" label="Strength" min={0} max={1} step={0.01} />
+          <Hint>Teal-leaning greens, soft lifted shadows and warm highlights. Works on top of any Look.</Hint>
+        </FxGroup>
+        <FxGroup k="lightLeak" label="Light leak">
+          <FxSlider k="lightLeakAmount" label="Strength" min={0} max={1.5} step={0.01} />
+          <FxSlider k="lightLeakX" label="Position left ↔ right" min={0} max={1} step={0.01} />
+          <Hint>Warm orange light fogging in from the top of the frame, like a film camera opened too soon.</Hint>
         </FxGroup>
         <FxGroup k="crt" label="CRT TV">
           <FxSlider k="crtAmount" label="Scanlines & mask" min={0} max={1} step={0.01} />

@@ -1,6 +1,6 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { Bloom, ChromaticAberration, EffectComposer, GodRays, Noise, SMAA, Vignette } from '@react-three/postprocessing'
-import { BlendFunction, Effect, LUT3DEffect, Pass, type EffectComposer as Composer } from 'postprocessing'
+import { BlendFunction, Effect, EffectPass, LUT3DEffect, Pass, type EffectComposer as Composer } from 'postprocessing'
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import * as THREE from 'three'
 import { useStore, type EffectSettings, type SceneSettings } from '../store'
@@ -13,6 +13,8 @@ import { AnamorphicEffect, LensWarpEffect, SpeedBurstEffect } from './lens'
 import { HELPER_LAYER, liftHandles, OVERLAY_LAYER } from '../overlay'
 import { lookLut, parseCube } from '../grading'
 import { mediaStore } from '../media'
+import { PaperEffect } from './paper'
+import { viewport } from './Viewport'
 
 /** Unit vector pointing at the sun for the given azimuth/elevation (degrees). */
 export function sunDirection(azimuth: number, elevation: number): THREE.Vector3 {
@@ -51,7 +53,11 @@ export const hasEffects = (e: EffectSettings): boolean =>
   e.crt ||
   e.warp ||
   e.burst ||
-  e.streaks
+  e.streaks ||
+  hasFilmPrint(e)
+
+/** Any of the film-print looks (paper cutout, folds, halation, Fuji colour, light leak), which share one pass. */
+const hasFilmPrint = (e: EffectSettings): boolean => e.paper || e.folds || e.halation || e.fuji || e.lightLeak
 
 /** What the effect chain covers this frame (set while rendering the Effects component). */
 const chain = { active: false, includesOverlays: false }
@@ -156,6 +162,62 @@ function CrtPass({ amount, curve }: { amount: number; curve: number }): ReactNod
   useEffect(() => effect.setLook(amount, curve), [effect, amount, curve])
   useEffect(() => () => effect.dispose(), [effect])
   return <primitive object={effect} dispose={null} />
+}
+
+/** The roots of the players (and mobs, when chosen) the paper cutout goes around; not ones drawn after the effects. */
+function cutoutSubjects(): THREE.Object3D[] {
+  const { objects, effects } = useStore.getState()
+  const roots: THREE.Object3D[] = []
+  for (const o of objects) {
+    if (!o.visible || (o.kind !== 'player' && !(o.kind === 'mob' && effects.paperMobs))) continue
+    if (o.onTop && effects.cleanOverlays) continue
+    const root = viewport.objects.get(o.id)
+    if (root) roots.push(root)
+  }
+  return roots
+}
+
+/**
+ * The film-print looks as a step in the effect chain; whichever are off are drawn at zero. It gets a pass of its
+ * own: sharing one, it would be sorted ahead of bloom and the look (effects that read depth go first), and a
+ * blooming sky would wash the cutout border away.
+ */
+function PaperPass({ e }: { e: EffectSettings }): ReactNode {
+  const { scene, camera } = useThree()
+  const effect = useMemo(() => new PaperEffect(scene, camera, cutoutSubjects), [scene, camera])
+  const pass = useMemo(() => new EffectPass(camera, effect), [camera, effect])
+  useEffect(
+    () =>
+      effect.setLook({
+        cutout: e.paper,
+        edge: e.paperEdge,
+        rough: e.paperRough,
+        shadow: e.paperShadow,
+        folds: e.folds ? e.paperFolds : 0,
+        halation: e.halation ? e.paperHalation : 0,
+        fuji: e.fuji ? e.paperFuji : 0,
+        leak: e.lightLeak ? e.lightLeakAmount : 0,
+        leakX: e.lightLeakX
+      }),
+    [
+      effect,
+      e.paper,
+      e.paperEdge,
+      e.paperRough,
+      e.paperShadow,
+      e.folds,
+      e.paperFolds,
+      e.halation,
+      e.paperHalation,
+      e.fuji,
+      e.paperFuji,
+      e.lightLeak,
+      e.lightLeakAmount,
+      e.lightLeakX
+    ]
+  )
+  useEffect(() => () => pass.dispose(), [pass])
+  return <primitive object={pass} dispose={null} />
 }
 
 /** The custom .cube LUT, parsed once per imported file. */
@@ -324,6 +386,8 @@ export function Effects(): ReactNode {
     )
   // The look comes after the manual adjustments, like a creative LUT after primary correction.
   if (e.look) effects.push(<LookPass key="look" look={e.look} intensity={e.lookIntensity} lutMediaId={e.lutMediaId} />)
+  // The film print sits on the finished colour, under the lens and screen effects.
+  if (hasFilmPrint(e)) effects.push(<PaperPass key="paper" e={e} />)
   if (e.chromatic)
     effects.push(
       <ChromaticAberration
