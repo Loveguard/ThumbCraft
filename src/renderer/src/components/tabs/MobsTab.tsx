@@ -14,7 +14,7 @@ import { mobThumbnail } from '../../minecraft/thumbnails'
 import { placeNew } from '../../placement'
 import { newId, useStore } from '../../store'
 import { errorText } from '../../errors'
-import { ColorSection, Hint } from '../controls'
+import { ColorSection, Hint, Pager, usePaged } from '../controls'
 
 /** Stand-in key for the giant when the game has no layer of its own for it. */
 const GIANT = 'minecraft:giant#main'
@@ -79,15 +79,19 @@ function MobGrid({
   models: MobModels
   onAdd: (key: string) => void
 }): ReactNode {
+  const { shown, ...pager } = usePaged(keys)
   return (
-    <div className="card-grid">
-      {keys.map((k) => (
-        <button key={k} className="asset-card" onClick={() => onAdd(k)} title={pretty(k)} aria-label={pretty(k)}>
-          <MobIcon models={models} layerKey={k === GIANT ? 'minecraft:zombie#main' : k} />
-          <span className="asset-name">{pretty(k)}</span>
-        </button>
-      ))}
-    </div>
+    <>
+      <div className="card-grid">
+        {shown.map((k) => (
+          <button key={k} className="asset-card" onClick={() => onAdd(k)} title={pretty(k)} aria-label={pretty(k)}>
+            <MobIcon models={models} layerKey={k === GIANT ? 'minecraft:zombie#main' : k} />
+            <span className="asset-name">{pretty(k)}</span>
+          </button>
+        ))}
+      </div>
+      <Pager {...pager} />
+    </>
   )
 }
 

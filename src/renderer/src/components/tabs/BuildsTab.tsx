@@ -19,7 +19,7 @@ import { addTerrain } from '../../sceneActions'
 import { newId, useStore } from '../../store'
 import { errorText } from '../../errors'
 import { groupStructures, structureCategories, VILLAGE_BIOMES, type PieceKind } from '../../structureGroups'
-import { ColorSection, Hint, Toggle } from '../controls'
+import { ColorSection, Hint, Pager, Toggle, usePaged } from '../controls'
 
 const pretty = (id: string): string => {
   const parts = id.split('/')
@@ -236,9 +236,17 @@ function PieceSections({
   onAdd: (id: string) => void
 }): ReactNode {
   const sections = useMemo(() => groupStructures(ids), [ids])
+  // Long families open in pages of tiles; each page keeps the headings of the groups it shows.
+  const tiles = useMemo(() => sections.flatMap((s) => s.kinds.map((kind) => ({ section: s.label, kind }))), [sections])
+  const { shown, ...pager } = usePaged(tiles, ids.length)
+  const onPage = shown.reduce<{ label: string; kinds: PieceKind[] }[]>((out, t) => {
+    if (out[out.length - 1]?.label !== t.section) out.push({ label: t.section, kinds: [] })
+    out[out.length - 1].kinds.push(t.kind)
+    return out
+  }, [])
   return (
     <>
-      {sections.map((section) => (
+      {onPage.map((section) => (
         <div key={section.label} className="piece-section">
           {(sections.length > 1 || titled) && <h4>{section.label}</h4>}
           <div className="card-grid">
@@ -248,6 +256,7 @@ function PieceSections({
           </div>
         </div>
       ))}
+      <Pager {...pager} />
     </>
   )
 }
