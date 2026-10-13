@@ -12,6 +12,16 @@ YouTube-ready thumbnail in minutes. No Photoshop and no render farm needed.
 ![macOS](https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-555)
 ![Minecraft](https://img.shields.io/badge/Minecraft%20Java-1.18%20%E2%86%92%20latest-62b47a)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/Loveguard/ThumbCraft/total?color=2ea043)](https://github.com/Loveguard/ThumbCraft/releases)
+[![CI](https://github.com/Loveguard/ThumbCraft/actions/workflows/ci.yml/badge.svg)](https://github.com/Loveguard/ThumbCraft/actions/workflows/ci.yml)
+
+**[Download](https://github.com/Loveguard/ThumbCraft/releases/latest)** ·
+[Features](#features) ·
+[Install](#install) ·
+[First thumbnail](#your-first-thumbnail) ·
+[FAQ](#faq) ·
+[What's new](https://github.com/Loveguard/ThumbCraft/releases) ·
+[Report a bug](https://github.com/Loveguard/ThumbCraft/issues/new/choose)
 
 ![The ThumbCraft editor with the "Versus showdown" scene](docs/images/editor.jpg)
 
@@ -59,6 +69,12 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 | 💾 **Projects**         | Save and reopen scenes, with autosave and crash recovery. Projects carry everything they need, so they open the same on any PC.                                                                                                                                                                                                                                                      |
 
 [Full feature reference →](docs/FEATURES.md)
+
+### One scene, any mood
+
+Colour looks are real film-style 3D LUTs, and your own `.cube` files from DaVinci Resolve or Premiere work too.
+
+![The same thumbnail in the Original, Blockbuster, Moonlight and Neon looks](docs/images/looks.jpg)
 
 ## Install
 
@@ -279,7 +295,7 @@ npm run dev
 ```
 
 You'll need Node.js 22. The project layout, tests, releasing and roadmap are in
-[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Contributions are welcome: open an issue first for anything big.
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md), and open an issue first for anything big.
 
 ## Licence
 

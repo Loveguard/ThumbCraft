@@ -1,0 +1,38 @@
+name: Bug report
+description: Something in ThumbCraft doesn't work or looks wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time! A screenshot and your versions make most bugs quick to fix.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot or error
+      description: Drop a screenshot here. For a mob or build error, paste what **Copy details** gives you (it removes your username).
+  - type: input
+    id: app
+    attributes:
+      label: ThumbCraft version
+      placeholder: e.g. 0.5.0
+    validations:
+      required: true
+  - type: input
+    id: minecraft
+    attributes:
+      label: Minecraft version
+      placeholder: e.g. 1.21.4
+  - type: dropdown
+    id: os
+    attributes:
+      label: System
+      options: [Windows 11, Windows 10, macOS (Apple Silicon), macOS (Intel)]
+    validations:
+      required: true
