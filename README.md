@@ -31,11 +31,7 @@ YouTube-ready thumbnail in minutes. No Photoshop and no render farm needed.
 
 ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbnail studio.
 
-- **It looks like the real game, because it is the real game.** Terrain comes from Mojang's own world generator.
-  Blocks, mobs and textures are read from the Minecraft version you play.
-- **It's built for thumbnails.** You get outlined title text, dramatic lighting, posable players, smoke, fire and
-  explosions. Exports come out at exactly YouTube's size and stay under its 2 MB limit.
-- **It's quick.** Pick a ready-made scene, type your username, change the text and export.
+![It is the real game: terrain from Mojang's own generator and blocks, mobs and textures from your install. Built for thumbnails: outlined titles, dramatic lighting, posable players, and exports that fit YouTube's size and 2 MB limit. Done in minutes: pick a scene, type your username, change the text and export.](docs/images/readme/pillars.jpg)
 
 <table>
   <tr>
@@ -51,6 +47,11 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 </table>
 
 ## Features
+
+![Real terrain, players, mobs, builds, FX, lighting, colour looks, focus and lens, titles, a thumbnail kit, tabs and split images, and a YouTube preview](docs/images/readme/features.jpg)
+
+<details>
+<summary><b>Every feature in detail</b></summary>
 
 | Feature                 | What you get                                                                                                                                                                                                                                                                                                                                                                         |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -68,6 +69,8 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 | 📤 **Export**           | JPG or PNG at 1280×720, 1080p, 4K or Shorts size, or several at once. What you see in the viewport is exactly what you export.                                                                                                                                                                                                                                                       |
 | 💾 **Projects**         | Save and reopen scenes, with autosave and crash recovery. Projects carry everything they need, so they open the same on any PC.                                                                                                                                                                                                                                                      |
 
+</details>
+
 [Full feature reference →](docs/FEATURES.md)
 
 ### One scene, any mood
@@ -77,6 +80,8 @@ Colour looks are real film-style 3D LUTs, and your own `.cube` files from DaVinc
 ![The same thumbnail in the Original, Blockbuster, Moonlight and Neon looks](docs/images/looks.jpg)
 
 ## Install
+
+![1. Download the Windows or macOS installer. 2. Open it, allowing it once in SmartScreen or Privacy & Security. 3. Start creating: ThumbCraft finds your Minecraft from any launcher.](docs/images/readme/install.jpg)
 
 1. Download the latest version from the **[Releases page](https://github.com/Loveguard/ThumbCraft/releases/latest)**:
    - **Windows:** `ThumbCraft-Setup-<version>.exe` installs the app and keeps it up to date.
@@ -139,7 +144,7 @@ ThumbCraft is light. If your PC can run Minecraft, it can run ThumbCraft, and mo
 
 ## Your first thumbnail
 
-![The start screen with ready-made scenes](docs/images/start-screen.jpg)
+![Five steps: pick a scene, make it yours, frame it, add drama, export](docs/images/readme/first-thumbnail.jpg)
 
 1. **Pick a scene** on the start screen, or start empty and choose a biome.
 2. **Make it yours.** Click the player and type your username. Click the text and change it.
@@ -205,14 +210,7 @@ _Psst: there's a secret code somewhere. Find it, and three extra scenes unlock._
 
 ## How it works
 
-```mermaid
-flowchart LR
-  A[Your Minecraft install] -->|textures, models, structures| C(ThumbCraft)
-  B[Mojang's world generator<br/>runs on your PC] -->|real terrain| C
-  D[Mojang skin server] -->|player skins| C
-  C --> E[3D scene editor]
-  E --> F[JPG / PNG thumbnail]
-```
+![Your Minecraft install, Mojang's world generator and Mojang's skin server feed ThumbCraft's 3D editor, which exports a JPG or PNG thumbnail](docs/images/readme/how-it-works.jpg)
 
 ThumbCraft never ships any Minecraft files. Everything game-related comes from your own installation or
 straight from Mojang's servers to your PC. Under the hood it resolves block models exactly as the game does,
@@ -220,6 +218,8 @@ runs the official server headless to generate terrain, and bakes mob models with
 details are in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#how-it-stays-accurate-nothing-is-guessed).
 
 ## Privacy & safety
+
+![No tracking, verified downloads, and projects that are safe to open](docs/images/readme/privacy.jpg)
 
 - **No accounts, no tracking, no telemetry.** Nothing about you or your projects is uploaded anywhere.
 - **The app talks only to these servers:**
