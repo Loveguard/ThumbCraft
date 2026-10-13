@@ -77,18 +77,19 @@ jobs:
           SIGN_ENDPOINT: ${{ vars.SIGN_ENDPOINT }}
           SIGN_ACCOUNT: ${{ vars.SIGN_ACCOUNT }}
           SIGN_PROFILE: ${{ vars.SIGN_PROFILE }}
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      # The installers reach the publish job through the Actions cache, not as artifacts: artifacts count against
+      # the account's storage quota, and a full quota made the upload, and so the whole release, fail. The key is
+      # unique to this run, and old cache entries are evicted automatically.
+      - shell: bash
+        run: |
+          mkdir release-upload
+          cp release/*.exe release/*.dmg release/*.blockmap release/latest*.yml release-upload/ 2>/dev/null || true
+          ls release-upload/*.blockmap release-upload/latest*.yml || { echo "The build produced no installers"; exit 1; }
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          name: release-${{ matrix.os }}
-          path: |
-            release/*.exe
-            release/*.dmg
-            release/*.blockmap
-            release/latest*.yml
-          if-no-files-found: error
-          # Only passed to the publish job a few minutes later; kept a day, so release builds don't fill the
-          # account's artifact storage (a full quota makes the upload, and so the whole release, fail).
-          retention-days: 1
+          path: release-upload
+          key: release-${{ github.run_id }}-${{ matrix.os }}
+          enableCrossOsArchive: true
 
   publish:
     needs: build
@@ -96,10 +97,20 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: dist
-          merge-multiple: true
+          path: release-upload
+          key: release-${{ github.run_id }}-windows-latest
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+      - run: mkdir dist && mv release-upload/* dist/
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: release-upload
+          key: release-${{ github.run_id }}-macos-latest
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+      - run: mv release-upload/* dist/ && ls -l dist
       # latest.yml (Windows) and latest-mac.yml are what installed copies check for updates.
       - run: |
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.]+)?$ ]] || { echo "Not a version tag: $TAG"; exit 1; }
