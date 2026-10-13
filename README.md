@@ -297,6 +297,10 @@ npm run dev
 You'll need Node.js 22. The project layout, tests, releasing and roadmap are in
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md), and open an issue first for anything big.
 
+## Credits
+
+ThumbCraft is designed and directed by LoveGuard. All of its code was written with Claude Opus 5.5, Anthropic's AI model.
+
 ## Licence
 
 ThumbCraft is released under the [MIT licence](LICENSE). Bundled fonts, libraries and the background-removal
