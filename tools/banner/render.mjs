@@ -1,5 +1,5 @@
 // Renders the README images: `node tools/banner/render.mjs [name…]` (names: banner.html, social.html, looks.html, or a
-// section id from readme-art.mjs such as features). Needs Playwright with a Chromium and the fonts from `npm install`.
+// section id from readme-art.mjs such as features, or support.html). Needs Playwright with a Chromium and the fonts from `npm install`.
 import { chromium } from 'playwright'
 import { writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -37,4 +37,16 @@ for (const id of sections.filter(want)) {
   console.log('wrote', out)
 }
 rmSync(art)
+
+// The support button is a transparent PNG cropped to the button itself.
+if (want('support.html')) {
+  const page = await browser.newPage({ viewport: { width: 600, height: 120 }, deviceScaleFactor: 2 })
+  await page.goto('file://' + here('support.html'))
+  await page.evaluate(() => document.fonts.ready)
+  const box = await page.locator('#support').boundingBox()
+  const clip = { x: box.x - 4, y: box.y - 2, width: box.width + 8, height: box.height + 10 }
+  await page.screenshot({ path: here('../../docs/images/support.png'), clip, omitBackground: true })
+  await page.close()
+  console.log('wrote ../../docs/images/support.png')
+}
 await browser.close()
