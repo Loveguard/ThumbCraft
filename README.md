@@ -23,6 +23,8 @@ YouTube-ready thumbnail in minutes. No Photoshop and no render farm needed.
 [What's new](https://github.com/Loveguard/ThumbCraft/releases) ·
 [Report a bug](https://github.com/Loveguard/ThumbCraft/issues/new/choose)
 
+<a href="https://www.buymeacoffee.com/Loveguard"><img src="docs/images/support.png" alt="Show Love to Loveguard on Buy Me a Coffee" height="44"></a>
+
 ![The ThumbCraft editor with the "Versus showdown" scene](docs/images/editor.jpg)
 
 </div>
@@ -296,6 +298,13 @@ npm run dev
 
 You'll need Node.js 22. The project layout, tests, releasing and roadmap are in
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md), and open an issue first for anything big.
+
+## Support
+
+ThumbCraft is free and always will be. If it saves you time and you'd like to say thanks, you can buy LoveGuard a
+coffee:
+
+<a href="https://www.buymeacoffee.com/Loveguard"><img src="docs/images/support.png" alt="Show Love to Loveguard on Buy Me a Coffee" height="44"></a>
 
 ## Credits
 
