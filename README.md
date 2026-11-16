@@ -68,7 +68,7 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 | 🗂️ **Tabs**                   | Several projects open at once, one tab each. **Duplicate as new tab** makes a variant to try something without touching the original; put two tabs side by side as a **split image** ("Day 1 vs Day 100") with a straight, torn-paper or lightning divider.                                                                                                                          |
 | 🏷️ **Thumbnail kit**          | Bold arrows, circles, crosses, ticks, bursts and boxes in any colour, with outline and glow. Line thickness is adjustable, and so are an arrow's tail length and a circle's or box's width.                                                                                                                                                                                          |
 | 📺 **YouTube preview**        | See your thumbnail (and every other open tab) in a mock home feed, search results, the "up next" list and on a phone, in dark or light mode, before you upload.                                                                                                                                                                                                                      |
-| 🎬 **Animation**              | A second mode beside Thumbnail: characters walk, run and act along paths on a timeline, the camera moves, and it exports as a video. [More below](#new-animation-mode).                                                                                                                                                                                                              |
+| 🎬 **Animation (beta)**       | A second mode beside Thumbnail: characters walk, run and act along paths on a timeline, the camera moves, and it exports as a video. [More below](#new-animation-mode-beta).                                                                                                                                                                                                         |
 | 🎨 **Resource packs & fonts** | Stack your resource packs over the game's textures, like the in-game pack screen. Titles can use any font installed on your computer.                                                                                                                                                                                                                                                |
 | 📤 **Export**                 | JPG or PNG at 1280×720, 1080p, 4K or Shorts size, or several at once; or a layered **.psd** with every player, mob, title and sticker on its own layer. What you see in the viewport is exactly what you export.                                                                                                                                                                     |
 | 💾 **Projects**               | Save and reopen scenes, with autosave and crash recovery. Projects carry everything they need, so they open the same on any PC.                                                                                                                                                                                                                                                      |
@@ -77,7 +77,10 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 
 [Full feature reference →](docs/FEATURES.md)
 
-## New: Animation mode
+## New: Animation mode (beta)
+
+> **Beta:** Animation is new and still being polished. Expect rough edges, and please
+> [report what you find](https://github.com/Loveguard/ThumbCraft/issues).
 
 Switch from **Thumbnail** to **Animation** in the top bar and the same scene gets a timeline.
 
@@ -201,7 +204,7 @@ button, or **\\**) clears both side panels away so the thumbnail fills the windo
   lightning divider. Lean and position are adjustable.
 - **YouTube preview** (**Preview** in the top bar): your thumbnail and other open tabs in the home feed, search, "up next" and on a
   phone. The video length sits in the bottom-right corner, so keep faces and text clear of it.
-- **Animation** (top bar): characters move by blocks on the timeline under the canvas. **Space** plays and
+- **Animation** (beta, top bar): characters move by blocks on the timeline under the canvas. **Space** plays and
   pauses, and the arrow next to Export picks video, GIF or PNG frames.
 - **Render mode** (Render & camera, right panel): Vanilla is exactly the game's look; Cinematic, Soft and
   Cartoon add a real sun with shadows.
