@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import {
   Box,
   Castle,
+  Clapperboard,
   CloudSun,
   Flame,
   Image as ImageIcon,
@@ -20,6 +21,8 @@ import { SkyTab } from './tabs/SkyTab'
 import { VfxTab } from './tabs/VfxTab'
 import { MediaTab, PlayersTab, TextTab, WorldTab } from './tabs/SceneTabs'
 import { useLayout } from '../layout'
+import { useAnim } from '../animation'
+import { AnimatePanel } from './AnimatePanel'
 
 interface TabDef {
   id: string
@@ -117,15 +120,32 @@ const TABS: TabDef[] = [
   }
 ]
 
+/** The Animation mode only animates and brings things in: characters, and your own media and models. */
+const ANIMATE_TAB: TabDef = {
+  id: 'animate',
+  label: 'Animate',
+  icon: Clapperboard,
+  title: 'Animate',
+  subtitle: 'Walk, run or sprint characters along a path, and set keys',
+  body: () => <AnimatePanel />
+}
+const ANIMATION_TABS = [ANIMATE_TAB, ...TABS.filter((t) => ['players', 'mobs', 'media'].includes(t.id))]
+
+/** Where the rail starts a new cluster: the world, what you add, how it is lit and looks. */
+const RAIL_BREAKS = new Set(['players', 'lights'])
+
 export function LeftPanel(): ReactNode {
   const tab = useLayout((s) => s.assetTab)
   const focus = useLayout((s) => s.focus)
   const toggle = useLayout((s) => s.toggleAssetTab)
-  const current = focus ? undefined : TABS.find((t) => t.id === tab)
+  const animating = useAnim((s) => s.mode === 'animation')
+  const tabs = animating ? ANIMATION_TABS : TABS
+  const current = focus ? undefined : tabs.find((t) => t.id === tab)
   return (
     <>
       <nav className="rail" aria-label="Add to scene">
-        {TABS.map((t) => (
+        {tabs.map((t, i) => [
+          i > 0 && RAIL_BREAKS.has(t.id) && <i key={`sep-${t.id}`} className="rail-sep" aria-hidden />,
           <button
             key={t.id}
             className={`rail-item ${t.id === current?.id ? 'active' : ''}`}
@@ -136,7 +156,7 @@ export function LeftPanel(): ReactNode {
             <t.icon size={20} strokeWidth={1.7} />
             <span>{t.label}</span>
           </button>
-        ))}
+        ])}
       </nav>
       {current && (
         <aside className="asset-panel">

@@ -5,8 +5,10 @@ import type { AssetBundle, TerrainData } from '@shared/types'
 import type { ExportFormat } from './exportImage'
 import type { VfxType } from './vfx'
 import type { StickerShape } from './stickers'
-import type { RenderMode } from './renderModes'
+import type { Lighting, RenderMode } from './renderModes'
 import type { PixelTextStyle } from './minecraft/builders'
+import { switchTextures } from './minecraft/assets'
+import type { AnimationData } from '@shared/animation'
 
 export type Vec3 = [number, number, number]
 
@@ -24,6 +26,21 @@ interface Base {
   flat?: boolean
   /** Objects sharing a group id are selected and moved together. */
   groupId?: string
+  /** A rim light painted on its edges (a picture effect, not a lamp in the scene). */
+  rim?: RimLight | null
+}
+
+/** A bright edge on one object, from the side a light would come from. */
+export interface RimLight {
+  color: string
+  /** How bright (0…4). */
+  intensity: number
+  /** Where on screen the light comes from, degrees: 0 from the right, 90 from above, 180 from the left. */
+  angle: number
+  /** How far in from the edge the light reaches, in 720p pixels. */
+  width: number
+  /** How far around the outline it goes (0 one side only … 1 all the way round). */
+  wrap: number
 }
 
 export interface TerrainObject extends Base {
@@ -240,6 +257,8 @@ export interface SplitSettings {
 
 export interface SceneSettings {
   renderMode: RenderMode
+  /** The Custom look's lighting (kept when switching to another look and back). */
+  customLighting?: Lighting | null
   ambientOcclusion: boolean
   fov: number
   fog: boolean
@@ -272,6 +291,8 @@ export interface SceneSettings {
   wind: number
   /** The user's saved camera ("shot"), to return to after looking around. */
   shot: (CameraState & { fov: number }) | null
+  /** Characters and objects moving over time (the Animation mode). */
+  animation?: AnimationData | null
 }
 
 export interface EffectSettings {
@@ -464,6 +485,18 @@ export const newProjectInfo = (): ProjectInfo => ({
   createdAt: Date.now()
 })
 
+/**
+ * While the Animation mode is on, the scene shows each animated object where the animation has it, and this keeps
+ * where the thumbnail has it (position, turn, pose), to put back afterwards and to save.
+ */
+export const animationRest = new Map<string, Partial<SceneObject>>()
+export const withRest = (objects: SceneObject[]): SceneObject[] =>
+  animationRest.size
+    ? objects.map((o) => (animationRest.has(o.id) ? ({ ...o, ...animationRest.get(o.id) } as SceneObject) : o))
+    : objects
+/** Leaves the Animation mode (set by it): before another project replaces the one on screen. */
+export const animationHooks: { exit: (() => void) | null } = { exit: null }
+
 /** Terrain voxels are large, so they live outside the reactive state. */
 export const terrainStore = new Map<string, TerrainData>()
 
@@ -533,7 +566,30 @@ export interface CameraState {
 export interface HistoryEntry {
   objects?: SceneObject[]
   camera?: CameraState
+  /** The look of the scene before a change in the Look, Effects or Sky panels. */
+  settings?: SceneSettings
+  effects?: EffectSettings
+  sky?: SkySettings
 }
+
+/**
+ * Settings that are how you work, not how the picture looks (and the animation, which has its own undo): changing
+ * them is not an undo step, and undoing something else never puts an older one back.
+ */
+const WORKSPACE_SETTINGS: (keyof SceneSettings)[] = [
+  'showGrid',
+  'showRulers',
+  'snap',
+  'exportWidth',
+  'exportHeight',
+  'exportFormat',
+  'split',
+  'shot',
+  'animation'
+]
+
+/** The Animation mode turns this on: there, Ctrl+Z undoes animation edits, and the scene's history waits. */
+export const sceneHistory = { paused: false }
 
 /** The viewport registers these so undo can read and restore the view. */
 export const cameraBridge: { get: (() => CameraState | null) | null; set: ((c: CameraState) => void) | null } = {
@@ -556,6 +612,19 @@ function applyEntry(s: State, e: HistoryEntry): { reverse: HistoryEntry; patch: 
       patch.selectedJoint = null
     }
     patch.selectedIds = s.selectedIds.filter((id) => e.objects!.some((o) => o.id === id))
+  }
+  if (e.settings) {
+    reverse.settings = s.settings
+    const kept = Object.fromEntries(WORKSPACE_SETTINGS.map((k) => [k, s.settings[k]]))
+    patch.settings = { ...e.settings, ...kept } as SceneSettings
+  }
+  if (e.effects) {
+    reverse.effects = s.effects
+    patch.effects = e.effects
+  }
+  if (e.sky) {
+    reverse.sky = s.sky
+    patch.sky = e.sky
   }
   const now = e.camera && cameraBridge.get?.()
   if (e.camera && now) {
@@ -582,12 +651,30 @@ export function selection(s: Pick<State, 'selectedId' | 'selectedIds'>): string[
   return s.selectedIds.includes(s.selectedId) ? s.selectedIds : [s.selectedId]
 }
 
-const history = (s: State, key: string): Pick<State, 'past' | 'future'> => {
+type Undoable = 'objects' | 'settings' | 'effects' | 'sky'
+
+const history = (s: State, key: string, what: Undoable = 'objects'): Pick<State, 'past' | 'future'> => {
   const now = Date.now()
   const merge = key === lastCommit.key && now - lastCommit.at < 600
+  // One action that touches several things at once (a sky preset also moves the sun) is one step.
+  const last = s.past[s.past.length - 1]
+  const together = !merge && !!lastCommit.key && lastCommit.key !== 'camera' && now - lastCommit.at < 50
   lastCommit = { key, at: now }
   if (merge) return { past: s.past, future: [] }
-  return { past: [...s.past.slice(-99), { objects: s.objects }], future: [] }
+  if (together && last && !last.camera) {
+    if (what in last) return { past: s.past, future: [] }
+    return { past: [...s.past.slice(0, -1), { ...last, [what]: s[what] }], future: [] }
+  }
+  return { past: [...s.past.slice(-99), { [what]: s[what] }], future: [] }
+}
+
+/** A change in the Look, Effects or Sky panels as an undo step (a slider drag collapses into one). */
+const lookHistory = (s: State, what: Exclude<Undoable, 'objects'>, patch: object): Partial<State> => {
+  const keys = Object.keys(patch).filter((k) => what !== 'settings' || !WORKSPACE_SETTINGS.includes(k as never))
+  const before = s[what] as unknown as Record<string, unknown>
+  const changed = keys.filter((k) => !Object.is(before[k], (patch as Record<string, unknown>)[k]))
+  if (sceneHistory.paused || !changed.length) return {}
+  return history(s, `${what}:${keys.join(',')}`, what)
 }
 
 /** Sun and fill for a night sky (your own lights do the work) and for daytime. */
@@ -660,7 +747,10 @@ export const useStore = create<State>((set) => ({
       if (merge) return { future: [] }
       return { past: [...s.past.slice(-99), { camera: before }], future: [] }
     }),
-  setAssets: (assets) => set({ assets }),
+  setAssets: (assets) => {
+    switchTextures(assets)
+    set({ assets })
+  },
   add: (o) =>
     set((s) => ({ ...history(s, `add:${o.id}`), objects: [...s.objects, o], selectedId: o.id, selectedIds: [o.id] })),
   duplicate: (id) =>
@@ -806,9 +896,9 @@ export const useStore = create<State>((set) => ({
       return { ...history(s, `reorder:${id}:${Date.now()}`), objects }
     }),
   setTransformMode: (transformMode) => set({ transformMode, selectedJoint: null }),
-  setSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
-  setEffects: (patch) => set((s) => ({ effects: { ...s.effects, ...patch } })),
-  setSky: (patch) => set((s) => ({ sky: { ...s.sky, ...patch } })),
+  setSettings: (patch) => set((s) => ({ ...lookHistory(s, 'settings', patch), settings: { ...s.settings, ...patch } })),
+  setEffects: (patch) => set((s) => ({ ...lookHistory(s, 'effects', patch), effects: { ...s.effects, ...patch } })),
+  setSky: (patch) => set((s) => ({ ...lookHistory(s, 'sky', patch), sky: { ...s.sky, ...patch } })),
   setProject: (patch) => set((s) => ({ project: { ...s.project, ...patch } })),
   setStatus: (status) => set({ status })
 }))

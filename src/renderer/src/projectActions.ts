@@ -1,7 +1,7 @@
 // Save / open / autosave wiring between the scene and the project files on disk.
 import { pruneMedia } from './media'
 import type { ProjectMeta } from '@shared/api'
-import { loadProject, newProject, projectThumbnail, serializeProject } from './project'
+import { loadProject, newProject, projectThumbnail, serializeProject, type OpenedProject } from './project'
 import { newProjectInfo, useStore } from './store'
 import { activeTabIsBlank, addTab, closeTab, duplicateTab, findTab, switchTab, tabProject, useTabs } from './tabs'
 import { errorText } from './errors'
@@ -45,16 +45,21 @@ export function markClean(): void {
   useStore.getState().setProject({ dirty: false })
 }
 
-function afterOpen(opened: { name: string; minecraftVersion: string | null }): void {
+function afterOpen(opened: OpenedProject): void {
   const loaded = useStore.getState().assets?.version
   markClean()
-  useStore
-    .getState()
-    .setStatus(
-      opened.minecraftVersion && loaded && opened.minecraftVersion !== loaded
-        ? `Opened “${opened.name}” — it was made with Minecraft ${opened.minecraftVersion}; blocks are now drawn with ${loaded}.`
-        : `Opened “${opened.name}”`
-    )
+  const notes = [
+    opened.minecraftVersion && loaded && opened.minecraftVersion !== loaded
+      ? `it was made with Minecraft ${opened.minecraftVersion}; blocks are now drawn with ${loaded}`
+      : '',
+    opened.dropped
+      ? `${opened.dropped} ${opened.dropped === 1 ? 'object' : 'objects'} couldn't be read and ${opened.dropped === 1 ? 'was' : 'were'} left out`
+      : '',
+    opened.repaired
+      ? `${opened.repaired} ${opened.repaired === 1 ? 'object' : 'objects'} had missing settings filled in`
+      : ''
+  ].filter(Boolean)
+  useStore.getState().setStatus(`Opened “${opened.name}”${notes.length ? ` — ${notes.join('; ')}.` : ''}`)
 }
 
 /** Makes room for a project being opened: its own tab, unless the tab on screen is an untouched new project. */

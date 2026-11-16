@@ -1,15 +1,12 @@
-import { useRef, type ReactNode } from 'react'
-import { Upload } from 'lucide-react'
-import { mediaStore, registerFile } from '../media'
+import type { ReactNode } from 'react'
+import { mediaStore } from '../media'
 import { useStore, type TextObject } from '../store'
-import { FONTS, TEXT_STYLES } from '../textStyles'
+import { customFamily, FONTS, TEXT_STYLES } from '../textStyles'
 import { Group, Slider, Toggle } from './controls'
-
-const FONT_FILES = '.ttf,.otf,.woff,.woff2'
+import { FontPicker } from './FontPicker'
 
 export function TextProperties({ o }: { o: TextObject }): ReactNode {
   const set = (patch: Partial<TextObject>): void => useStore.getState().update(o.id, patch)
-  const file = useRef<HTMLInputElement>(null)
   // Fonts imported anywhere in this project, so a second title can reuse them.
   const imported = useStore((s) => {
     const ids = new Set<string>()
@@ -18,7 +15,9 @@ export function TextProperties({ o }: { o: TextObject }): ReactNode {
   })
   const importedFonts = imported ? imported.split('|').filter((id) => mediaStore.has(id)) : []
   const fontValue = o.fontMediaId ? `media:${o.fontMediaId}` : o.font
-  const known = FONTS.some((f) => f.family === o.font)
+  const fontLabel = o.fontMediaId
+    ? (mediaStore.get(o.fontMediaId)?.name.replace(/\.[^.]+$/, '') ?? 'Imported font')
+    : (FONTS.find((f) => f.family === o.font)?.label ?? o.font.split(',')[0].replace(/"/g, ''))
 
   return (
     <>
@@ -37,49 +36,23 @@ export function TextProperties({ o }: { o: TextObject }): ReactNode {
           ))}
         </div>
       </div>
-      <label className="field">
+      <div className="field">
         <span>Font</span>
-        <select
+        <FontPicker
           value={fontValue}
-          onChange={(e) => {
-            const v = e.target.value
+          label={fontLabel}
+          imported={importedFonts.map((id) => ({
+            value: `media:${id}`,
+            label: mediaStore.get(id)!.name.replace(/\.[^.]+$/, ''),
+            css: customFamily(id)
+          }))}
+          onPick={(v) => {
             if (v.startsWith('media:')) set({ fontMediaId: v.slice(6) })
             else set({ font: v, fontMediaId: undefined })
           }}
-        >
-          {FONTS.map((f) => (
-            <option key={f.label} value={f.family}>
-              {f.label}
-            </option>
-          ))}
-          {!known && !o.fontMediaId && <option value={o.font}>{o.font.split(',')[0].replace(/"/g, '')}</option>}
-          {importedFonts.map((id) => (
-            <option key={id} value={`media:${id}`}>
-              {mediaStore.get(id)!.name.replace(/\.[^.]+$/, '')}
-            </option>
-          ))}
-        </select>
-        <button
-          className="icon-btn sm"
-          title="Import a font file (.ttf, .otf, .woff)"
-          onClick={() => file.current?.click()}
-        >
-          <Upload size={14} />
-        </button>
-        <input
-          ref={file}
-          type="file"
-          accept={FONT_FILES}
-          hidden
-          onChange={async (e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (!f) return
-            const media = await registerFile(f)
-            if (media) set({ fontMediaId: media.id })
-          }}
+          onFile={(fontMediaId) => set({ fontMediaId })}
         />
-      </label>
+      </div>
       <label className="field">
         <span>Fill</span>
         <input type="color" value={o.color} onChange={(e) => set({ color: e.target.value })} />

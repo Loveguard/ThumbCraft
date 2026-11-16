@@ -1,30 +1,22 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react'
 import * as THREE from 'three'
 import {
-  ArrowDown,
-  ArrowUp,
-  BookmarkPlus,
   Camera,
+  Check,
   Clapperboard,
-  Copy,
   Grid3x3,
-  Magnet,
-  Maximize,
   Maximize2,
   Minimize2,
   Move3d,
   Redo2,
   Rotate3d,
-  Ruler,
   Scale3d,
-  Trash2,
   Undo2,
   type LucideIcon
 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { cameraBridge, useStore, type TransformMode } from '../store'
 import { useLayout } from '../layout'
-import { pushAlongView } from './RightPanel'
 import { StartPanel } from './StartPanel'
 import { drawnBox, viewport } from './Viewport'
 import { useDismiss } from '../useDismiss'
@@ -122,10 +114,69 @@ function CameraMenu({ onClose }: { onClose: () => void }): ReactNode {
         </button>
       )}
       <div className="menu-title">{selectedId ? 'Aim at selection' : 'Aim at scene'}</div>
+      <button
+        onClick={() => {
+          const box = boundsOf()
+          if (box) frame(box)
+          onClose()
+        }}
+      >
+        <strong>Fit everything</strong>
+        <span>Frames the whole scene from where you are looking</span>
+      </button>
       {ANGLES.map((a) => (
         <button key={a.label} onClick={() => apply(a.dir)}>
           <strong>{a.label}</strong>
           <span>{a.hint}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** The view aids (never exported): ground grid, snapping and rulers, as switches in one small menu. */
+function ViewMenu({ onClose }: { onClose: () => void }): ReactNode {
+  const ref = useRef<HTMLDivElement>(null)
+  useDismiss(ref, onClose, (el) => el.closest('.menu-anchor'))
+  const { showGrid, snap, showRulers } = useStore(
+    useShallow((s) => ({ showGrid: s.settings.showGrid, snap: s.settings.snap, showRulers: !!s.settings.showRulers }))
+  )
+  const { setSettings } = useStore.getState()
+  const items = [
+    {
+      on: showGrid,
+      label: 'Ground grid',
+      hint: 'Only in the editor, never exported',
+      flip: () => setSettings({ showGrid: !showGrid })
+    },
+    {
+      on: snap,
+      label: 'Snap while moving',
+      hint: 'Or hold Shift while dragging',
+      flip: () => setSettings({ snap: !snap })
+    },
+    {
+      on: showRulers,
+      label: 'Rulers and centre guides',
+      hint: 'Shift R',
+      flip: () => setSettings({ showRulers: !showRulers })
+    }
+  ]
+  return (
+    <div className="menu view-menu" ref={ref}>
+      <div className="menu-title">Show while editing</div>
+      {items.map((i) => (
+        <button
+          key={i.label}
+          className={i.on ? 'checked' : ''}
+          role="menuitemcheckbox"
+          aria-checked={i.on}
+          onClick={i.flip}
+        >
+          <strong>
+            <Check size={14} className="tick" style={{ visibility: i.on ? 'visible' : 'hidden' }} /> {i.label}
+          </strong>
+          <span>{i.hint}</span>
         </button>
       ))}
     </div>
@@ -146,18 +197,11 @@ function Dock(): ReactNode {
   const mode = useStore((s) => s.transformMode)
   const canUndo = useStore((s) => s.past.length > 0)
   const canRedo = useStore((s) => s.future.length > 0)
-  const { showGrid, snap, shot, showRulers } = useStore(
-    useShallow((s) => ({
-      showGrid: s.settings.showGrid,
-      snap: s.settings.snap,
-      shot: s.settings.shot,
-      showRulers: !!s.settings.showRulers
-    }))
-  )
+  const shot = useStore((s) => s.settings.shot)
   const focus = useLayout((s) => s.focus)
-  const { setSettings, setTransformMode, undo, redo } = useStore.getState()
-  const [menu, setMenu] = useState(false)
-  const closeMenu = useCallback(() => setMenu(false), [])
+  const { setTransformMode, undo, redo } = useStore.getState()
+  const [menu, setMenu] = useState<'camera' | 'view' | null>(null)
+  const closeMenu = useCallback(() => setMenu(null), [])
 
   return (
     <div className="float-bar view-bar dock" role="toolbar" aria-label="Tools">
@@ -182,63 +226,38 @@ function Dock(): ReactNode {
       <i className="dock-gap" />
       <div className="menu-anchor">
         <button
-          className={`icon-btn ${menu ? 'active' : ''}`}
-          onClick={() => setMenu(!menu)}
-          data-tip={menu ? undefined : 'Camera angles'}
-          aria-label="Camera angles"
-          aria-expanded={menu}
+          className={`icon-btn ${menu === 'camera' ? 'active' : ''}`}
+          onClick={() => setMenu(menu === 'camera' ? null : 'camera')}
+          data-tip={menu ? undefined : 'Camera: angles, fit, saved view'}
+          aria-label="Camera"
+          aria-expanded={menu === 'camera'}
         >
           <Camera size={17} />
         </button>
-        {menu && <CameraMenu onClose={closeMenu} />}
+        {menu === 'camera' && <CameraMenu onClose={closeMenu} />}
       </div>
-      <button
-        className={`icon-btn ${shot ? 'shot-set' : ''}`}
-        onClick={() => (shot ? returnToShot() : saveShot())}
-        data-tip={shot ? 'Back to saved view  C' : 'Save this view  C'}
-        aria-label={shot ? 'Back to saved view' : 'Save this view'}
-      >
-        {shot ? <Clapperboard size={17} /> : <BookmarkPlus size={17} />}
-      </button>
-      <button
-        className="icon-btn"
-        onClick={() => {
-          const box = boundsOf()
-          if (box) frame(box)
-        }}
-        data-tip="Fit everything in view"
-        aria-label="Fit everything in view"
-      >
-        <Maximize size={17} />
-      </button>
-      <i className="dock-gap" />
-      <button
-        className={`icon-btn ${showGrid ? 'active' : ''}`}
-        onClick={() => setSettings({ showGrid: !showGrid })}
-        data-tip="Ground grid (never exported)"
-        aria-label="Ground grid"
-        aria-pressed={showGrid}
-      >
-        <Grid3x3 size={17} />
-      </button>
-      <button
-        className={`icon-btn ${snap ? 'active' : ''}`}
-        onClick={() => setSettings({ snap: !snap })}
-        data-tip="Snap while moving  hold Shift"
-        aria-label="Snap while moving"
-        aria-pressed={snap}
-      >
-        <Magnet size={17} />
-      </button>
-      <button
-        className={`icon-btn ${showRulers ? 'active' : ''}`}
-        onClick={() => setSettings({ showRulers: !showRulers })}
-        data-tip="Rulers and centre guides  Shift R"
-        aria-label="Rulers and centre guides"
-        aria-pressed={showRulers}
-      >
-        <Ruler size={17} />
-      </button>
+      {shot && (
+        <button
+          className="icon-btn shot-set"
+          onClick={returnToShot}
+          data-tip="Back to saved view  C"
+          aria-label="Back to saved view"
+        >
+          <Clapperboard size={17} />
+        </button>
+      )}
+      <div className="menu-anchor">
+        <button
+          className={`icon-btn ${menu === 'view' ? 'active' : ''}`}
+          onClick={() => setMenu(menu === 'view' ? null : 'view')}
+          data-tip={menu ? undefined : 'Grid, snapping and rulers'}
+          aria-label="View aids"
+          aria-expanded={menu === 'view'}
+        >
+          <Grid3x3 size={17} />
+        </button>
+        {menu === 'view' && <ViewMenu onClose={closeMenu} />}
+      </div>
       <i className="dock-gap" />
       <button
         className={`icon-btn ${focus ? 'active' : ''}`}
@@ -253,39 +272,11 @@ function Dock(): ReactNode {
   )
 }
 
-/** Floating UI drawn over the 3D canvas: the start panel, selection actions and the dock. */
+/** Floating UI drawn over the 3D canvas: the start sheet and the dock. */
 export function ViewportOverlay(): ReactNode {
-  const selectedId = useStore((s) => s.selectedId)
-  const selected = useStore((s) => s.objects.find((o) => o.id === s.selectedId))
-  const { duplicateSelected, removeSelected } = useStore.getState()
-
   return (
     <div className="overlay">
       <StartPanel />
-
-      <div
-        className="float-bar selection-bar"
-        ref={(el) => void (viewport.selectionToolbar = el)}
-        style={{ visibility: 'hidden', display: selectedId ? undefined : 'none' }}
-      >
-        {selected && (
-          <>
-            <button className="icon-btn" title="Duplicate (Ctrl+D)" onClick={duplicateSelected}>
-              <Copy size={16} />
-            </button>
-            <button className="icon-btn" title="Bring forward (toward camera)" onClick={() => pushAlongView(1)}>
-              <ArrowUp size={16} />
-            </button>
-            <button className="icon-btn" title="Send back (away from camera)" onClick={() => pushAlongView(-1)}>
-              <ArrowDown size={16} />
-            </button>
-            <button className="icon-btn danger" title="Delete (Del)" onClick={removeSelected}>
-              <Trash2 size={16} />
-            </button>
-          </>
-        )}
-      </div>
-
       <Dock />
     </div>
   )

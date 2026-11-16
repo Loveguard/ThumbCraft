@@ -14,6 +14,7 @@ import { HELPER_LAYER, liftHandles, OVERLAY_LAYER } from '../overlay'
 import { lookLut, parseCube } from '../grading'
 import { mediaStore } from '../media'
 import { PaperEffect } from './paper'
+import { RimLightEffect, type RimSubject } from './rimLight'
 import { viewport } from './Viewport'
 
 /** Unit vector pointing at the sun for the given azimuth/elevation (degrees). */
@@ -123,12 +124,14 @@ export function renderFrame(
   scene: THREE.Scene,
   camera: THREE.Camera,
   composer: Composer | null,
-  composerAlreadyRan = false
+  composerAlreadyRan = false,
+  /** Seconds to advance animated effects (film grain); 0 keeps several renders identical (layered export). */
+  delta?: number
 ): void {
   // Live, the chain has already rendered this frame (it runs just before); export renders it here.
   const useChain = chain.active && (composerAlreadyRan || !!composer)
   if (useChain) {
-    if (!composerAlreadyRan) composer?.render()
+    if (!composerAlreadyRan) composer?.render(delta)
   } else gl.render(scene, camera)
   if (useStore.getState().effects.cleanOverlays && !(useChain && chain.includesOverlays))
     drawOverlayLayer(gl, scene, camera, null)
@@ -175,6 +178,28 @@ function cutoutSubjects(): THREE.Object3D[] {
     if (root) roots.push(root)
   }
   return roots
+}
+
+/** The objects with a rim light, and their settings; not ones drawn after the effects. */
+function rimSubjects(): RimSubject[] {
+  const { objects, effects } = useStore.getState()
+  const out: RimSubject[] = []
+  for (const o of objects) {
+    if (!o.visible || !o.rim) continue
+    if (o.onTop && effects.cleanOverlays) continue
+    const root = viewport.objects.get(o.id)
+    if (root) out.push({ root, rim: o.rim })
+  }
+  return out
+}
+
+/** Rim lights as a step of their own (they draw each lit object into a mask first). */
+function RimPass(): ReactNode {
+  const { scene, camera } = useThree()
+  const effect = useMemo(() => new RimLightEffect(scene, camera, rimSubjects), [scene, camera])
+  const pass = useMemo(() => new EffectPass(camera, effect), [camera, effect])
+  useEffect(() => () => pass.dispose(), [pass])
+  return <primitive object={pass} dispose={null} />
 }
 
 /**
@@ -308,7 +333,8 @@ export function Effects(): ReactNode {
   const [sun, setSun] = useState<THREE.Mesh | null>(null)
   const ref = useRef<Composer>(null)
   const cartoon = renderMode === 'cartoon'
-  const active = hasEffects(e) || cartoon
+  const rims = useStore((s) => s.objects.some((o) => o.visible && !!o.rim))
+  const active = hasEffects(e) || cartoon || rims
 
   // Runs before the composer renders (priority 0 < 1): keep every pass on the composer's current depth.
   useFrame(() => {
@@ -327,9 +353,13 @@ export function Effects(): ReactNode {
     }
   })
 
+  // The same vector from one render to the next, so the effect isn't handed a new one on every panel change.
+  const chromaticOffset = useMemo(() => new THREE.Vector2(e.chromaticAmount, e.chromaticAmount), [e.chromaticAmount])
   const effects: ReactElement[] = []
   // The cartoon look works on the raw render, before glow and grading.
   if (cartoon) effects.push(<Cartoon key="cartoon" />)
+  // Rim lights next, so focus blur, glow and the look treat them like the rest of the picture.
+  if (rims) effects.push(<RimPass key="rim" />)
   if (e.depthOfField) effects.push(<FocusPass key="dof" points={e.focusPoints} range={e.dofRange} blur={e.dofBlur} />)
   if (e.godRays && sun)
     effects.push(
@@ -389,14 +419,7 @@ export function Effects(): ReactNode {
   // The film print sits on the finished colour, under the lens and screen effects.
   if (hasFilmPrint(e)) effects.push(<PaperPass key="paper" e={e} />)
   if (e.chromatic)
-    effects.push(
-      <ChromaticAberration
-        key="ca"
-        offset={new THREE.Vector2(e.chromaticAmount, e.chromaticAmount)}
-        radialModulation
-        modulationOffset={0.2}
-      />
-    )
+    effects.push(<ChromaticAberration key="ca" offset={chromaticOffset} radialModulation modulationOffset={0.2} />)
   // CRT before the always-on-top layers keeps titles clean; "over everything" moves it after them (below).
   if (e.warp)
     effects.push(<CustomEffect key="warp" make={() => new LensWarpEffect()} apply={(x) => x.setAmount(e.warpAmount)} />)

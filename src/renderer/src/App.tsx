@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, ChevronDown, Download, Layers2, MonitorPlay } from 'lucide-react'
+import { startClaudeBridge } from './claudeBridge'
+import { Check, ChevronDown, Download, FileStack, Film, Image, Layers2, MonitorPlay } from 'lucide-react'
 import { YouTubePreview } from './components/YouTubePreview'
 import { TabBar } from './components/TabBar'
 import { LeftPanel } from './components/LeftPanel'
@@ -15,8 +16,34 @@ import { useShallow } from 'zustand/react/shallow'
 import { useStore } from './store'
 import { useLayout } from './layout'
 import { captureFrame } from './capture'
+import { layeredPsd } from './layeredExport'
 import { useDismiss } from './useDismiss'
 import logo from './assets/logo.png'
+import {
+  copyClip,
+  cutClip,
+  deleteClip,
+  duplicateClip,
+  hasClipboard,
+  pasteClip,
+  enterAnimation,
+  exitAnimation,
+  canWalk,
+  removePathPoint,
+  pause,
+  play,
+  redoAnimation,
+  undoAnimation,
+  useAnim
+} from './animation'
+import {
+  cancelVideo,
+  EXPORT_KINDS,
+  EXPORT_SIZES as MOVIE_SIZES,
+  exportAnimation,
+  sendFrameToThumbnail,
+  type VideoProgress
+} from './videoExport'
 
 const EXPORT_SIZES: [number, number, string][] = [
   [1280, 720, 'YouTube · 1280 × 720'],
@@ -82,6 +109,15 @@ function BatchExport({ onClose }: { onClose: () => void }): ReactNode {
   )
 }
 
+/** The thumbnail as a layered Photoshop file, at the chosen export size. */
+async function exportPsd(w: number, h: number): Promise<void> {
+  const { setStatus, project } = useStore.getState()
+  setStatus('Rendering layers…')
+  const bytes = await layeredPsd(w, h)
+  const saved = await window.blockframe.savePsd(bytes, `${project.name || 'thumbnail'} layers.psd`)
+  if (saved) setStatus(`Exported layers to ${saved}`)
+}
+
 /** Size, file type and batch export, folded behind the Export button's arrow. */
 function ExportMenu({ onClose }: { onClose: () => void }): ReactNode {
   const ref = useRef<HTMLDivElement>(null)
@@ -135,6 +171,104 @@ function ExportMenu({ onClose }: { onClose: () => void }): ReactNode {
           <Layers2 size={14} /> Export several sizes…
         </strong>
       </button>
+      <button
+        title="A .psd with the background, each player, mob, title and sticker on its own layer"
+        onClick={() => {
+          onClose()
+          void exportPsd(w, h).catch(reportExportError)
+        }}
+      >
+        <strong>
+          <FileStack size={14} /> Layers for Photoshop (.psd)…
+        </strong>
+      </button>
+    </div>
+  )
+}
+
+/** What the animation is exported as and at what size, folded behind the Export video button's arrow. */
+function MovieMenu({ onClose }: { onClose: () => void }): ReactNode {
+  const ref = useRef<HTMLDivElement>(null)
+  useDismiss(ref, onClose)
+  const { exportKind, exportSize, blur, follow } = useAnim(
+    useShallow((a) => ({ exportKind: a.exportKind, exportSize: a.exportSize, blur: a.blur, follow: a.follow }))
+  )
+  const people = useStore((s) => s.objects).filter(canWalk)
+  return (
+    <div className="menu export-menu" role="menu" ref={ref}>
+      <div className="menu-title">Export as</div>
+      {EXPORT_KINDS.map((k) => (
+        <button
+          key={k.id}
+          role="menuitemradio"
+          aria-checked={exportKind === k.id}
+          className={exportKind === k.id ? 'checked' : ''}
+          title={k.hint}
+          onClick={() => useAnim.setState({ exportKind: k.id })}
+        >
+          <strong>
+            <Check size={14} className="tick" /> {k.label}
+          </strong>
+        </button>
+      ))}
+      <div className="menu-title">Size</div>
+      {MOVIE_SIZES.map((z) => (
+        <button
+          key={z.id}
+          role="menuitemradio"
+          aria-checked={exportSize === z.id}
+          className={exportSize === z.id ? 'checked' : ''}
+          onClick={() => useAnim.setState({ exportSize: z.id })}
+        >
+          <strong>
+            <Check size={14} className="tick" /> {z.label}
+          </strong>
+        </button>
+      ))}
+      <div className="menu-title">Motion blur</div>
+      <div className="segmented">
+        {(
+          [
+            [1, 'Off'],
+            [4, 'Light'],
+            [8, 'Smooth']
+          ] as const
+        ).map(([n, label]) => (
+          <button key={n} className={blur === n ? 'active' : ''} onClick={() => useAnim.setState({ blur: n })}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {people.length > 0 && (
+        <>
+          <div className="menu-title">Keep in the middle</div>
+          <select
+            className="menu-select"
+            value={follow && people.some((p) => p.id === follow) ? follow : ''}
+            onChange={(e) => useAnim.setState({ follow: e.target.value || null })}
+            title="Slides the camera sideways so this character stays centred: for a tall video cut from a wide scene"
+          >
+            <option value="">Nobody (the camera as it is)</option>
+            {people.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
+      <div className="menu-sep" />
+      <button
+        title="Starts a new project tab with everything as it is at the playhead, to make a thumbnail of it"
+        onClick={() => {
+          onClose()
+          sendFrameToThumbnail()
+        }}
+      >
+        <strong>
+          <Image size={14} /> Send this frame to a thumbnail tab
+        </strong>
+      </button>
     </div>
   )
 }
@@ -150,6 +284,23 @@ function TopBar(): ReactNode {
   const setStatus = useStore((s) => s.setStatus)
   const [menuOpen, setMenuOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const animating = useAnim((s) => s.mode === 'animation')
+  const [video, setVideo] = useState<VideoProgress | null>(null)
+  const [movieMenu, setMovieMenu] = useState(false)
+  const exportMovie = async (): Promise<void> => {
+    setVideo({ frame: 0, frames: 1 })
+    try {
+      const { exportKind, exportSize, blur, follow } = useAnim.getState()
+      const size = MOVIE_SIZES.find((z) => z.id === exportSize)?.size ?? [exportWidth, exportHeight]
+      const saved = await exportAnimation(
+        { kind: exportKind, width: size[0], height: size[1], blur, follow: follow ?? null },
+        setVideo
+      )
+      if (saved) setStatus(`Exported ${saved}`)
+    } finally {
+      setVideo(null)
+    }
+  }
   const exportPng = async (): Promise<void> => {
     if (!viewport.capture) return
     const url = await encodeExport(await captureFrame(exportWidth, exportHeight), exportFormat)
@@ -168,6 +319,30 @@ function TopBar(): ReactNode {
         <ProjectMenu />
       </div>
 
+      <div className="segmented mode-switch" role="tablist" aria-label="Mode">
+        <button
+          role="tab"
+          aria-selected={!animating}
+          className={!animating ? 'active' : ''}
+          title="Make a thumbnail: every tool"
+          onClick={exitAnimation}
+        >
+          Thumbnail
+        </button>
+        <button
+          role="tab"
+          aria-selected={animating}
+          className={animating ? 'active' : ''}
+          title="Animate characters along paths, and export a video"
+          onClick={() => {
+            enterAnimation()
+            useLayout.getState().openAssetTab('animate')
+          }}
+        >
+          Animation
+        </button>
+      </div>
+
       <div className="export">
         <UpdateNotice />
         <button
@@ -179,26 +354,60 @@ function TopBar(): ReactNode {
           Preview
         </button>
         {previewOpen && <YouTubePreview onClose={() => setPreviewOpen(false)} />}
-        <div className="split-btn">
-          <button
-            className="primary"
-            title={`Export ${exportWidth} × ${exportHeight} ${exportFormat.toUpperCase()}`}
-            onClick={() => void exportPng().catch(reportExportError)}
-          >
-            <Download size={16} />
-            Export
-          </button>
-          <button
-            className="primary chevron"
-            title="Size, file type and several sizes at once"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((v) => !v)}
-          >
-            <ChevronDown size={15} />
-          </button>
-          {menuOpen && <ExportMenu onClose={() => setMenuOpen(false)} />}
-        </div>
+        {animating ? (
+          <div className="split-btn">
+            <button
+              className="primary"
+              title="Export the animation (the arrow picks the kind of file and the size)"
+              disabled={!!video}
+              onClick={() => void exportMovie().catch(reportExportError)}
+            >
+              <Film size={16} />
+              Export
+            </button>
+            <button
+              className="primary chevron"
+              title="File type, size, motion blur, and sending a frame to a thumbnail tab"
+              aria-expanded={movieMenu}
+              onClick={() => setMovieMenu((v) => !v)}
+            >
+              <ChevronDown size={15} />
+            </button>
+            {movieMenu && <MovieMenu onClose={() => setMovieMenu(false)} />}
+          </div>
+        ) : (
+          <div className="split-btn">
+            <button
+              className="primary"
+              title={`Export ${exportWidth} × ${exportHeight} ${exportFormat.toUpperCase()}`}
+              onClick={() => void exportPng().catch(reportExportError)}
+            >
+              <Download size={16} />
+              Export
+            </button>
+            <button
+              className="primary chevron"
+              title="Size, file type and several sizes at once"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <ChevronDown size={15} />
+            </button>
+            {menuOpen && <ExportMenu onClose={() => setMenuOpen(false)} />}
+          </div>
+        )}
       </div>
+      {video && (
+        <div className="video-progress" role="status">
+          <span>
+            Rendering: frame {video.frame} of {video.frames}
+          </span>
+          <progress max={video.frames} value={video.frame} />
+          <button className="ghost" onClick={cancelVideo}>
+            Cancel
+          </button>
+        </div>
+      )}
     </header>
   )
 }
@@ -207,6 +416,7 @@ function TopBar(): ReactNode {
 function UpdateNotice(): ReactNode {
   const [update, setUpdate] = useState<{ version: string; ready: boolean; url: string } | null>(null)
   useEffect(() => window.blockframe.onUpdate(setUpdate), [])
+  useEffect(() => startClaudeBridge(), [])
   if (!update) return null
   return update.ready ? (
     <span className="update-notice" title="It installs when you close the app">
@@ -286,13 +496,56 @@ export function App(): ReactNode {
         }
       }
       if ((e.target as HTMLElement).closest('input, textarea, select')) return
+      const anim = useAnim.getState()
+      const animating = anim.mode === 'animation'
+      // Copy, cut, paste and duplicate the selected block.
+      if (
+        animating &&
+        (e.ctrlKey || e.metaKey) &&
+        ['c', 'x', 'v', 'd'].includes(k) &&
+        (anim.selectedClip || (k === 'v' && hasClipboard()))
+      ) {
+        const sel = anim.selectedClip
+        const target = sel?.objectId ?? useStore.getState().selectedId
+        e.preventDefault()
+        if (k === 'c') copyClip()
+        else if (k === 'x') cutClip()
+        else if (k === 'd') duplicateClip()
+        else if (target) pasteClip(target, anim.time)
+        return
+      }
+      if (animating && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // Adding path points: Enter or Esc stops.
+        if (anim.addingPoints && (e.key === 'Enter' || e.key === 'Escape')) {
+          e.preventDefault()
+          useAnim.setState({ addingPoints: false })
+          return
+        }
+        // Delete takes away the picked path point, else the selected block.
+        if ((e.key === 'Delete' || e.key === 'Backspace') && anim.selectedClip) {
+          e.preventDefault()
+          if (anim.selectedPoint !== null) removePathPoint(anim.selectedPoint)
+          else deleteClip(anim.selectedClip.objectId, anim.selectedClip.clipId)
+          return
+        }
+        if (e.key === ' ' && !(e.target as HTMLElement).closest('button')) {
+          e.preventDefault()
+          if (anim.playing) pause()
+          else play()
+          return
+        }
+      }
       if ((e.ctrlKey || e.metaKey) && k === 'z') {
         e.preventDefault()
-        if (e.shiftKey) s.redo()
+        if (animating) {
+          if (e.shiftKey) redoAnimation()
+          else undoAnimation()
+        } else if (e.shiftKey) s.redo()
         else s.undo()
       } else if ((e.ctrlKey || e.metaKey) && k === 'y') {
         e.preventDefault()
-        s.redo()
+        if (animating) redoAnimation()
+        else s.redo()
       } else if ((e.ctrlKey || e.metaKey) && k === 'd') {
         e.preventDefault()
         s.duplicateSelected()

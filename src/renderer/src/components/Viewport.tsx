@@ -2,6 +2,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { OrbitControls, TransformControls } from '@react-three/drei'
 import { Component, memo, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react'
 import * as THREE from 'three'
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js'
 import { fullPose, PLAYER_PIXEL, type PartName } from '@shared/minecraft/playerModel'
 import { assetContext } from '../minecraft/assets'
@@ -19,7 +20,24 @@ import { StickerLayer } from './StickerLayer'
 import { SkyBackdrop } from './SkyBackdrop'
 import { snapPoint } from './snapping'
 import { ViewportOverlay } from './ViewportOverlay'
+import { Timeline } from './Timeline'
+import { buildBlockEntities, hasBlockEntities } from '../minecraft/blockEntities'
 import { applyMobPose, buildMob, mobModels } from '../minecraft/mobs'
+import { animationLength, PathCurve, sampleTrack } from '@shared/animation'
+import {
+  addClipPoint,
+  adoptViewportView,
+  animationTick,
+  beginEdit,
+  clipOf,
+  dropPoint,
+  finishEdit,
+  goTo,
+  setClipReach,
+  setPathPoint,
+  stateAt,
+  useAnim
+} from '../animation'
 import {
   applyPose,
   buildPixelText,
@@ -56,7 +74,7 @@ import { LIGHTNING_ALPHA, lightningGeometry } from '@shared/minecraft/lightning'
 import { Weather } from './Weather'
 import { VfxNode } from './VfxNode'
 import { errorText } from '../errors'
-import { isLit, LIGHTING, type RenderMode } from '../renderModes'
+import { isLit, lightingOf } from '../renderModes'
 import { HELPER_LAYER, OVERLAY_LAYER, setLayer, syncOverlay } from '../overlay'
 
 export interface Placement {
@@ -67,9 +85,27 @@ export interface Placement {
 }
 
 /** Live handles used by panels (placement, push/pull along view axis) and by export. */
+/** One layer of a layered capture: what to hide to see what lies behind it. */
+export interface LayerCapture {
+  id: string
+  pixels: ImageData
+}
+
 export const viewport: {
   camera: THREE.PerspectiveCamera | null
   capture: ((w: number, h: number) => string) | null
+  /**
+   * The frame at w×h, the frame with all of `ids` hidden (the background), and for each id the frame with only
+   * that object hidden. Every render uses the same effect time, so the only differences are the objects.
+   */
+  captureLayers:
+    | ((w: number, h: number, ids: string[]) => { full: ImageData; background: ImageData; without: LayerCapture[] })
+    | null
+  /**
+   * Renders frame after frame at w×h (a video): `draw` renders the scene as it is now into `g`, advancing animated
+   * effects (grain…) by `delta` seconds; `end` puts the viewport back.
+   */
+  frames: ((w: number, h: number) => { draw(g: CanvasRenderingContext2D, delta: number): void; end(): void }) | null
   /** `radius`: rough size of the new thing in blocks, so big builds land further away. */
   placement: ((radius?: number) => Placement) | null
   objects: Map<string, THREE.Object3D>
@@ -81,6 +117,8 @@ export const viewport: {
 } = {
   camera: null,
   capture: null,
+  captureLayers: null,
+  frames: null,
   placement: null,
   objects: new Map(),
   controls: null,
@@ -171,7 +209,22 @@ function TerrainNode({ o }: { o: TerrainObject }): ReactNode {
     [assets, o.terrainId, lit, ambientOcclusion, waterReflections],
     disposeTerrain
   )
-  return group ? <primitive object={group} /> : null
+  // Chests and signs come from the game's entity models, which may still be loading: the terrain shows first.
+  const extras = useAsync(
+    async () => {
+      const t = terrainStore.get(o.terrainId)
+      return t && hasBlockEntities(t) ? buildBlockEntities(t) : null
+    },
+    [o.terrainId, assets?.stamp],
+    disposeObject
+  )
+  const t = terrainStore.get(o.terrainId)
+  return group ? (
+    <>
+      <primitive object={group} />
+      {extras && t && <primitive object={extras} position={[-t.sizeX / 2, 0, -t.sizeZ / 2]} />}
+    </>
+  ) : null
 }
 
 function PlayerNode({ o }: { o: PlayerObject }): ReactNode {
@@ -210,12 +263,13 @@ function PlayerNode({ o }: { o: PlayerObject }): ReactNode {
 }
 
 function MobNode({ o }: { o: MobObject }): ReactNode {
+  const stamp = useStore((s) => s.assets?.stamp)
   const mob = useAsync(
     async () => {
       const layer = (await mobModels()).layers[o.layer]
-      return layer ? buildMob(layer, o.texture) : null
+      return layer ? buildMob(layer, o.texture, o.layer) : null
     },
-    [o.layer, o.texture],
+    [o.layer, o.texture, stamp],
     disposeObject
   )
   useEffect(() => {
@@ -230,28 +284,43 @@ function overlayMaterialProps(onTop: boolean): Partial<THREE.MeshBasicMaterialPa
   return { depthTest: !onTop, depthWrite: !onTop }
 }
 
+/** Frees a picture's or video's texture; a video also stops playing (it would keep decoding unseen). */
+function disposeTexture(t: THREE.Texture): void {
+  const video = (t as THREE.VideoTexture).isVideoTexture ? (t.image as HTMLVideoElement | undefined) : undefined
+  if (video) {
+    video.pause()
+    video.removeAttribute('src')
+    video.load()
+  }
+  t.dispose()
+}
+
 function ImageNode({ o, order }: { o: ImageObject; order: number }): ReactNode {
-  const texture = useAsync(async () => {
-    if (o.kind === 'video') {
-      const v = document.createElement('video')
-      v.src = o.url
-      v.loop = true
-      v.muted = true
-      v.playsInline = true
-      await v.play().catch(() => undefined)
-      const t = new THREE.VideoTexture(v)
+  const texture = useAsync(
+    async () => {
+      if (o.kind === 'video') {
+        const v = document.createElement('video')
+        v.src = o.url
+        v.loop = true
+        v.muted = true
+        v.playsInline = true
+        await v.play().catch(() => undefined)
+        const t = new THREE.VideoTexture(v)
+        t.colorSpace = THREE.SRGBColorSpace
+        return t
+      }
+      const t = await new THREE.TextureLoader().loadAsync(o.url)
       t.colorSpace = THREE.SRGBColorSpace
+      if (o.pixelated) {
+        t.magFilter = THREE.NearestFilter
+        t.minFilter = THREE.NearestFilter
+        t.generateMipmaps = false
+      }
       return t
-    }
-    const t = await new THREE.TextureLoader().loadAsync(o.url)
-    t.colorSpace = THREE.SRGBColorSpace
-    if (o.pixelated) {
-      t.magFilter = THREE.NearestFilter
-      t.minFilter = THREE.NearestFilter
-      t.generateMipmaps = false
-    }
-    return t
-  }, [o.url, o.kind, o.pixelated])
+    },
+    [o.url, o.kind, o.pixelated],
+    disposeTexture
+  )
   if (!texture) return null
   const h = 4
   return (
@@ -322,9 +391,10 @@ function TextNode({ o, order }: { o: TextObject; order: number }): ReactNode {
 }
 
 function PixelTextNode({ o }: { o: PixelTextObject }): ReactNode {
+  const stamp = useStore((s) => s.assets?.stamp)
   const g = useAsync(
     () => buildPixelText(o.text, o.color, o.depth, o.shadow, o.style),
-    [o.text, o.color, o.depth, o.shadow, o.style],
+    [o.text, o.color, o.depth, o.shadow, o.style, stamp],
     disposeObject
   )
   return g ? <primitive object={g} /> : null
@@ -437,13 +507,17 @@ function LightningNode({ o }: { o: LightningObject }): ReactNode {
 }
 
 function LightNode({ o }: { o: LightObject }): ReactNode {
-  const custom = useAsync(async () => {
-    const m = o.gobo === 'custom' && o.goboMediaId ? mediaStore.get(o.goboMediaId) : null
-    if (!m) return null
-    const t = await new THREE.TextureLoader().loadAsync(m.url)
-    t.colorSpace = THREE.SRGBColorSpace
-    return t
-  }, [o.gobo, o.goboMediaId])
+  const custom = useAsync(
+    async () => {
+      const m = o.gobo === 'custom' && o.goboMediaId ? mediaStore.get(o.goboMediaId) : null
+      if (!m) return null
+      const t = await new THREE.TextureLoader().loadAsync(m.url)
+      t.colorSpace = THREE.SRGBColorSpace
+      return t
+    },
+    [o.gobo, o.goboMediaId],
+    disposeTexture
+  )
   const map = o.lightType === 'spot' && o.gobo ? (o.gobo === 'custom' ? custom : goboTexture(o.gobo)) : null
   // three.js only projects a spotlight pattern through its shadow map.
   const shadows = o.shadows || !!map
@@ -535,8 +609,16 @@ const ObjectNode = memo(function ObjectNode({ o, order }: { o: SceneObject; orde
     }
     // On an already-selected player, clicking a limb picks that joint for rotating.
     const { selectedId, selectJoint } = useStore.getState()
-    if (o.kind === 'player' && selectedId === o.id) selectJoint(jointOf(e.object))
-    else select(o.id)
+    if (o.kind === 'player' && selectedId === o.id) {
+      // a smooth limb is one mesh over two joints: the half that was hit decides
+      let joint = jointOf(e.object)
+      const lower = e.object.userData.lowerJoint as PartName | undefined
+      if (lower && joint) {
+        const bone = e.object.parent?.getObjectByName(lower)
+        if (bone && bone.worldToLocal(e.point.clone()).y < 0) joint = lower
+      }
+      selectJoint(joint)
+    } else select(o.id)
   }
   return (
     <group
@@ -573,7 +655,8 @@ function Environment(): ReactNode {
   useEffect(() => {
     glowStrength.value = blockGlow
   }, [blockGlow])
-  const lit = isLit(renderMode) ? LIGHTING[renderMode as Exclude<RenderMode, 'vanilla'>] : null
+  const custom = useStore((s) => s.settings.customLighting)
+  const lit = lightingOf(renderMode, custom)
   const sun = lit ? sunStrength : 1
   const fill = lit ? ambientStrength : 1
   return (
@@ -699,6 +782,92 @@ function Bridge(): null {
         renderAt(size.width, size.height, prevRatio)
       }
     }
+    viewport.captureLayers = (w, h, ids) => {
+      const cam = camera as THREE.PerspectiveCamera
+      const hidden: THREE.Object3D[] = []
+      const hide = (o: THREE.Object3D | undefined): void => {
+        if (o?.visible) {
+          o.visible = false
+          hidden.push(o)
+        }
+      }
+      scene.traverse((o) => isHelperObject(o) && hide(o))
+      const helperCount = hidden.length
+      const prevRatio = gl.getPixelRatio()
+      const composer = composerHandle.current
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const g = canvas.getContext('2d', { willReadFrequently: true })!
+      const setSize = (width: number, height: number, ratio: number): void => {
+        gl.setPixelRatio(ratio)
+        if (composer) composer.setSize(width, height, false)
+        else gl.setSize(width, height, false)
+        cam.aspect = width / height
+        cam.updateProjectionMatrix()
+      }
+      // Effect time stays put (delta 0), so film grain is identical in every pass.
+      const grab = (): ImageData => {
+        renderFrame(gl, scene, cam, composer, false, 0)
+        g.clearRect(0, 0, w, h)
+        g.drawImage(gl.domElement, 0, 0, w, h)
+        return g.getImageData(0, 0, w, h)
+      }
+      try {
+        setSize(w, h, 1)
+        const full = grab()
+        const without: LayerCapture[] = []
+        for (const id of ids) {
+          const o = viewport.objects.get(id)
+          if (!o?.visible) continue
+          o.visible = false
+          without.push({ id, pixels: grab() })
+          o.visible = true
+        }
+        for (const id of ids) hide(viewport.objects.get(id))
+        const background = grab()
+        return { full, background, without }
+      } finally {
+        hidden.slice(helperCount).forEach((o) => (o.visible = true))
+        hidden.slice(0, helperCount).forEach((o) => (o.visible = true))
+        setSize(size.width, size.height, prevRatio)
+        renderFrame(gl, scene, cam, composer)
+      }
+    }
+    viewport.frames = (w, h) => {
+      const cam = camera as THREE.PerspectiveCamera
+      const helpers: THREE.Object3D[] = []
+      scene.traverse((o) => {
+        if (isHelperObject(o) && o.visible) {
+          helpers.push(o)
+          o.visible = false
+        }
+      })
+      const prevRatio = gl.getPixelRatio()
+      const composer = composerHandle.current
+      const setSize = (width: number, height: number, ratio: number): void => {
+        gl.setPixelRatio(ratio)
+        if (composer) composer.setSize(width, height, false)
+        else gl.setSize(width, height, false)
+        cam.aspect = width / height
+        cam.updateProjectionMatrix()
+      }
+      setSize(w, h, 1)
+      return {
+        draw: (g, delta) => {
+          // Things move between frames, so their shadows must follow.
+          gl.shadowMap.needsUpdate = true
+          scene.updateMatrixWorld()
+          renderFrame(gl, scene, cam, composer, false, delta)
+          g.drawImage(gl.domElement, 0, 0, w, h)
+        },
+        end: () => {
+          helpers.forEach((o) => (o.visible = true))
+          setSize(size.width, size.height, prevRatio)
+          renderFrame(gl, scene, cam, composer)
+        }
+      }
+    }
   }, [gl, scene, camera, size, controls])
   return null
 }
@@ -756,19 +925,53 @@ function screenRect(box: THREE.Box3, camera: THREE.Camera, v: THREE.Vector3): Sc
   return r
 }
 
+/**
+ * Says when something measured from scene objects (a box around them, their centre) has to be measured again:
+ * one of them moved, the scene changed, something is still being built, or a third of a second has passed.
+ * Measuring walks every part of the object, which is too much to do on every frame for nothing.
+ */
+class MeasureWatch {
+  private last: number[] = []
+  private scene: unknown = null
+  private frames = 0
+  changed(roots: (THREE.Object3D | null | undefined)[]): boolean {
+    const scene = useStore.getState().objects
+    let changed = scene !== this.scene || building.count > 0 || ++this.frames >= 20
+    this.scene = scene
+    let i = 0
+    for (const root of roots) {
+      const e = root?.matrixWorld.elements
+      for (let k = 0; k < 16; k++, i++) {
+        const v = e ? e[k] : NaN
+        if (!Object.is(this.last[i], v)) {
+          this.last[i] = v
+          changed = true
+        }
+      }
+    }
+    if (this.last.length !== i) {
+      this.last.length = i
+      changed = true
+    }
+    if (changed) this.frames = 0
+    return changed
+  }
+}
+
 /** Keeps the floating selection toolbar just above the selected object on screen (and the rulers' selection marks). */
 function SelectionTracker(): null {
   const ids = useStore(useShallow((s) => selection(s)))
   const box = useMemo(() => new THREE.Box3(), [])
   const one = useMemo(() => new THREE.Box3(), [])
   const v = useMemo(() => new THREE.Vector3(), [])
+  const watch = useMemo(() => new MeasureWatch(), [])
   useFrame(({ camera, size }) => {
     const el = viewport.selectionToolbar
+    const roots = ids.map((id) => viewport.objects.get(id))
     // Above everything selected, so it never sits on the group's handles.
-    box.makeEmpty()
-    for (const id of ids) {
-      const obj = viewport.objects.get(id)
-      if (obj?.visible) box.union(one.setFromObject(obj))
+    if (watch.changed(roots)) {
+      box.makeEmpty()
+      for (const obj of roots) if (obj?.visible) box.union(one.setFromObject(obj))
     }
     if (rulerBridge.update) rulerBridge.update(box.isEmpty() ? null : screenRect(box, camera, v))
     if (!el) return
@@ -867,6 +1070,9 @@ function JointGizmo({ id, joint }: { id: string; joint: PartName }): ReactNode {
   return <TransformControls object={target} mode="rotate" space="local" size={0.6} onMouseUp={commit} />
 }
 
+/** Builds and terrain move the way blocks do, a whole block at a time; characters and the rest move freely. */
+const movesByBlocks = (kind: string | undefined): boolean => kind === 'terrain' || kind === 'model'
+
 /** The handles hold the pointer while one is hovered (so Shift+drag on a handle snaps instead of box-selecting). */
 function useGizmoRegistry(controls: { current: unknown }): void {
   useEffect(() => {
@@ -955,6 +1161,9 @@ function GroupGizmo({ ids }: { ids: string[] }): ReactNode {
         }
         if (mode === 'translate' && (pointer.shift || useStore.getState().settings.snap))
           for (const a of ['x', 'y', 'z'] as const) pivot.position[a] = Math.round(pivot.position[a] * 2) / 2
+        else if (mode === 'translate' && ids.every((i) => movesByBlocks(objects.find((o) => o.id === i)?.kind)))
+          for (const a of ['x', 'y', 'z'] as const)
+            pivot.position[a] = st.pivot[a] + Math.round(pivot.position[a] - st.pivot[a])
         pivot.updateMatrixWorld()
         if (mode === 'translate') {
           const move = pivot.position.clone().sub(st.pivot)
@@ -1029,6 +1238,389 @@ function SelectionBoxes(): ReactNode {
       ))}
     </>
   )
+}
+
+/** Plays the animation (Animation mode). */
+function AnimationDriver(): null {
+  useFrame((_, delta) => animationTick(delta))
+  return null
+}
+
+const PATH_COLOR = '#ffd23a'
+
+/** A helper line that is never picked, never exported, and drawn over the scene. */
+function helperLine(points: THREE.Vector3[], color: string, opacity = 1): THREE.Line {
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(points),
+    new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true, opacity })
+  )
+  line.renderOrder = 999
+  line.userData.helper = true
+  line.raycast = () => {}
+  return line
+}
+
+/**
+ * Animation mode: the selected block's path is drawn over the scene with a handle on each point. Dragging a handle
+ * moves it along the ground; with "Add points" on, clicking the ground adds one. The selected character's whole
+ * motion is drawn as a blue trail.
+ */
+function AnimationPaths(): ReactNode {
+  const mode = useAnim((s) => s.mode)
+  const selectedClip = useAnim((s) => s.selectedClip)
+  const selectedPoint = useAnim((s) => s.selectedPoint)
+  const addingPoints = useAnim((s) => s.addingPoints)
+  const starts = useAnim((s) => s.starts)
+  const selectedId = useStore((s) => s.selectedId)
+  const animation = useStore((s) => s.settings.animation)
+  const { gl, camera } = useThree()
+  const clip = animation && mode === 'animation' ? clipOf(selectedClip) : undefined
+  const start = clip ? starts[clip.id] : undefined
+  const path = clip?.path
+  const clipId = clip?.id
+  const target = clip?.type === 'reach' ? clip.target : undefined
+  const picking = useAnim((s) => s.pickingTarget)
+  const going = useAnim((s) => s.goingTo)
+
+  useEffect(() => {
+    if (!clipId && !going) return
+    const el = gl.domElement.closest('.viewport') as HTMLElement | null
+    if (!el) return
+    const rayAt = (e: MouseEvent): THREE.Raycaster => {
+      const rect = gl.domElement.getBoundingClientRect()
+      const r = new THREE.Raycaster()
+      r.setFromCamera(
+        new THREE.Vector2(
+          ((e.clientX - rect.left) / rect.width) * 2 - 1,
+          -((e.clientY - rect.top) / rect.height) * 2 + 1
+        ),
+        camera
+      )
+      return r
+    }
+    const current = (): { objectId: string; points: Vec3[] } | null => {
+      const sel = useAnim.getState().selectedClip
+      const c = clipOf(sel)
+      return sel && c?.path ? { objectId: sel.objectId, points: c.path } : null
+    }
+    // Which path point is under the pointer (within a few pixels on screen), if any.
+    const pick = (e: MouseEvent): number => {
+      const cur = current()
+      if (!cur) return -1
+      const rect = gl.domElement.getBoundingClientRect()
+      let best = -1
+      let bestD = 16
+      cur.points.forEach((p, i) => {
+        const v = new THREE.Vector3(p[0], p[1] + 0.05, p[2]).project(camera)
+        const d = Math.hypot(
+          e.clientX - (rect.left + ((v.x + 1) / 2) * rect.width),
+          e.clientY - (rect.top + ((1 - v.y) / 2) * rect.height)
+        )
+        if (d < bestD) {
+          bestD = d
+          best = i
+        }
+      })
+      return best
+    }
+    let down: { x: number; y: number } | null = null
+    let swallowClick = false
+    const onDown = (e: PointerEvent): void => {
+      if (e.button !== 0 || !(e.target instanceof HTMLCanvasElement)) return
+      down = { x: e.clientX, y: e.clientY }
+      const reach = clipOf(useAnim.getState().selectedClip)
+      if (reach?.type === 'reach' && reach.target && !useAnim.getState().pickingTarget) {
+        const rect = gl.domElement.getBoundingClientRect()
+        const v = new THREE.Vector3(...reach.target).project(camera)
+        const d = Math.hypot(
+          e.clientX - (rect.left + ((v.x + 1) / 2) * rect.width),
+          e.clientY - (rect.top + ((1 - v.y) / 2) * rect.height)
+        )
+        const sel = useAnim.getState().selectedClip
+        if (d < 18 && sel) {
+          // Grab the target: it slides over the plane it floats in.
+          e.stopPropagation()
+          e.preventDefault()
+          swallowClick = true
+          const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -reach.target[1])
+          let began = false
+          const move = (ev: PointerEvent): void => {
+            const hit = rayAt(ev).ray.intersectPlane(plane, new THREE.Vector3())
+            if (!hit) return
+            if (!began) {
+              if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return
+              beginEdit()
+              began = true
+            }
+            setClipReach(sel.objectId, reach.id, { target: [hit.x, reach.target![1], hit.z] }, true)
+          }
+          const up = (): void => {
+            window.removeEventListener('pointermove', move)
+            window.removeEventListener('pointerup', up)
+            if (began) finishEdit(sel.objectId)
+          }
+          window.addEventListener('pointermove', move)
+          window.addEventListener('pointerup', up)
+          return
+        }
+      }
+      const i = pick(e)
+      const cur = current()
+      if (i < 0 || !cur) return
+      // Grab the handle: the camera and the scene's own clicks never see this press.
+      e.stopPropagation()
+      e.preventDefault()
+      swallowClick = true
+      useAnim.setState({ selectedPoint: i })
+      const y = cur.points[i][1]
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -y)
+      let last: Vec3 | null = null
+      let began = false
+      const move = (ev: PointerEvent): void => {
+        const hit = rayAt(ev).ray.intersectPlane(plane, new THREE.Vector3())
+        if (!hit) return
+        if (!began) {
+          if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return
+          beginEdit()
+          began = true
+        }
+        last = [hit.x, y, hit.z]
+        setPathPoint(cur.objectId, clipId!, i, last, true)
+      }
+      const up = (): void => {
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', up)
+        if (began && last) {
+          setPathPoint(cur.objectId, clipId!, i, dropPoint(last), true)
+          finishEdit(cur.objectId)
+        }
+      }
+      window.addEventListener('pointermove', move)
+      window.addEventListener('pointerup', up)
+    }
+    const onClick = (e: MouseEvent): void => {
+      if (e.button !== 0 || !(e.target instanceof HTMLCanvasElement)) return
+      if (swallowClick) {
+        swallowClick = false
+        e.stopPropagation()
+        return
+      }
+      const picking = useAnim.getState().pickingTarget
+      const sending = useAnim.getState().goingTo
+      if (!useAnim.getState().addingPoints && !picking && !sending) return
+      // Not a selection click: the scene's own click handling never sees it.
+      e.stopPropagation()
+      if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return
+      const ray = rayAt(e)
+      const owner = useAnim.getState().selectedClip?.objectId ?? useStore.getState().selectedId
+      const targets: THREE.Object3D[] = []
+      for (const [id, o] of viewport.objects) if (id !== owner && o.visible) targets.push(o)
+      const hit = ray.intersectObjects(targets, true).find((h) => {
+        for (let p: THREE.Object3D | null = h.object; p; p = p.parent) if (isHelperObject(p) || !p.visible) return false
+        return true
+      })
+      let point = hit?.point
+      if (!point) {
+        // Nothing there: the level the character stands on.
+        const level = current()?.points.at(-1)?.[1] ?? 0
+        point =
+          ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -level), new THREE.Vector3()) ?? undefined
+      }
+      if (point && sending) {
+        const who = useStore.getState().selectedId
+        useAnim.setState({ goingTo: false })
+        if (who) goTo(who, [point.x, point.y, point.z])
+      } else if (point && picking) {
+        const sel = useAnim.getState().selectedClip
+        if (sel) setClipReach(sel.objectId, sel.clipId, { target: [point.x, point.y, point.z] })
+        useAnim.setState({ pickingTarget: false })
+      } else if (point) addClipPoint([point.x, point.y, point.z])
+    }
+    el.addEventListener('pointerdown', onDown, true)
+    el.addEventListener('click', onClick, true)
+    return () => {
+      el.removeEventListener('pointerdown', onDown, true)
+      el.removeEventListener('click', onClick, true)
+    }
+  }, [clipId, going, gl, camera])
+
+  useEffect(() => {
+    const el = gl.domElement.closest('.viewport') as HTMLElement | null
+    if (!el || !(addingPoints || picking || going)) return
+    const prev = el.style.cursor
+    el.style.cursor = 'crosshair'
+    return () => void (el.style.cursor = prev)
+  }, [addingPoints, picking, going, gl])
+
+  // Where a Reach block's hand is going.
+  const mark = useMemo(() => {
+    if (!target) return null
+    const m = new THREE.Mesh(
+      new THREE.SphereGeometry(0.14, 16, 10),
+      new THREE.MeshBasicMaterial({ color: '#ff7a3a', depthTest: false, transparent: true, opacity: 0.95 })
+    )
+    m.position.set(...target)
+    m.renderOrder = 999
+    m.userData.helper = true
+    m.raycast = () => {}
+    return m
+  }, [target])
+
+  const handles = useMemo(() => {
+    if (!start || !path?.length) return null
+    const group = new THREE.Group()
+    group.userData.helper = true
+    const all = [start, ...path]
+    const pts = new PathCurve(all).samples
+    group.add(
+      helperLine(
+        pts.map((p) => p.clone().add(new THREE.Vector3(0, 0.05, 0))),
+        PATH_COLOR
+      )
+    )
+    const dot = new THREE.SphereGeometry(0.16, 16, 10)
+    all.forEach((p, i) => {
+      const picked = i - 1 === selectedPoint
+      const m = new THREE.Mesh(
+        dot,
+        new THREE.MeshBasicMaterial({
+          color: i === 0 ? '#ffffff' : picked ? '#ff7a3a' : PATH_COLOR,
+          depthTest: false,
+          transparent: true,
+          opacity: i === 0 ? 0.6 : 1
+        })
+      )
+      m.position.set(p[0], p[1] + 0.05, p[2])
+      m.scale.setScalar(i === 0 ? 0.7 : picked ? 1.35 : 1)
+      m.renderOrder = 999
+      m.userData.helper = true
+      m.raycast = () => {}
+      group.add(m)
+    })
+    return group
+  }, [start, path, selectedPoint])
+
+  // The motion: where each character is at each moment of the animation, with a dot on every second.
+  const trails = useAnim((s) => s.trails)
+  const trail = useMemo(() => {
+    if (mode !== 'animation' || trails === 'off') return null
+    const group = new THREE.Group()
+    group.userData.helper = true
+    for (const track of animation?.tracks ?? []) {
+      if (track.keys.length < 2 || (trails === 'selected' && track.objectId !== selectedId)) continue
+      const end = track.keys[track.keys.length - 1].t
+      const pts: THREE.Vector3[] = []
+      const dots: THREE.Vector3[] = []
+      for (let t = track.keys[0].t; t <= end + 1e-6; t += 1 / 20) {
+        const st = sampleTrack(track, t)
+        if (!st) continue
+        const p = new THREE.Vector3(st.position[0], st.position[1] + 0.05, st.position[2])
+        pts.push(p)
+        if (Math.abs(t - Math.round(t)) < 1 / 40) dots.push(p.clone())
+      }
+      const selected = track.objectId === selectedId
+      group.add(helperLine(pts, selected ? '#7fb8ff' : '#9aa6b8', selected ? 0.8 : 0.45))
+      const points = new THREE.Points(
+        new THREE.BufferGeometry().setFromPoints(dots),
+        new THREE.PointsMaterial({
+          color: selected ? '#ffffff' : '#c8d0dc',
+          size: 5,
+          sizeAttenuation: false,
+          depthTest: false,
+          transparent: true,
+          opacity: 0.85
+        })
+      )
+      points.renderOrder = 999
+      points.userData.helper = true
+      points.raycast = () => {}
+      group.add(points)
+    }
+    return group.children.length ? group : null
+  }, [mode, animation, selectedId, trails])
+
+  useEffect(
+    () => () => {
+      for (const o of [handles, trail, mark])
+        o?.traverse((x) => {
+          ;(x as THREE.Mesh).geometry?.dispose()
+          const m = (x as THREE.Mesh).material as THREE.Material | undefined
+          m?.dispose()
+        })
+    },
+    [handles, trail, mark]
+  )
+
+  if (mode !== 'animation') return null
+  return (
+    <>
+      {trail && <primitive object={trail} />}
+      {handles && <primitive object={handles} />}
+      {mark && <primitive object={mark} />}
+    </>
+  )
+}
+
+/**
+ * Onion skin: with the animation paused, the selected character is drawn faintly where it was (red) and will be
+ * (green) a quarter and a half second away from the playhead, so the motion reads at a glance.
+ */
+function OnionSkin(): ReactNode {
+  const mode = useAnim((s) => s.mode)
+  const on = useAnim((s) => s.onion)
+  const time = useAnim((s) => s.time)
+  const playing = useAnim((s) => s.playing)
+  const selectedId = useStore((s) => s.selectedId)
+  const animation = useStore((s) => s.settings.animation)
+  const objects = useStore((s) => s.objects)
+  const ghosts = useMemo(() => {
+    if (mode !== 'animation' || !on || playing || !selectedId) return null
+    const track = animation?.tracks.find((t) => t.objectId === selectedId)
+    const o = objects.find((x) => x.id === selectedId)
+    const src = viewport.objects.get(selectedId)
+    if (!track || !o || !src || track.keys.length < 2) return null
+    const len = animationLength(animation)
+    const group = new THREE.Group()
+    group.userData.helper = true
+    for (const [dt, color, opacity] of [
+      [-0.5, '#ff6b6b', 0.18],
+      [-0.25, '#ff6b6b', 0.3],
+      [0.25, '#6bff9a', 0.3],
+      [0.5, '#6bff9a', 0.18]
+    ] as const) {
+      const t = time + dt
+      if (t < 0 || t > len) continue
+      const st = stateAt(track, t, o)
+      if (!st) continue
+      const g = SkeletonUtils.clone(src)
+      const drop: THREE.Object3D[] = []
+      g.traverse((x) => {
+        x.userData.helper = true
+        x.raycast = () => {}
+        const mesh = x as THREE.Mesh
+        if (mesh.isMesh)
+          mesh.material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false })
+        else if ((x as THREE.Sprite).isSprite || (x as THREE.Line).isLine) drop.push(x)
+      })
+      drop.forEach((x) => x.removeFromParent())
+      g.position.set(...st.position)
+      g.rotation.set(deg(st.rotation[0]), deg(st.rotation[1]), deg(st.rotation[2]))
+      if (o.kind === 'player' && st.pose) applyPose(g, st.pose)
+      else if (st.parts) {
+        const mob = g.getObjectByName('mob')
+        if (mob) applyMobPose(mob, st.parts)
+      }
+      group.add(g)
+    }
+    return group
+  }, [mode, on, playing, time, selectedId, animation, objects])
+  useEffect(
+    () => () => {
+      ghosts?.traverse((x) => ((x as THREE.Mesh).material as THREE.Material | undefined)?.dispose())
+    },
+    [ghosts]
+  )
+  return ghosts ? <primitive object={ghosts} /> : null
 }
 
 /** Shift+drag on empty space draws a box; everything whose centre is inside it gets selected (Ctrl adds). */
@@ -1163,6 +1755,7 @@ function drawnCentre(obj: THREE.Object3D, out: THREE.Vector3): THREE.Vector3 | n
 function ObjectGizmo({ id, target }: { id: string; target: THREE.Object3D }): ReactNode {
   const mode = useStore((s) => s.transformMode)
   const update = useStore((s) => s.update)
+  const blocky = useStore((s) => movesByBlocks(s.objects.find((o) => o.id === id)?.kind))
   const { scene } = useThree()
   const controls = useRef<ComponentRef<typeof TransformControls>>(null)
   useGizmoRegistry(controls)
@@ -1172,6 +1765,7 @@ function ObjectGizmo({ id, target }: { id: string; target: THREE.Object3D }): Re
     return p
   }, [])
   const start = useRef<{
+    origin: THREE.Vector3
     pivotInverse: THREE.Matrix4
     world: THREE.Matrix4
     offset: THREE.Vector3
@@ -1183,8 +1777,10 @@ function ObjectGizmo({ id, target }: { id: string; target: THREE.Object3D }): Re
   }, [scene, pivot])
   const at = useMemo(() => new THREE.Vector3(), [])
   // Follow the object (undo, the properties panel, a model still loading) while it isn't being dragged.
+  const watch = useMemo(() => new MeasureWatch(), [])
   useFrame(() => {
     if (start.current) return
+    if (!watch.changed([target]) && pivot.scale.x === 1) return
     const c = drawnCentre(target, at) ?? target.getWorldPosition(at)
     if (!pivot.position.equals(c) || pivot.scale.x !== 1) {
       pivot.position.copy(c)
@@ -1218,6 +1814,7 @@ function ObjectGizmo({ id, target }: { id: string; target: THREE.Object3D }): Re
         pivot.updateMatrixWorld()
         target.updateWorldMatrix(true, false)
         start.current = {
+          origin: pivot.position.clone(),
           pivotInverse: pivot.matrixWorld.clone().invert(),
           world: target.matrixWorld.clone(),
           offset: pivot.position.clone().sub(target.getWorldPosition(new THREE.Vector3())),
@@ -1240,6 +1837,9 @@ function ObjectGizmo({ id, target }: { id: string; target: THREE.Object3D }): Re
             for (const a of ['x', 'y', 'z'] as const)
               if (axis.includes(a.toUpperCase())) anchor[a] = hit ? hit[a] : Math.round(anchor[a] * 2) / 2
           pivot.position.copy(anchor).add(st.offset)
+        } else if (mode === 'translate' && blocky) {
+          for (const a of ['x', 'y', 'z'] as const)
+            pivot.position[a] = st.origin[a] + Math.round(pivot.position[a] - st.origin[a])
         }
         if (mode === 'scale') {
           // Keep scale uniform: follow whichever axis handle is being dragged.
@@ -1304,6 +1904,7 @@ export function Viewport(): ReactNode {
   const showGrid = useStore((s) => s.settings.showGrid)
   const exportWidth = useStore((s) => s.settings.exportWidth)
   const exportHeight = useStore((s) => s.settings.exportHeight)
+  const animating = useAnim((s) => s.mode === 'animation')
   // Bumped to rebuild the whole canvas after the GPU context is lost or the viewport crashed.
   const [glKey, setGlKey] = useState(0)
   const rebuild = (): void => {
@@ -1313,7 +1914,7 @@ export function Viewport(): ReactNode {
     if (view) setTimeout(() => cameraBridge.set?.(view), 100)
   }
   return (
-    <div className="viewport-frame">
+    <div className={`viewport-frame ${animating ? 'animating' : ''}`}>
       <div className="viewport" style={{ aspectRatio: `${exportWidth} / ${exportHeight}` }}>
         <GlErrorBoundary onRetry={rebuild}>
           <Canvas
@@ -1323,7 +1924,10 @@ export function Viewport(): ReactNode {
             // Exports always render at full resolution; the live view caps pixel density to stay smooth.
             dpr={[1, 1.5]}
             gl={{ antialias: true }}
-            onCreated={({ gl }) => watchContext(gl.domElement, rebuild)}
+            onCreated={({ gl }) => {
+              gl.localClippingEnabled = true
+              watchContext(gl.domElement, rebuild)
+            }}
             camera={{ position: [7, 4, 9], fov: 70, near: 0.1, far: 2000 }}
             onPointerMissed={(e) => !wasDrag(e) && !e.shiftKey && !e.ctrlKey && !e.metaKey && select(null)}
           >
@@ -1340,6 +1944,9 @@ export function Viewport(): ReactNode {
               o.kind === 'sticker' ? null : <ObjectNode key={o.id} o={o} order={i} />
             )}
             {showGrid && <gridHelper args={[64, 64, '#666', '#333']} userData={{ helper: true }} />}
+            <AnimationDriver />
+            <AnimationPaths />
+            <OnionSkin />
             <Gizmo />
             <SelectionBoxes />
             <BoxSelect />
@@ -1353,8 +1960,11 @@ export function Viewport(): ReactNode {
                 cameraMove = { before: cameraBridge.get?.() ?? null, at: Date.now() }
               }}
               onEnd={() => {
-                if (cameraMove?.before) useStore.getState().recordCamera(cameraMove.before, cameraMove.at)
+                const moved = cameraMove
                 cameraMove = null
+                // Moving the view with a camera block selected sets where that block starts (and is undone with it).
+                if (!moved || adoptViewportView()) return
+                if (moved.before) useStore.getState().recordCamera(moved.before, moved.at)
               }}
             />
           </Canvas>
@@ -1364,6 +1974,7 @@ export function Viewport(): ReactNode {
           <ViewportOverlay />
         </GlErrorBoundary>
       </div>
+      {animating && <Timeline />}
     </div>
   )
 }

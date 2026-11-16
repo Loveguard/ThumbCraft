@@ -151,9 +151,10 @@ export function buildNetherPortal(): TerrainData {
 export function buildTreasurePile(): TerrainData {
   const heap = ['gold_block', 'gold_block', 'diamond_block', 'gold_block', 'emerald_block', 'gold_block']
   return blockBox(5, 3, 4, (x, y, z) => {
-    if (z === 0 && y === 0 && x >= 1 && x <= 3) return ['chest', { facing: 'south' }]
-    const h = (x === 2 ? 2 : x === 1 || x === 3 ? 1 : 0) - (z === 3 ? 1 : 0)
-    if (z >= 1 && y <= h) return heap[(x * 7 + y * 3 + z * 5) % heap.length]
+    // Chests along the front (+z), lids towards the camera, with the heap rising behind them.
+    if (z === 3 && y === 0 && x >= 1 && x <= 3) return ['chest', { facing: 'south' }]
+    const h = (x === 2 ? 2 : x === 1 || x === 3 ? 1 : 0) - (z === 0 ? 1 : 0)
+    if (z <= 2 && y <= h) return heap[(x * 7 + y * 3 + z * 5) % heap.length]
     return null
   })
 }

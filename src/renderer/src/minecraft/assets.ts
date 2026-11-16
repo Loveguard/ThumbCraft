@@ -6,7 +6,20 @@ import { VANILLA_MIP_LEVELS, vanillaMipmaps } from '@shared/minecraft/mipmap'
 import type { Colormap, Colormaps } from '@shared/minecraft/tints'
 import type { AssetBundle } from '@shared/types'
 
-export const assetUrl = (path: string): string => `mcasset://textures/${path}.png`
+/** Bumped when resource packs change, so every texture URL (and cached image) is fresh. */
+let stamp = ''
+/** Caches built from textures (the pixel font, stone letters) that must be dropped when the packs change. */
+export const onTexturesChanged = new Set<() => void>()
+
+/** Switches texture URLs to a new bundle's (call before anything loads its textures). */
+export function switchTextures(bundle: AssetBundle | null): void {
+  if (!bundle?.stamp || bundle.stamp === stamp) return
+  const first = !stamp
+  stamp = bundle.stamp
+  imageCache.clear()
+  if (!first) onTexturesChanged.forEach((f) => f())
+}
+export const assetUrl = (path: string): string => `mcasset://textures/${path}.png${stamp ? `?v=${stamp}` : ''}`
 
 const imageCache = new Map<string, Promise<HTMLImageElement | null>>()
 
@@ -155,6 +168,9 @@ export class AssetContext {
 let current: AssetContext | null = null
 export function assetContext(bundle: AssetBundle | null): AssetContext | null {
   if (!bundle) return (current = null)
-  if (current?.bundle !== bundle) current = new AssetContext(bundle)
+  if (current?.bundle !== bundle) {
+    switchTextures(bundle)
+    current = new AssetContext(bundle)
+  }
   return current
 }

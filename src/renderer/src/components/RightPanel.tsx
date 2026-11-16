@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import * as THREE from 'three'
 import {
+  ArrowDown,
+  ArrowUp,
   Box,
   BringToFront,
   ChevronDown,
@@ -45,6 +47,7 @@ import { LightningProperties } from './LightningProperties'
 import { VfxProperties } from './VfxProperties'
 import { StickerProperties } from './StickerProperties'
 import { MobProperties } from './MobProperties'
+import { RimLightProperties } from './RimLightProperties'
 import { TextProperties } from './TextProperties'
 import { BACKDROPS } from '@shared/minecraft/backdrops'
 import { applyReadyMadeBiome } from '../sceneActions'
@@ -53,6 +56,7 @@ import { useLayout } from '../layout'
 import { viewport } from './Viewport'
 import { defaultSkinUrl } from '../minecraft/builders'
 import { RENDER_MODES } from '../renderModes'
+import { CustomLighting } from './CustomLighting'
 import { PIXEL_TEXT_LABEL, TITLE_STYLES, TITLE_SWATCHES } from './tabs/SceneTabs'
 
 export const KIND_ICON: Record<SceneObject['kind'], LucideIcon> = {
@@ -189,6 +193,26 @@ function Layers(): ReactNode {
     }
     selectOnly(id)
   }
+  // Three or more lights in a row fold into one "Lights" row (lights are many and rarely picked from the list).
+  // Picking one in the viewport unfolds it; the fold is only how the list shows them, nothing in the scene changes.
+  const isLamp = (o: SceneObject | undefined): boolean => !!o && o.kind === 'light' && !o.groupId
+  const lampRun = new Map<string, string[]>()
+  for (let i = 0; i < rows.length; i++) {
+    if (!isLamp(rows[i]) || isLamp(rows[i - 1])) continue
+    let j = i
+    while (isLamp(rows[j])) j++
+    if (j - i >= 3)
+      lampRun.set(
+        rows[i].id,
+        rows.slice(i, j).map((o) => o.id)
+      )
+  }
+  const runOf = new Map<string, string>()
+  for (const [head, ids] of lampRun) for (const id of ids) runOf.set(id, `lights:${head}`)
+  const lampKey = selected.length === 1 && selectedId ? runOf.get(selectedId) : undefined
+  useEffect(() => {
+    if (lampKey) openGroup(lampKey)
+  }, [lampKey, openGroup])
   return (
     <Section id="layers" title={`Layers${objects.length ? ` · ${objects.length}` : ''}`}>
       {objects.length === 0 && (
@@ -218,8 +242,25 @@ function Layers(): ReactNode {
             .join(', ')
           const FolderIcon = open ? FolderOpen : Folder
           const Chevron = open ? ChevronDown : ChevronRight
+          const run = lampRun.get(o.id)
+          const runKey = runOf.get(o.id)
+          const runOpen = !!runKey && openGroups.includes(runKey)
+          const RunChevron = runOpen ? ChevronDown : ChevronRight
           return (
             <Fragment key={o.id}>
+              {run && (
+                <li
+                  className={`group-row lamp-row ${runOpen ? 'open' : ''}`}
+                  title={runOpen ? 'Fold the lights' : 'Show each light'}
+                  onClick={() => toggleGroup(runKey!)}
+                >
+                  <RunChevron size={13} className="group-chev" />
+                  <Lightbulb size={15} className="kind" />
+                  <span className="name">
+                    Lights <span className="count">{run.length}</span>
+                  </span>
+                </li>
+              )}
               {head && (
                 <li
                   className={`group-row ${open ? 'open' : ''} ${groupSelected ? 'active' : ''} ${groupVisible ? '' : 'hidden'}`}
@@ -259,9 +300,9 @@ function Layers(): ReactNode {
                   </button>
                 </li>
               )}
-              {(!o.groupId || open) && (
+              {(!o.groupId || open) && (!runKey || runOpen) && (
                 <li
-                  className={`${o.groupId ? 'in-group' : ''} ${selected.includes(o.id) ? 'active' : ''} ${o.visible ? '' : 'hidden'}`}
+                  className={`${o.groupId || runKey ? 'in-group' : ''} ${selected.includes(o.id) ? 'active' : ''} ${o.visible ? '' : 'hidden'}`}
                   data-kind={o.kind}
                   style={{ '--kind': KIND_COLOR[o.kind] } as CSSProperties}
                   onClick={(e) => pick(e, o.id)}
@@ -395,21 +436,10 @@ function PlayerPose({ o }: { o: PlayerObject }): ReactNode {
   const same = (p: Pose): boolean => JSON.stringify(pose) === JSON.stringify(p)
   return (
     <>
-      <h4>Pose</h4>
-      <div className="chips">
-        {Object.keys(POSES).map((p) => (
-          <button
-            key={p}
-            className={`chip ${same(POSES[p]) ? 'active' : ''}`}
-            onClick={() => update(o.id, { pose: structuredClone(POSES[p]) })}
-          >
-            {p}
-          </button>
-        ))}
-      </div>
+      <PosePicker o={o} same={same} />
       <Toggle label="Name tag" checked={!!o.nameTag} onChange={(nameTag) => update(o.id, { nameTag })} />
       <Toggle label="Slim arms (Alex model)" checked={o.slim} onChange={(slim) => update(o.id, { slim })} />
-      <Group id="joints" title="Joints" defaultOpen>
+      <Group id="joints" title="Joints">
         <Toggle
           label="Drag hands & feet in the viewport"
           title="Click an arm or leg, then drag the green dot on the hand or foot; elbows and knees follow"
@@ -583,6 +613,12 @@ function TransformGroup({ o }: { o: SceneObject }): ReactNode {
         </>
       )}
       <div className="icon-row">
+        <button className="icon-btn" title="Bring toward the camera" onClick={() => pushAlongView(1)}>
+          <ArrowUp size={16} />
+        </button>
+        <button className="icon-btn" title="Push away from the camera" onClick={() => pushAlongView(-1)}>
+          <ArrowDown size={16} />
+        </button>
         <button className="icon-btn" title="Draw above other overlay layers" onClick={() => reorder(o.id, 1)}>
           <BringToFront size={16} />
         </button>
@@ -591,6 +627,43 @@ function TransformGroup({ o }: { o: SceneObject }): ReactNode {
         </button>
       </div>
     </Group>
+  )
+}
+
+/** The most used poses show as a tidy grid; the rest wait behind "More poses" (and open by themselves if one is on). */
+const COMMON_POSES = 6
+function PosePicker({ o, same }: { o: SceneObject; same: (p: Pose) => boolean }): ReactNode {
+  const names = Object.keys(POSES)
+  const current = names.findIndex((p) => same(POSES[p]))
+  const [more, setMore] = useState(() => readFlag('poses:more', false))
+  const showAll = more || current >= COMMON_POSES
+  const { update } = useStore.getState()
+  return (
+    <div className="pose-picker">
+      <h4>Pose</h4>
+      <div className="pose-grid">
+        {(showAll ? names : names.slice(0, COMMON_POSES)).map((p) => (
+          <button
+            key={p}
+            className={`chip ${same(POSES[p]) ? 'active' : ''}`}
+            onClick={() => update(o.id, { pose: structuredClone(POSES[p]) })}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+      {current < COMMON_POSES && (
+        <button
+          className="link more-link"
+          onClick={() => {
+            setMore(!more)
+            writeFlag('poses:more', !more)
+          }}
+        >
+          {more ? 'Fewer poses' : `${names.length - COMMON_POSES} more poses`}
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -731,6 +804,7 @@ function Properties({ o }: { o: SceneObject }): ReactNode {
           </label>
         </>
       )}
+      <RimLightProperties o={o} />
       {o.kind !== 'sticker' && <TransformGroup o={o} />}
     </Section>
   )
@@ -753,6 +827,7 @@ function SceneSettings(): ReactNode {
           </button>
         ))}
       </div>
+      {s.renderMode === 'custom' && <CustomLighting />}
       <label className="check">
         <input
           type="checkbox"

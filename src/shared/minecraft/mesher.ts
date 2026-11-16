@@ -52,26 +52,87 @@ export function collectTextures(palette: BlockState[], resolver: ModelResolver):
   return out
 }
 
+/** Vertex buffers that grow in place (typed arrays, doubled when full): far cheaper than pushing to JS arrays. */
 class Builder {
-  positions: number[] = []
-  normals: number[] = []
-  uvs: number[] = []
-  colors: number[] = []
-  light: number[] = []
-  indices: number[] = []
+  vertices = 0
+  private count = 0
+  positions = new Float32Array(3 * 1024)
+  normals = new Float32Array(3 * 1024)
+  uvs = new Float32Array(2 * 1024)
+  colors = new Float32Array(3 * 1024)
+  light = new Float32Array(2 * 1024)
+  indices = new Uint32Array(1536)
+
+  private grow(): void {
+    const more = <T extends Float32Array | Uint32Array>(a: T): T => {
+      const b = new (a.constructor as { new (n: number): T })(a.length * 2)
+      b.set(a)
+      return b
+    }
+    this.positions = more(this.positions)
+    this.normals = more(this.normals)
+    this.uvs = more(this.uvs)
+    this.colors = more(this.colors)
+    this.light = more(this.light)
+  }
+
+  vertex(x: number, y: number, z: number, nx: number, ny: number, nz: number, u: number, v: number): number {
+    if ((this.vertices + 1) * 3 > this.positions.length) this.grow()
+    const i = this.vertices++
+    this.positions[i * 3] = x
+    this.positions[i * 3 + 1] = y
+    this.positions[i * 3 + 2] = z
+    this.normals[i * 3] = nx
+    this.normals[i * 3 + 1] = ny
+    this.normals[i * 3 + 2] = nz
+    this.uvs[i * 2] = u
+    this.uvs[i * 2 + 1] = v
+    return i
+  }
+
+  shade(i: number, r: number, g: number, b: number, sky: number, block: number): void {
+    this.colors[i * 3] = r
+    this.colors[i * 3 + 1] = g
+    this.colors[i * 3 + 2] = b
+    this.light[i * 2] = sky
+    this.light[i * 2 + 1] = block
+  }
+
+  index(a: number, b: number, c: number): void {
+    if (this.count + 3 > this.indices.length) {
+      const more = new Uint32Array(this.indices.length * 2)
+      more.set(this.indices)
+      this.indices = more
+    }
+    this.indices[this.count++] = a
+    this.indices[this.count++] = b
+    this.indices[this.count++] = c
+  }
+
   finish(): MeshBuffers {
+    const n = this.vertices
     return {
-      positions: new Float32Array(this.positions),
-      normals: new Float32Array(this.normals),
-      uvs: new Float32Array(this.uvs),
-      colors: new Float32Array(this.colors),
-      light: new Float32Array(this.light),
-      indices: new Uint32Array(this.indices)
+      positions: this.positions.slice(0, n * 3),
+      normals: this.normals.slice(0, n * 3),
+      uvs: this.uvs.slice(0, n * 2),
+      colors: this.colors.slice(0, n * 3),
+      light: this.light.slice(0, n * 2),
+      indices: this.indices.slice(0, this.count)
     }
   }
 }
 
-const srgbToLinear = (c: number): number => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+const srgbExact = (c: number): number => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+/** sRGB → linear by table (it runs for every vertex colour channel; the curve is smooth, so 1/4096 steps are exact enough). */
+const SRGB_STEPS = 4096
+const SRGB = Float32Array.from({ length: SRGB_STEPS + 2 }, (_, i) => srgbExact(Math.min(1, i / SRGB_STEPS)))
+const srgbToLinear = (c: number): number => {
+  if (c <= 0) return 0
+  if (c >= 1) return srgbExact(c)
+  const f = c * SRGB_STEPS
+  const i = f | 0
+  return SRGB[i] + (SRGB[i + 1] - SRGB[i]) * (f - i)
+}
 
 interface PaletteInfo {
   state: BlockState
@@ -184,7 +245,6 @@ export function meshTerrain(
     layerOverride?: RenderLayer | 'waterSurface'
   ): void => {
     const b = out[layerOverride ?? slot.layer]
-    const base = b.positions.length / 3
     const p = q.positions
     // Face normal from geometry (handles rotated elements).
     const ax = p[1][0] - p[0][0]
@@ -204,20 +264,37 @@ export function meshTerrain(
     const tr = ((tint >> 16) & 255) / 255
     const tg = ((tint >> 8) & 255) / 255
     const tb = (tint & 255) / 255
+    let base = 0
     for (let i = 0; i < 4; i++) {
-      b.positions.push(p[i][0] + ox, p[i][1] + oy, p[i][2] + oz)
-      b.normals.push(nx, ny, nz)
       const [u, v] = q.uvs[i]
-      b.uvs.push(slot.u0 + (u / 16) * (slot.u1 - slot.u0), slot.v0 + (v / 16) * (slot.v1 - slot.v0))
+      const vi = b.vertex(
+        p[i][0] + ox,
+        p[i][1] + oy,
+        p[i][2] + oz,
+        nx,
+        ny,
+        nz,
+        slot.u0 + (u / 16) * (slot.u1 - slot.u0),
+        slot.v0 + (v / 16) * (slot.v1 - slot.v0)
+      )
+      if (i === 0) base = vi
       const k = shade * (aoValues ? aoValues[i] : 1)
-      b.colors.push(srgbToLinear(tr * k), srgbToLinear(tg * k), srgbToLinear(tb * k))
-      b.light.push(lightValues[i][0] / 15, lightValues[i][1] / 15)
+      b.shade(
+        vi,
+        srgbToLinear(tr * k),
+        srgbToLinear(tg * k),
+        srgbToLinear(tb * k),
+        lightValues[i][0] / 15,
+        lightValues[i][1] / 15
+      )
     }
     // Split the quad along the diagonal that keeps AO gradients smooth (vanilla does the same).
     if (aoValues && aoValues[0] + aoValues[2] < aoValues[1] + aoValues[3]) {
-      b.indices.push(base + 1, base, base + 3, base + 1, base + 3, base + 2)
+      b.index(base + 1, base, base + 3)
+      b.index(base + 1, base + 3, base + 2)
     } else {
-      b.indices.push(base, base + 3, base + 2, base, base + 2, base + 1)
+      b.index(base, base + 3, base + 2)
+      b.index(base, base + 2, base + 1)
     }
   }
 

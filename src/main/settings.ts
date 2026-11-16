@@ -8,6 +8,10 @@ interface Settings {
   eulaAccepted?: boolean
   /** Seed of the world used when no seed is typed (kept so the generator never restarts for it). */
   genSeed?: string
+  /** Resource packs over the vanilla textures, top (winning) pack first. */
+  resourcePacks?: { path: string; enabled: boolean }[]
+  /** false turns off the local server that lets Claude work in the app (on unless set). */
+  claudeBridge?: boolean
 }
 
 const file = (): string => join(app.getPath('userData'), 'settings.json')

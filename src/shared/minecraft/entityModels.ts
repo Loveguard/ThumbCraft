@@ -1,4 +1,5 @@
 // Entity (mob) models exported from the game's own LayerDefinitions by tools/model-dumper.
+import { signTextures } from './blockEntities'
 
 export interface DumpedQuad {
   /** Face normal in model space. */
@@ -152,6 +153,7 @@ export function textureCandidates(
   const base = model.replace(/_baby$/, '')
   const known = [
     ...(KNOWN_TEXTURES[model] ?? KNOWN_TEXTURES[base] ?? []),
+    ...signTextures(model),
     `entity/${model}`,
     `entity/${base}/${base}`,
     `entity/${base}`

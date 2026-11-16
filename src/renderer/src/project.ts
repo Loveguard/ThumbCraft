@@ -8,6 +8,7 @@ import { viewport } from './components/Viewport'
 import { currentLookId } from './grading'
 import { backgroundScenes, MAX_MEDIA, MAX_PROJECT, mediaIdsOf, mediaStore, pruneMedia, registerMedia } from './media'
 import { defaultSkinUrl } from './minecraft/builders'
+import { checkObjects } from './projectObjects'
 import {
   DEFAULT_SETTINGS,
   DEFAULT_SKY,
@@ -15,6 +16,8 @@ import {
   newProjectInfo,
   terrainStore,
   useStore,
+  animationHooks,
+  withRest,
   type EffectSettings,
   type SceneObject,
   type SceneSettings,
@@ -55,7 +58,7 @@ export function serializeProject(): Uint8Array {
   let total = 0
 
   // Blob URLs are session-only; strip them (they are rebuilt from the embedded bytes on open).
-  const objects = s.objects.map((o) =>
+  const objects = withRest(s.objects).map((o) =>
     (o.kind === 'image' || o.kind === 'video') && o.mediaId ? { ...o, url: '' } : o
   )
 
@@ -72,9 +75,10 @@ export function serializeProject(): Uint8Array {
   }
 
   const mediaIds = new Set<string>()
-  for (const o of s.objects) mediaIdsOf(o, mediaIds)
+  for (const o of objects) mediaIdsOf(o, mediaIds)
   if (s.sky.preset === 'hdri' && s.sky.hdriMediaId) mediaIds.add(s.sky.hdriMediaId)
   if (s.effects.look === 'custom' && s.effects.lutMediaId) mediaIds.add(s.effects.lutMediaId)
+  if (s.settings.animation?.audio?.mediaId) mediaIds.add(s.settings.animation.audio.mediaId)
   const media = []
   for (const id of mediaIds) {
     const m = mediaStore.get(id)
@@ -120,6 +124,9 @@ export function serializeProject(): Uint8Array {
 export interface OpenedProject {
   name: string
   minecraftVersion: string | null
+  /** Objects left out because the file doesn't hold what they need, and objects with a field put right. */
+  dropped: number
+  repaired: number
 }
 
 const ENTRY = /^(project\.json|terrain\/[^/]+\/(blocks|biomes)\.u16|media\/[^/]+)$/
@@ -171,6 +178,7 @@ const safeSkinUrl = (url: unknown, slim: boolean): string =>
 /** Replaces the current scene with a project file's contents. */
 export function loadProject(bytes: Uint8Array, path: string | null): OpenedProject {
   const { json, files } = readProjectFile(bytes)
+  animationHooks.exit?.()
 
   for (const t of json.terrains) {
     const { id, ...meta } = t
@@ -184,7 +192,12 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
     const b = files[`media/${m.id}`]
     if (b) registerMedia(m.name, m.mime, b, m.id)
   }
-  const objects = json.objects.map((o) =>
+  // Objects from an older, hand-edited or damaged file are put right before anything draws them.
+  const checked = checkObjects(json.objects, {
+    terrain: (id) => terrainStore.has(id),
+    media: (id) => mediaStore.has(id)
+  })
+  const objects = checked.objects.map((o) =>
     o.kind === 'image' || o.kind === 'video'
       ? { ...o, url: o.mediaId ? (mediaStore.get(o.mediaId)?.url ?? '') : safeMediaUrl(o.url) }
       : o.kind === 'player'
@@ -231,10 +244,16 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
     })
   }
   releaseUnused()
-  return { name: json.name, minecraftVersion: json.minecraftVersion }
+  return {
+    name: json.name,
+    minecraftVersion: json.minecraftVersion,
+    dropped: checked.dropped,
+    repaired: checked.repaired
+  }
 }
 
 export function newProject(): void {
+  animationHooks.exit?.()
   const { showGrid, snap, exportWidth, exportHeight, exportFormat } = useStore.getState().settings
   useStore.setState({
     // Scene look starts fresh; the user's own workspace preferences carry over.

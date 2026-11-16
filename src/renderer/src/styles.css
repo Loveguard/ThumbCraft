@@ -1787,7 +1787,7 @@ input[type='checkbox']:checked::after {
   --text-3: #6b6e76;
   --accent: #4ade80;
   --accent-hover: #63e595;
-  --accent-soft: rgba(74, 222, 128, 0.12);
+  --accent-soft: rgba(var(--accent-rgb), 0.12);
   --on-accent: #052e14;
   --selected: rgba(255, 255, 255, 0.08);
   --radius-sm: 5px;
@@ -2527,14 +2527,14 @@ input[type='checkbox']:checked::after {
   --glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 38%);
   --fill: rgba(255, 255, 255, 0.055);
   --fill-hover: rgba(255, 255, 255, 0.1);
-  --accent-glow: 0 0 0 1px rgba(74, 222, 128, 0.55), 0 0 18px rgba(74, 222, 128, 0.22);
+  --accent-glow: 0 0 0 1px rgba(var(--accent-rgb), 0.55), 0 0 18px rgba(var(--accent-rgb), 0.22);
   --shadow-float: 0 18px 50px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 /* A deep backdrop with two soft glows, so the frosted panels have depth to show. */
 body {
   background:
-    radial-gradient(1200px 700px at 12% -10%, rgba(74, 222, 128, 0.09), transparent 60%),
+    radial-gradient(1200px 700px at 12% -10%, rgba(var(--accent-rgb), 0.09), transparent 60%),
     radial-gradient(1000px 700px at 100% 110%, rgba(96, 120, 255, 0.1), transparent 60%),
     linear-gradient(180deg, #0c0e13 0%, #08090c 100%);
   background-attachment: fixed;
@@ -2629,7 +2629,7 @@ button.primary:hover:not(:disabled) {
   border-color: rgba(160, 255, 195, 0.6);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 6px 20px rgba(74, 222, 128, 0.28);
+    0 6px 20px rgba(var(--accent-rgb), 0.28);
 }
 .export button.primary:hover:not(:disabled),
 .split-btn > .primary:hover:not(:disabled),
@@ -2663,10 +2663,10 @@ button.link,
 /* Rail: the active tab glows softly. */
 .rail-item.active,
 .rail-item.active:hover {
-  background: linear-gradient(180deg, rgba(74, 222, 128, 0.16), rgba(74, 222, 128, 0.06));
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.16), rgba(var(--accent-rgb), 0.06));
   box-shadow:
-    inset 0 0 0 1px rgba(74, 222, 128, 0.25),
-    0 0 16px rgba(74, 222, 128, 0.12);
+    inset 0 0 0 1px rgba(var(--accent-rgb), 0.25),
+    0 0 16px rgba(var(--accent-rgb), 0.12);
 }
 
 /* Inputs: recessed glass. */
@@ -2680,10 +2680,10 @@ textarea {
 input:not([type='range']):not([type='checkbox']):not([type='color']):focus,
 select:focus,
 textarea:focus {
-  border-color: rgba(74, 222, 128, 0.6);
+  border-color: rgba(var(--accent-rgb), 0.6);
   box-shadow:
     inset 0 1px 2px rgba(0, 0, 0, 0.35),
-    0 0 0 3px rgba(74, 222, 128, 0.15);
+    0 0 0 3px rgba(var(--accent-rgb), 0.15);
 }
 
 /* Segmented controls and chips: a glass track with a glossy active pill. */
@@ -2705,8 +2705,8 @@ textarea:focus {
     0 2px 8px rgba(0, 0, 0, 0.3);
 }
 .chip.active {
-  background: linear-gradient(180deg, rgba(74, 222, 128, 0.22), rgba(74, 222, 128, 0.1));
-  border-color: rgba(74, 222, 128, 0.45);
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-rgb), 0.1));
+  border-color: rgba(var(--accent-rgb), 0.45);
   color: #b9f7cf;
 }
 
@@ -3035,8 +3035,8 @@ textarea:focus {
   position: absolute;
   z-index: 6;
   pointer-events: none;
-  border: 1px solid #4ade80;
-  background: rgba(74, 222, 128, 0.12);
+  border: 1px solid var(--accent);
+  background: rgba(var(--accent-rgb), 0.12);
   border-radius: 2px;
 }
 
@@ -3116,8 +3116,8 @@ textarea:focus {
 }
 .rulers .guide.centre.aligned {
   border-style: solid;
-  border-color: #4ade80;
-  box-shadow: 0 0 3px rgba(74, 222, 128, 0.6);
+  border-color: var(--accent);
+  box-shadow: 0 0 3px rgba(var(--accent-rgb), 0.6);
 }
 .rulers .ruler {
   position: absolute;
@@ -3190,7 +3190,7 @@ textarea:focus {
 }
 .rulers .ruler-band {
   position: absolute;
-  background: rgba(74, 222, 128, 0.32);
+  background: rgba(var(--accent-rgb), 0.32);
 }
 .rulers .ruler.top .ruler-band {
   top: 0;
@@ -3361,7 +3361,7 @@ textarea:focus {
   pointer-events: none;
 }
 .sticker.selected {
-  outline: 1px dashed rgba(74, 222, 128, 0.9);
+  outline: 1px dashed rgba(var(--accent-rgb), 0.9);
   outline-offset: -6%;
 }
 .sticker-handle {
@@ -3369,7 +3369,7 @@ textarea:focus {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #4ade80;
+  background: var(--accent);
   border: 2px solid #0b1210;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
@@ -3849,13 +3849,13 @@ textarea:focus {
   box-shadow: var(--accent-glow);
 }
 .sticker.selected {
-  outline-color: rgba(74, 222, 128, 0.75);
-  background: rgba(74, 222, 128, 0.06);
+  outline-color: rgba(var(--accent-rgb), 0.75);
+  background: rgba(var(--accent-rgb), 0.06);
   border-radius: 6px;
 }
 .sticker-handle {
   box-shadow:
-    0 0 0 3px rgba(74, 222, 128, 0.18),
+    0 0 0 3px rgba(var(--accent-rgb), 0.18),
     0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
@@ -4406,4 +4406,1239 @@ button:hover:not(:disabled) {
   color: var(--text-2);
   background: var(--bg-input);
   border: 1px solid var(--border);
+}
+
+/* The font dropdown (text properties): one list with search, in each font's own face. */
+.font-picker {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.font-current {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px;
+  text-align: left;
+}
+.font-current span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.font-menu {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-float);
+}
+.font-menu input[type='search'] {
+  width: 100%;
+}
+.font-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.font-list h5 {
+  margin: 8px 8px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.font-list button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  height: auto;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font-size: 15px;
+  text-align: left;
+}
+.font-list button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.font-list button:hover {
+  background: var(--bg-hover);
+}
+.font-list button.active {
+  background: var(--accent-soft);
+}
+.font-list em {
+  color: var(--text-2);
+  font-size: 11px;
+  font-family: Inter, sans-serif;
+}
+.font-list .hint {
+  padding: 4px 8px;
+}
+.font-import {
+  justify-content: center;
+}
+
+/* Custom lighting look (Render & camera) */
+.custom-lighting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
+}
+.segmented.small button {
+  padding: 3px 4px;
+  font-size: 11px;
+}
+.row-buttons {
+  display: flex;
+  gap: 6px;
+}
+.row-buttons button {
+  flex: 1;
+  gap: 5px;
+}
+
+/* Resource packs (Look tab) */
+.packs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pack {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+}
+.pack.off {
+  opacity: 0.55;
+}
+.pack.missing strong {
+  color: var(--danger);
+}
+.pack img,
+.pack > svg {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  image-rendering: pixelated;
+  border-radius: 4px;
+  color: var(--text-3);
+}
+.pack-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.pack-text strong {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pack-text span {
+  font-size: 11px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pack-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Thumbnail / Animation mode switch, centred in the top bar. */
+.topbar {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+.mode-switch {
+  width: 220px;
+}
+.video-progress {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-float);
+  font-size: 12px;
+  z-index: 50;
+}
+.video-progress progress {
+  width: 160px;
+  accent-color: var(--accent);
+}
+
+/* Animation mode: the timeline sits under the viewport. */
+.viewport-frame.animating {
+  padding-bottom: 260px;
+}
+.timeline {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 12px;
+  height: 170px;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  user-select: none;
+}
+.tl-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.tl-bar .icon-btn.active {
+  color: var(--accent);
+}
+.tl-play {
+  color: var(--text);
+}
+.tl-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  margin-left: 4px;
+}
+.tl-time em {
+  font-style: normal;
+  color: var(--text-3);
+}
+.tl-spacer {
+  flex: 1;
+}
+.tl-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow-y: auto;
+}
+.tl-names {
+  width: 130px;
+  flex: none;
+  border-right: 1px solid var(--border);
+}
+.tl-name {
+  display: block;
+  width: 100%;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tl-name.active {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+.tl-ruler-name {
+  height: 22px;
+}
+.tl-lanes {
+  position: relative;
+  flex: 1;
+  margin: 0 14px 0 8px;
+  cursor: text;
+}
+.tl-ruler {
+  position: relative;
+  height: 22px;
+  border-bottom: 1px solid var(--border);
+}
+.tl-ruler span {
+  position: absolute;
+  top: 4px;
+  font-size: 10px;
+  color: var(--text-3);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.tl-ruler span::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  height: 4px;
+  border-left: 1px solid var(--border-strong);
+}
+.tl-lane {
+  position: relative;
+  height: 26px;
+}
+.tl-lane.active {
+  background: var(--bg-hover);
+}
+.tl-path {
+  position: absolute;
+  top: 9px;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 210, 58, 0.16);
+  pointer-events: none;
+}
+.tl-key {
+  position: absolute;
+  top: 8px;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  margin-left: -4.5px;
+  border: 0;
+  border-radius: 1px;
+  background: #c9a227;
+  transform: rotate(45deg);
+  cursor: ew-resize;
+}
+.tl-lane.active .tl-key {
+  background: #ffd23a;
+}
+.tl-key.current {
+  background: #fff !important;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.tl-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.tl-empty {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* The Animate panel. */
+.anim-characters {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.anim-character {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  text-align: left;
+}
+.anim-character:hover {
+  background: var(--bg-hover);
+}
+.anim-character.active {
+  background: var(--selected, var(--bg-hover));
+  color: var(--text);
+}
+.anim-character span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.anim-character em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: #ffd23a;
+}
+.anim-drawing p {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.animate-panel .muted {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.animate-panel .row {
+  flex-wrap: wrap;
+}
+.animate-panel button.danger {
+  color: var(--danger);
+  align-self: flex-start;
+}
+
+/* Shrinking the window must shrink the stage, never push the right panel out of view: the app's single grid
+   column and the workspace may be narrower than what the stage was last sized to. */
+.app {
+  grid-template-columns: minmax(0, 1fr);
+}
+.workspace {
+  min-width: 0;
+}
+.workspace > .viewport-frame {
+  overflow: hidden;
+}
+
+/* ================================================================ Apple-style pass
+   Drawn from Apple's Human Interface Guidelines (Layout, Typography, Color, Sidebars, Toolbars):
+   - Hierarchy by size, weight and colour: one clear title per panel, quiet captions, 13 pt body text (macOS's default).
+   - Group related things with space and a soft container, not with borders and colours on everything.
+   - One accent colour, only for the main action and for what is selected or on.
+   - Progressive disclosure: advanced controls fold away (joints, effect options).
+   - Content first: chrome stays flat and dark so the thumbnail is the brightest thing on screen. */
+
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --row: 30px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-hover: rgba(255, 255, 255, 0.07);
+  --ring: 0 0 0 3px rgba(var(--accent-rgb), 0.28);
+}
+body {
+  font-size: 13px;
+}
+
+/* Panel titles are the biggest thing in a panel; what sits under them steps down in size and weight. */
+.panel-header {
+  padding: var(--space-5) var(--space-4) var(--space-2);
+}
+.panel-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.tab-body {
+  padding: var(--space-2) var(--space-4) var(--space-5);
+  gap: var(--space-3);
+}
+.tab-body h4,
+.section-body h4 {
+  margin: var(--space-4) 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-2);
+}
+.field > span,
+.field.col > span {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.hint,
+.tip-toggle {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* Controls: 30px targets, soft fills, a clear focus ring. */
+button,
+select,
+input:not([type='range']):not([type='checkbox']):not([type='color']),
+textarea {
+  font-size: 13px;
+}
+input:not([type='range']):not([type='checkbox']):not([type='color']),
+select,
+textarea {
+  min-height: var(--row);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  transition:
+    background 0.12s,
+    box-shadow 0.12s;
+}
+input:not([type='range']):not([type='checkbox']):not([type='color']):focus,
+select:focus,
+textarea:focus {
+  outline: 0;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: var(--ring);
+}
+button {
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+button:focus-visible {
+  outline: 0;
+  box-shadow: var(--ring);
+}
+
+/* Selected means one thing everywhere: a soft accent wash with the accent as text or icon colour. */
+.chip {
+  background: var(--surface);
+  border-color: transparent;
+}
+.chip:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.chip.active,
+.chip.active:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+  box-shadow: none;
+}
+.rail-item.active,
+.rail-item.active:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.rail-item.active svg {
+  color: var(--accent);
+}
+.segmented {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+}
+.layers li.active {
+  background: var(--accent-soft);
+}
+.layers li[data-kind].active {
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+.layers li[data-kind],
+.layers li[data-kind].hidden {
+  box-shadow: none;
+}
+.layers li[data-kind] .kind {
+  color: var(--text-2);
+}
+.layers li.active .kind,
+.layers li[data-kind].active .kind {
+  color: var(--accent);
+}
+
+/* The Look tab's sections: one calm container each, no rainbow edges or glowing dots. */
+.fx-section {
+  margin: var(--space-3) 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.fx-section-head {
+  padding: var(--space-3) var(--space-4);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.fx-section-head:hover {
+  background: var(--surface-hover);
+}
+.fx-section-dot {
+  display: none;
+}
+.fx-section-count {
+  color: var(--text-2);
+  background: rgba(255, 255, 255, 0.08);
+}
+.fx-section-body {
+  padding: var(--space-1) var(--space-4) var(--space-4);
+}
+.fx-section .group.fx.open {
+  border-color: var(--border);
+}
+.fx-section .group.fx.open .fx-head,
+.fx-section .fx-head input:checked {
+  accent-color: var(--accent);
+}
+
+/* Inspector sections: roomier headings, separated by space more than by lines. */
+.insp-section {
+  border-bottom: 0;
+  padding-bottom: var(--space-2);
+}
+.insp-section > header {
+  padding: var(--space-4) var(--space-3) var(--space-1);
+}
+.section-toggle {
+  font-size: 13px;
+  font-weight: 650;
+}
+.section-body {
+  padding: var(--space-1) var(--space-4) var(--space-3);
+}
+.group-toggle,
+.group.fx .fx-head {
+  font-size: 13px;
+}
+
+/* Numbers: no traffic-light axis colours; the letter is enough. */
+.scrub em.axis-x,
+.scrub em.axis-y,
+.scrub em.axis-z {
+  color: var(--text-3);
+}
+
+/* The top bar: the one filled button is Export. */
+.topbar {
+  padding-left: var(--space-4);
+}
+.export > button.ghost {
+  font-weight: 500;
+}
+
+/* The project name reads as a title until you point at it. */
+.brand input:not([type='range']):not([type='checkbox']):not([type='color']) {
+  background: transparent;
+  font-weight: 600;
+}
+.brand input:not([type='range']):not([type='checkbox']):not([type='color']):hover {
+  background: var(--surface);
+}
+button {
+  white-space: nowrap;
+}
+
+/* Timeline blocks and the block palette. */
+.tl-clip {
+  position: absolute;
+  top: 3px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 5px;
+  background: var(--clip-color, #666);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  overflow: hidden;
+  cursor: grab;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.tl-clip span {
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 8px;
+}
+.tl-clip.selected {
+  box-shadow:
+    0 0 0 2px var(--bg-panel),
+    0 0 0 4px var(--accent);
+  z-index: 2;
+}
+.tl-ghost {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px dashed var(--text-3);
+  pointer-events: none;
+}
+.tl-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: ew-resize;
+}
+.tl-edge.start {
+  left: 0;
+}
+.tl-edge.end {
+  right: 0;
+}
+.tl-edge:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.tl-note {
+  margin-left: 12px;
+  font-size: 11.5px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.clip-palette {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.clip-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: var(--row, 30px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  color: var(--text);
+  cursor: grab;
+}
+.clip-chip::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--clip-color, #666);
+}
+.clip-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.clip-walk {
+  --clip-color: #4f9d69;
+}
+.clip-run {
+  --clip-color: #d9893a;
+}
+.clip-sprint {
+  --clip-color: #d4574b;
+}
+.clip-idle {
+  --clip-color: #6f86a8;
+}
+.clip-point {
+  --clip-color: #9a6fc8;
+}
+.clip-jump {
+  --clip-color: #3c9fc4;
+}
+.clip-shrug {
+  --clip-color: #b8a23c;
+}
+.clip-wave {
+  --clip-color: #c76aa3;
+}
+
+/* The timeline's right-click menu. */
+.tl-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 190px;
+  padding: 4px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong, var(--border));
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+.tl-menu button {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.tl-menu button:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+.tl-menu button:disabled {
+  opacity: 0.4;
+}
+.tl-menu button.danger {
+  color: var(--danger);
+}
+.tl-menu button.danger:hover {
+  color: #fff;
+  background: var(--danger);
+}
+.tl-menu kbd {
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.tl-menu button:hover:not(:disabled) kbd {
+  color: rgba(255, 255, 255, 0.75);
+}
+.tl-menu hr {
+  margin: 4px 6px;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.clip-sneak {
+  --clip-color: #5d8f7a;
+}
+.clip-mine {
+  --clip-color: #8a7a5a;
+}
+.clip-chop {
+  --clip-color: #a0653f;
+}
+.clip-eat {
+  --clip-color: #c0883a;
+}
+.clip-nod {
+  --clip-color: #5f8fd0;
+}
+.clip-shake {
+  --clip-color: #7a7fd0;
+}
+.clip-laugh {
+  --clip-color: #d0a13a;
+}
+.clip-panic {
+  --clip-color: #d05b6a;
+}
+.clip-cower {
+  --clip-color: #7a6a99;
+}
+.clip-facepalm {
+  --clip-color: #a07a6a;
+}
+.clip-bow {
+  --clip-color: #6a8fa8;
+}
+.clip-sit {
+  --clip-color: #6f9a52;
+}
+.clip-group > span {
+  display: block;
+  margin: 2px 0 6px;
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.clip-group + .clip-group {
+  margin-top: 10px;
+}
+
+.cam-clip {
+  --clip-color: #4a7fb5;
+}
+.cam-chip::before {
+  background: #4a7fb5;
+}
+
+/* The upper body row under a player's own. */
+.tl-name.sub {
+  padding-left: 18px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+.tl-lane.sub {
+  background: color-mix(in srgb, var(--panel, #222) 85%, transparent);
+}
+
+.clip-swim {
+  --clip-color: #3f8fcf;
+}
+.clip-climb {
+  --clip-color: #a98456;
+}
+.clip-leap {
+  --clip-color: #c05fb0;
+}
+
+.preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.preset-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.preset-row input {
+  flex: 1;
+  min-width: 0;
+}
+.preset-name {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--panel-2, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preset-name em {
+  opacity: 0.55;
+  font-style: normal;
+  margin-left: 6px;
+  font-size: 11px;
+}
+.preset-name:disabled {
+  opacity: 0.5;
+}
+
+.script-box {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-2, rgba(255, 255, 255, 0.05));
+  color: inherit;
+}
+
+.sound-lane {
+  overflow: hidden;
+}
+.tl-sound {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 4px;
+  background: rgba(120, 180, 255, 0.1);
+  cursor: grab;
+}
+.tl-sound svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.tl-sound polygon {
+  fill: rgba(120, 180, 255, 0.75);
+}
+.tl-sound line {
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 1;
+}
+
+.scene-track {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+.scene-name {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-dim, #aab);
+}
+
+.menu-select {
+  margin: 2px 10px 6px;
+  width: calc(100% - 20px);
+}
+
+.curves {
+  width: 100%;
+  height: auto;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  touch-action: none;
+}
+.curves .line {
+  fill: none;
+  stroke: #7fb8ff;
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+.curves .zero {
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-dasharray: 3 3;
+}
+.curves .playhead {
+  stroke: var(--accent);
+  stroke-width: 1;
+}
+.curves .key {
+  fill: #fff;
+  stroke: #7fb8ff;
+  stroke-width: 1.5;
+  cursor: grab;
+}
+.curves text {
+  fill: rgba(255, 255, 255, 0.5);
+  font-size: 8px;
+}
+
+/* ================================================================ Animate panel, redesigned
+   Apple's grouped-list pattern: a few clearly named tasks (Add a block, Start from, Fine-tune), each shown as quiet
+   rows on one soft surface; the selected block's controls sit at the top as an inspector so they never fall below
+   the fold; every block carries an icon as well as a name so nothing depends on colour. */
+.animate-panel {
+  gap: 14px;
+  padding-bottom: 28px;
+}
+.animate-panel h4 {
+  margin: 6px 2px -4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-2);
+}
+.animate-panel .seg-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 2px 0;
+  background: var(--bg-panel);
+}
+.animate-panel .segmented.tabs button {
+  font-size: 12px;
+  padding: 6px 4px;
+  white-space: nowrap;
+}
+.animate-panel .anim-characters {
+  gap: 0;
+  border-radius: 12px;
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+.animate-panel .anim-character {
+  padding: 10px 12px;
+  border-radius: 0;
+  color: var(--text);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+.animate-panel .anim-character:last-child {
+  box-shadow: none;
+}
+.animate-panel .anim-character.active {
+  background: var(--accent-soft);
+}
+.animate-panel .anim-character em {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--text-2);
+  font-size: 11px;
+}
+.animate-panel .anim-character.active em {
+  color: var(--text);
+}
+
+/* Selected block */
+.animate-panel .block-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+}
+.animate-panel .insp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.animate-panel .insp-head strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+.animate-panel .insp-head span {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+/* Grouped list of folding rows */
+.animate-panel .inset-list {
+  border-radius: 12px;
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+.animate-panel .inset-list > .group + .group,
+.animate-panel .inset-list > * + .group {
+  border-top: 1px solid var(--border);
+}
+.animate-panel .inset-list .group-toggle {
+  gap: 10px;
+  height: auto;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.animate-panel .inset-list .group-toggle .chev {
+  order: 3;
+}
+.animate-panel .inset-list .group-toggle > span {
+  order: 1;
+  flex: 1;
+  text-align: left;
+}
+.animate-panel .inset-list .group-toggle svg:not(.chev) {
+  order: 0;
+}
+.animate-panel .inset-list .group-toggle svg:not(.chev) {
+  color: var(--text-2);
+}
+.animate-panel .inset-list .group-body {
+  padding: 2px 14px 14px;
+}
+
+/* Block palette: neutral tiles with an icon and a name. */
+.animate-panel .clip-palette {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.animate-panel .clip-chip {
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  height: 64px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--bg-raised);
+  font-size: 12px;
+  text-align: center;
+}
+.animate-panel .clip-chip::before {
+  display: none;
+}
+.animate-panel .clip-chip svg {
+  color: var(--text-2);
+}
+.animate-panel .clip-chip span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.animate-panel .clip-chip:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.animate-panel .clip-chip:hover:not(:disabled) svg {
+  color: var(--accent);
+}
+.animate-panel .clip-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.animate-panel > * {
+  min-width: 0;
+}
+.animate-panel .block-inspector .row button {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+.animate-panel .block-inspector .row {
+  gap: 6px;
+}
+
+/* Rim light on the selected object. */
+.rim-add {
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+}
+.rim-chip {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 8px currentColor;
+}
+.rim-direction {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.rim-direction-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.rim-direction-side .field-label {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.rim-direction-side .field-note {
+  margin: 0;
+}
+.rim-dial {
+  flex-shrink: 0;
+  cursor: grab;
+  touch-action: none;
+}
+.rim-dial:active {
+  cursor: grabbing;
+}
+.rim-dial-ring {
+  fill: var(--bg-input);
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+.rim-dial-body {
+  fill: var(--bg-hover);
+  stroke: var(--text-3);
+  stroke-width: 1;
+}
+.rim-dial-ray {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 2;
+}
+.rim-dial-sun {
+  fill: var(--accent);
+  stroke: var(--on-accent);
+  stroke-width: 1;
+}
+.rim-custom {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 6px;
+}
+.rim-remove {
+  align-self: flex-start;
+  gap: 6px;
 }

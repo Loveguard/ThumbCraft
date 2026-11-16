@@ -5,12 +5,18 @@ import {
   LAYERS,
   meshTerrain,
   type MeshBuffers,
+  type MeshOptions,
   type RenderLayer,
   type TerrainMesh
 } from '@shared/minecraft/mesher'
+import type { Colormaps } from '@shared/minecraft/tints'
+import type { MeshRequest } from './meshWorker'
 import {
   boxFaces,
   fullPose,
+  limbDefs,
+  type BoxDef,
+  type LimbDef,
   normalizeSkin,
   playerParts,
   PLAYER_PIXEL,
@@ -19,7 +25,7 @@ import {
 } from '@shared/minecraft/playerModel'
 import type { TerrainData } from '@shared/types'
 import type { LightDimension } from '@shared/minecraft/light'
-import { assetUrl, imageData, loadImage, type AssetContext, type Atlas } from './assets'
+import { assetUrl, imageData, loadImage, onTexturesChanged, type AssetContext, type Atlas } from './assets'
 import { applyBlockLight } from './lighting'
 import { makeWaterReflective } from './waterReflection'
 import type { TextObject } from '../store'
@@ -74,7 +80,62 @@ export function disposeObject(root: THREE.Object3D, textures = true): void {
   })
 }
 
-// Meshing a big area takes a few hundred ms, and toggling reflections or switching render mode back and forth
+let worker: Worker | null = null
+/** The asset context whose block models the worker holds. */
+let workerCtx: AssetContext | null = null
+let nextId = 0
+const waiting = new Map<number, { resolve: (m: TerrainMesh) => void; reject: (e: Error) => void; ctx: AssetContext }>()
+
+/** Meshes terrain in a Web Worker (big areas take a second or more, which would freeze the editor). */
+function meshOffThread(
+  ctx: AssetContext,
+  terrain: TerrainData,
+  atlas: Atlas,
+  colormaps: Colormaps,
+  opts: MeshOptions
+): Promise<TerrainMesh> {
+  if (!worker) {
+    worker = new Worker(new URL('./meshWorker.ts', import.meta.url), { type: 'module' })
+    worker.onmessage = (e: MessageEvent<{ id: number; mesh?: TerrainMesh; failed?: string[]; error?: string }>) => {
+      const job = waiting.get(e.data.id)
+      if (!job) return
+      waiting.delete(e.data.id)
+      if (e.data.mesh) {
+        for (const f of e.data.failed ?? []) job.ctx.resolver.failed.add(f)
+        job.resolve(e.data.mesh)
+      } else job.reject(new Error(e.data.error ?? 'Meshing failed'))
+    }
+    worker.onerror = () => {
+      // A worker that can't start: every waiting job falls back to meshing on the main thread.
+      for (const job of waiting.values()) job.reject(new Error('Mesh worker failed'))
+      waiting.clear()
+      worker?.terminate()
+      worker = null
+      workerCtx = null
+      workerBroken = true
+    }
+  }
+  if (workerBroken) return Promise.reject(new Error('Mesh worker unavailable'))
+  const id = nextId++
+  const models = workerCtx === ctx ? undefined : { blockstates: ctx.bundle.blockstates, models: ctx.bundle.models }
+  workerCtx = ctx
+  const request: MeshRequest = {
+    id,
+    models,
+    terrain,
+    slots: [...atlas.slots],
+    biomes: ctx.bundle.biomes,
+    colormaps,
+    opts
+  }
+  return new Promise((resolve, reject) => {
+    waiting.set(id, { resolve, reject, ctx })
+    worker!.postMessage(request)
+  })
+}
+let workerBroken = false
+
+// Meshing a big area takes a second or so, and toggling reflections or switching render mode back and forth
 // shouldn't redo it: meshes are kept per terrain (terrain data is never mutated, so it can key a WeakMap).
 const meshes = new WeakMap<
   AssetContext,
@@ -99,11 +160,11 @@ function meshCached(
         ctx.buildAtlas(collectTextures(terrain.palette, ctx.resolver)),
         ctx.colormaps()
       ])
-      const mesh = meshTerrain(terrain, ctx.resolver, (n) => atlas.slots.get(n) ?? null, ctx.bundle.biomes, colormaps, {
-        ambientOcclusion: ao,
-        biomeBlend: 2,
-        directionalShade: shade
-      })
+      const opts = { ambientOcclusion: ao, biomeBlend: 2, directionalShade: shade }
+      const mesh = await meshOffThread(ctx, terrain, atlas, colormaps, opts).catch(() =>
+        // No worker (or it failed): mesh here, as before.
+        meshTerrain(terrain, ctx.resolver, (n) => atlas.slots.get(n) ?? null, ctx.bundle.biomes, colormaps, opts)
+      )
       return { mesh, atlas }
     })()
     byOpts.set(key, p)
@@ -193,6 +254,90 @@ export function boxGeometry(faces: ReturnType<typeof boxFaces>, texW = 64, texH 
   return g
 }
 
+/**
+ * One limb as a single skinned mesh: the whole 12px box with its sides cut into one-pixel rows, and the rows around
+ * the elbow or knee shared between the upper and the lower bone, so a bent joint folds smoothly with no seam or gap.
+ */
+function smoothLimb(
+  def: LimbDef,
+  material: THREE.Material,
+  overlay: boolean,
+  skeleton: THREE.Skeleton,
+  jointY: number
+): THREE.SkinnedMesh {
+  const pos: number[] = []
+  const nrm: number[] = []
+  const uv: number[] = []
+  const idx: number[] = []
+  const skinIndex: number[] = []
+  const skinWeight: number[] = []
+  const blend = 2.2
+  const ROWS = 12
+  const b: BoxDef = {
+    from: def.from,
+    to: [def.from[0] + def.size[0], def.from[1] + def.size[1], def.from[2] + def.size[2]],
+    uv: overlay ? def.overlayUv : def.uv,
+    inflate: overlay ? 0.25 : 0,
+    overlay
+  }
+  const lowerWeight = (y: number): number => {
+    const t = Math.min(1, Math.max(0, (y - (jointY - blend)) / (2 * blend)))
+    return 1 - t * t * (3 - 2 * t)
+  }
+  const vertex = (c: number[], u: number, v: number, normal: number[]): void => {
+    pos.push(
+      (c[0] + def.pivot[0]) * PLAYER_PIXEL,
+      (c[1] + def.pivot[1]) * PLAYER_PIXEL,
+      (c[2] + def.pivot[2]) * PLAYER_PIXEL
+    )
+    nrm.push(...normal)
+    uv.push(u / 64, 1 - v / 64)
+    const w = lowerWeight(c[1] + def.pivot[1])
+    skinIndex.push(0, 1, 0, 0)
+    skinWeight.push(1 - w, w, 0, 0)
+  }
+  for (const f of boxFaces(b)) {
+    const [u0, v0, u1, v1] = f.uv
+    const [tl, tr, br, bl] = f.corners
+    const side = Math.abs(f.normal[1]) < 0.5
+    const n = side ? ROWS : 1
+    for (let k = 0; k < n; k++) {
+      const a = k / n
+      const z = (k + 1) / n
+      const lerp = (p: number[], q: number[], t: number): number[] => p.map((x, i) => x + (q[i] - x) * t)
+      const base = pos.length / 3
+      // Rows run top to bottom on the sides; a cap is one piece.
+      const rows = side
+        ? [
+            [lerp(tl, bl, a), u0, v0 + (v1 - v0) * a],
+            [lerp(tr, br, a), u1, v0 + (v1 - v0) * a],
+            [lerp(tr, br, z), u1, v0 + (v1 - v0) * z],
+            [lerp(tl, bl, z), u0, v0 + (v1 - v0) * z]
+          ]
+        : [
+            [tl, u0, v0],
+            [tr, u1, v0],
+            [br, u1, v1],
+            [bl, u0, v1]
+          ]
+      for (const [c, u, v] of rows as [number[], number, number][]) vertex(c, u, v, f.normal)
+      idx.push(base, base + 3, base + 2, base, base + 2, base + 1)
+    }
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndex, 4))
+  g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeight, 4))
+  g.setIndex(idx)
+  const mesh = new THREE.SkinnedMesh(g, material)
+  mesh.castShadow = true
+  mesh.frustumCulled = false
+  mesh.userData.skeleton = skeleton
+  return mesh
+}
+
 /** A posable vanilla player model. Each limb is a child group named after its PartName. */
 export async function buildPlayer(skinUrl: string, slim: boolean): Promise<THREE.Group> {
   const canvas = await skinCanvas(skinUrl)
@@ -212,19 +357,41 @@ export async function buildPlayer(skinUrl: string, slim: boolean): Promise<THREE
   const root = new THREE.Group()
   root.name = 'player'
   const groups = new Map<PartName, THREE.Group>()
+  const limbNames = new Set<PartName>(limbDefs(slim).flatMap((d) => [d.upper, d.lower]))
   for (const part of playerParts(slim)) {
     const g = new THREE.Group()
     g.name = part.name
     g.userData.joint = part.name // lets a click on a limb find its joint
     g.position.set(part.pivot[0] * PLAYER_PIXEL, part.pivot[1] * PLAYER_PIXEL, part.pivot[2] * PLAYER_PIXEL)
     g.rotation.order = 'ZYX' // vanilla ModelPart applies Z·Y·X (X first)
-    for (const b of part.boxes) {
-      const m = new THREE.Mesh(boxGeometry(boxFaces(b)), b.overlay ? overlay : base)
-      m.castShadow = true
-      g.add(m)
-    }
+    // Arms and legs are drawn as one smooth skinned mesh each (below), not as the two boxes of their halves.
+    if (!limbNames.has(part.name))
+      for (const b of part.boxes) {
+        const m = new THREE.Mesh(boxGeometry(boxFaces(b)), b.overlay ? overlay : base)
+        m.castShadow = true
+        g.add(m)
+      }
     ;(part.parent ? groups.get(part.parent)! : root).add(g)
     groups.set(part.name, g)
+  }
+  root.updateMatrixWorld(true)
+  for (const def of limbDefs(slim)) {
+    const upper = groups.get(def.upper)!
+    const lower = groups.get(def.lower)!
+    const skeleton = new THREE.Skeleton([upper, lower] as unknown as THREE.Bone[])
+    for (const isOverlay of [false, true]) {
+      const mesh = smoothLimb(
+        def,
+        isOverlay ? overlay : base,
+        isOverlay,
+        skeleton,
+        def.pivot[1] + def.from[1] + def.size[1] / 2
+      )
+      mesh.userData.joint = def.upper // lets a click on a limb find its joint
+      mesh.userData.lowerJoint = lower
+      root.add(mesh)
+      mesh.bind(skeleton)
+    }
   }
   return root
 }
@@ -340,6 +507,10 @@ interface Glyph {
 }
 
 let fontPromise: Promise<Map<number, Glyph> | null> | null = null
+onTexturesChanged.add(() => {
+  fontPromise = null
+  stoneTexture = null
+})
 
 /** Glyphs from Minecraft's own bitmap font (textures/font/ascii.png), widths measured like vanilla. */
 export function minecraftFont(): Promise<Map<number, Glyph> | null> {
