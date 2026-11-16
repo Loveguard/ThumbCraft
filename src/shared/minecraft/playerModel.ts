@@ -98,6 +98,38 @@ function limb(
   ]
 }
 
+/** A whole limb as the skin draws it: one 12px box from the shoulder or hip down, with the joint half way. */
+export interface LimbDef {
+  upper: PartName
+  lower: PartName
+  /** Shoulder or hip, in pixels above the feet. */
+  pivot: [number, number, number]
+  from: [number, number, number]
+  size: [number, number, number]
+  uv: [number, number]
+  overlayUv: [number, number]
+}
+
+export function limbDefs(slim: boolean): LimbDef[] {
+  const aw = slim ? 3 : 4
+  const armY = slim ? 21.5 : 22
+  const mk = (
+    upper: PartName,
+    lower: PartName,
+    pivot: [number, number, number],
+    from: [number, number, number],
+    size: [number, number, number],
+    uv: [number, number],
+    overlayUv: [number, number]
+  ): LimbDef => ({ upper, lower, pivot, from, size, uv, overlayUv })
+  return [
+    mk('rightArm', 'rightForearm', [-5, armY, 0], [1 - aw, -10, -2], [aw, 12, 4], [40, 16], [40, 32]),
+    mk('leftArm', 'leftForearm', [5, armY, 0], [-1, -10, -2], [aw, 12, 4], [32, 48], [48, 48]),
+    mk('rightLeg', 'rightShin', [-1.9, 12, 0], [-2, -12, -2], [4, 12, 4], [0, 16], [0, 32]),
+    mk('leftLeg', 'leftShin', [1.9, 12, 0], [-2, -12, -2], [4, 12, 4], [16, 48], [0, 48])
+  ]
+}
+
 export function playerParts(slim: boolean): PartDef[] {
   const aw = slim ? 3 : 4
   const armY = slim ? 21.5 : 22

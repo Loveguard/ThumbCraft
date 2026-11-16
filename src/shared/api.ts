@@ -37,6 +37,33 @@ export interface ProjectMeta {
   thumbnail: string | null
 }
 
+/** A font installed on this computer (one face of a family). */
+export interface SystemFont {
+  family: string
+  style: string
+  full: string
+  path: string
+  /** Which font of a .ttc collection. */
+  index: number
+}
+
+/** A resource pack in the pack list (top pack first). */
+export interface ResourcePackInfo {
+  path: string
+  name: string
+  description: string
+  /** pack.png as a data URL. */
+  icon: string | null
+  enabled: boolean
+  /** The file or folder is gone (or unreadable). */
+  missing: boolean
+  /** How many textures it replaces. */
+  textures: number
+}
+
+/** The kinds of file animation sharing deals in. */
+export type DataFileKind = 'presets' | 'blockbench' | 'audio' | 'glb'
+
 export interface BlockFrameApi {
   /** Loads the newest Minecraft installed on this computer; null when none is found. */
   loadNewest(): Promise<AssetBundle | null>
@@ -62,6 +89,16 @@ export interface BlockFrameApi {
   importWorld(req: WorldImportRequest): Promise<TerrainData>
   onGenerateProgress(cb: (p: GenerateProgress) => void): () => void
   savePng(dataUrl: string, suggestedName: string): Promise<string | null>
+  /** Asks where to save a layered Photoshop file. Returns the path, or null if cancelled. */
+  savePsd(bytes: Uint8Array, suggestedName: string): Promise<string | null>
+  /** Asks where to save a video, GIF or zip of frames (before rendering it); null when cancelled. */
+  chooseVideoFile(suggestedName: string, ext: 'mp4' | 'webm' | 'gif' | 'zip'): Promise<string | null>
+  /** Writes the rendered video to the file just chosen. */
+  writeVideo(bytes: Uint8Array): Promise<string>
+  /** Asks where to save a file of this kind (preset packs, Blockbench animations, glTF models); null if cancelled. */
+  saveDataFile(bytes: Uint8Array, suggestedName: string, kind: DataFileKind): Promise<string | null>
+  /** Asks for a file of this kind to open (preset packs, Blockbench animations, sound); null if cancelled. */
+  openDataFile(kind: DataFileKind): Promise<{ name: string; bytes: Uint8Array } | null>
   /** Asks for a folder once and writes every image into it. Returns the folder, or null if cancelled. */
   savePngs(images: { name: string; dataUrl: string }[]): Promise<string | null>
   /** A vanilla structure template from the loaded jar. */
@@ -85,6 +122,17 @@ export interface BlockFrameApi {
   /** A newer ThumbCraft: ready = downloaded and installed on quit (Windows); otherwise a download link. */
   onUpdate(cb: (u: { version: string; ready: boolean; url: string }) => void): () => void
   onFlushRequest(cb: () => Promise<void>): () => void
+  /** Claude asks the window to do something (see main/claude.ts); resolve with the result. */
+  onClaudeRequest(cb: (method: string, params: Record<string, unknown>) => Promise<unknown>): () => void
+  listResourcePacks(): Promise<ResourcePackInfo[]>
+  /** Asks for pack .zip files (or a folder) and adds them on top. Returns the new list. */
+  addResourcePacks(folder: boolean): Promise<ResourcePackInfo[]>
+  /** Saves the order and on/off state (top first) and reloads the assets with them. */
+  setResourcePacks(list: { path: string; enabled: boolean }[]): Promise<AssetBundle | null>
+  /** Fonts installed on this computer. */
+  listSystemFonts(): Promise<SystemFont[]>
+  /** A listed font's file, ready to embed (collections are split into a single font). */
+  readSystemFont(path: string, index: number): Promise<Uint8Array>
   /** Picks a sky image; returns its bytes. */
 }
 

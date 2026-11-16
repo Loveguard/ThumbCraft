@@ -1,11 +1,22 @@
 import { app, BrowserWindow, dialog, ipcMain, protocol, session, shell } from 'electron'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { gunzipCapped } from '@shared/minecraft/inflate'
 import { parseNbt } from '@shared/minecraft/nbt'
 import { readSchematic, structureToTerrain } from '@shared/minecraft/schematics'
 import type { Dimension, GenerateRequest, WorldImportRequest } from '@shared/types'
-import { cacheDir, currentVersion, loadJar, newestJars, readAsset, readStructure } from './assets'
+import {
+  bundleWithPacks,
+  cacheDir,
+  currentJar,
+  currentVersion,
+  loadJar,
+  newestJars,
+  readAsset,
+  readStructure
+} from './assets'
+import { checkPack, listPacks, packSettings, savePackSettings } from './resourcePacks'
+import { listSystemFonts, readSystemFont } from './fonts'
 import { installJava } from './javaInstall'
 import { loadMobModels, stopMobExport } from './mobs'
 import {
@@ -31,6 +42,7 @@ import {
 } from './generator'
 import { readSettings, updateSettings } from './settings'
 import { checkForUpdates } from './updates'
+import { startClaudeBridge, stopClaudeBridge } from './claude'
 
 // Textures from the loaded client jar are served as mcasset://textures/block/stone.png
 // The app was called BlockFrame, then ThumbCrafter; keep using an older data folder (settings, recovery
@@ -153,7 +165,9 @@ function createWindow(): void {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
-      sandbox: true
+      sandbox: true,
+      // Keep rendering while covered or minimised, so Claude's screenshots and exports finish in the background.
+      backgroundThrottling: false
     }
   })
   // Give the renderer a moment to write its recovery copy before the window goes away.
@@ -299,6 +313,37 @@ function registerIpc(): void {
     const file = r.filePaths[0]
     return { name: basename(file), terrain: readSchematic(new Uint8Array(readFileSync(file)), basename(file)) }
   })
+  ipcMain.handle('packs:list', () => listPacks())
+  ipcMain.handle('packs:add', async (_e, folder: boolean) => {
+    const r = await dialog.showOpenDialog(win!, {
+      title: folder ? 'Choose a resource pack folder' : 'Choose resource packs',
+      filters: folder ? undefined : [{ name: 'Resource pack', extensions: ['zip'] }],
+      properties: folder ? ['openDirectory'] : ['openFile', 'multiSelections']
+    })
+    if (r.canceled) return listPacks()
+    const list = packSettings()
+    const errors: string[] = []
+    for (const path of r.filePaths) {
+      if (list.some((p) => p.path === path)) continue
+      try {
+        checkPack(path)
+        list.unshift({ path, enabled: true })
+      } catch (e) {
+        errors.push((e as Error).message)
+      }
+    }
+    savePackSettings(list)
+    if (errors.length) throw new Error(errors.join('\n'))
+    return listPacks()
+  })
+  ipcMain.handle('packs:set', (_e, list: { path: string; enabled: boolean }[]) => {
+    // Only packs already in the list (added through the picker) can be kept; new paths can't come in this way.
+    const known = new Set(packSettings().map((p) => p.path))
+    savePackSettings((Array.isArray(list) ? list : []).filter((p) => known.has(p?.path)))
+    return currentJar() ? bundleWithPacks() : null
+  })
+  ipcMain.handle('fonts:list', () => listSystemFonts())
+  ipcMain.handle('fonts:read', (_e, path: string, index: number) => readSystemFont(String(path), Number(index)))
   ipcMain.handle('file:savePng', async (_e, dataUrl: string, suggestedName: string) => {
     const { bytes, ext } = imageBytes(dataUrl)
     const r = await dialog.showSaveDialog(win!, {
@@ -311,6 +356,70 @@ function registerIpc(): void {
     if (r.canceled || !r.filePath) return null
     writeFileSync(r.filePath, bytes)
     return r.filePath
+  })
+  ipcMain.handle('file:savePsd', async (_e, bytes: Uint8Array, suggestedName: string) => {
+    if (!(bytes instanceof Uint8Array)) throw new Error('Nothing to save')
+    const r = await dialog.showSaveDialog(win!, {
+      title: 'Export layers for Photoshop',
+      defaultPath: String(suggestedName).replace(/\.psd$/i, '') + '.psd',
+      filters: [{ name: 'Photoshop file', extensions: ['psd'] }]
+    })
+    if (r.canceled || !r.filePath) return null
+    writeFileSync(r.filePath, bytes)
+    return r.filePath
+  })
+  // A video is rendered after its file is chosen (rendering takes a while); only that file can then be written.
+  let videoPath: string | null = null
+  ipcMain.handle('file:chooseVideo', async (_e, suggestedName: string, ext: string) => {
+    const type = ext === 'mp4' || ext === 'gif' || ext === 'zip' ? ext : 'webm'
+    const label = { mp4: 'MP4 video', webm: 'WebM video', gif: 'GIF', zip: 'Zip of PNG frames' }[type]
+    const r = await dialog.showSaveDialog(win!, {
+      title: 'Export animation',
+      defaultPath: String(suggestedName).replace(/\.(mp4|webm|gif|zip)$/i, '') + '.' + type,
+      filters: [{ name: label, extensions: [type] }]
+    })
+    videoPath = r.canceled || !r.filePath ? null : r.filePath
+    return videoPath
+  })
+  ipcMain.handle('file:writeVideo', async (_e, bytes: Uint8Array) => {
+    if (!(bytes instanceof Uint8Array) || !videoPath) throw new Error('Nothing to save')
+    const path = videoPath
+    videoPath = null
+    writeFileSync(path, bytes)
+    return path
+  })
+  // Preset packs, Blockbench animations, sound and glTF models: a fixed list of kinds, each with its own extensions.
+  const DATA_FILES: Record<string, { label: string; extensions: string[] }> = {
+    presets: { label: 'ThumbCraft preset pack', extensions: ['thumbpack'] },
+    blockbench: { label: 'Blockbench animation', extensions: ['json'] },
+    audio: { label: 'Sound', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'webm'] },
+    glb: { label: 'glTF model (Blender)', extensions: ['glb'] }
+  }
+  ipcMain.handle('file:saveData', async (_e, bytes: Uint8Array, suggestedName: string, kind: string) => {
+    const f = DATA_FILES[kind]
+    if (!f || !(bytes instanceof Uint8Array)) throw new Error('Nothing to save')
+    const ext = f.extensions[0]
+    const r = await dialog.showSaveDialog(win!, {
+      title: `Save ${f.label.toLowerCase()}`,
+      defaultPath: String(suggestedName).replace(new RegExp(`\\.${ext}$`, 'i'), '') + `.${ext}`,
+      filters: [{ name: f.label, extensions: [ext] }]
+    })
+    if (r.canceled || !r.filePath) return null
+    writeFileSync(r.filePath, bytes)
+    return r.filePath
+  })
+  ipcMain.handle('file:openData', async (_e, kind: string) => {
+    const f = DATA_FILES[kind]
+    if (!f) throw new Error('Unknown kind of file')
+    const r = await dialog.showOpenDialog(win!, {
+      title: `Open ${f.label.toLowerCase()}`,
+      properties: ['openFile'],
+      filters: [{ name: f.label, extensions: f.extensions }]
+    })
+    if (r.canceled || !r.filePaths[0]) return null
+    const path = r.filePaths[0]
+    if (statSync(path).size > 300 * 1024 * 1024) throw new Error('That file is too large')
+    return { name: basename(path), bytes: new Uint8Array(readFileSync(path)) }
   })
   ipcMain.handle('file:savePngs', async (_e, images: { name: string; dataUrl: string }[]) => {
     const r = await dialog.showOpenDialog(win!, {
@@ -360,6 +469,7 @@ app.whenReady().then(() => {
   registerIpc()
   createWindow()
   if (win) checkForUpdates(win)
+  startClaudeBridge(() => win)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
@@ -376,5 +486,6 @@ app.on('before-quit', (e) => {
   if (quitting) return
   quitting = true
   e.preventDefault()
+  stopClaudeBridge()
   void Promise.allSettled([shutdownGenerator(true), stopMobExport()]).finally(() => app.quit())
 })

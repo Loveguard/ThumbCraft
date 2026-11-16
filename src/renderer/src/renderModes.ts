@@ -3,7 +3,7 @@
 // underneath the user's own Look (the user's settings always win).
 import type { EffectSettings } from './store'
 
-export type RenderMode = 'vanilla' | 'cinematic' | 'soft' | 'cartoon'
+export type RenderMode = 'vanilla' | 'cinematic' | 'soft' | 'cartoon' | 'custom'
 
 export const RENDER_MODES: { id: RenderMode; label: string; hint: string }[] = [
   { id: 'vanilla', label: 'Vanilla', hint: 'Exactly how the game draws it' },
@@ -17,6 +17,11 @@ export const RENDER_MODES: { id: RenderMode; label: string; hint: string }[] = [
     id: 'cartoon',
     label: 'Cartoon',
     hint: 'Bright, clean cel-shaded colour like Minecraft key art, with crisp shadows and outlines'
+  },
+  {
+    id: 'custom',
+    label: 'Custom',
+    hint: 'Your own lighting: start from any look and tune the sun, sky light and shadows'
   }
 ]
 
@@ -39,7 +44,7 @@ export interface Lighting {
   shadowSoftness: number
 }
 
-export const LIGHTING: Record<Exclude<RenderMode, 'vanilla'>, Lighting> = {
+export const LIGHTING: Record<Exclude<RenderMode, 'vanilla' | 'custom'>, Lighting> = {
   cinematic: {
     sun: 2.2,
     sunColor: '#ffffff',
@@ -72,6 +77,29 @@ export const LIGHTING: Record<Exclude<RenderMode, 'vanilla'>, Lighting> = {
     fill: 0.3,
     shadowSoftness: 1.5
   }
+}
+
+/** The lighting a lit mode draws with (Custom uses the user's own, starting from Cinematic). */
+export function lightingOf(mode: RenderMode, custom?: Lighting | null): Lighting | null {
+  if (mode === 'vanilla') return null
+  if (mode === 'custom') return { ...LIGHTING.cinematic, ...custom }
+  return LIGHTING[mode]
+}
+
+/** Checks a Custom lighting file's contents; returns the lighting, or null when it isn't one. */
+export function parseLighting(json: unknown): Lighting | null {
+  const o = (json as { thumbcraftLighting?: unknown })?.thumbcraftLighting as Record<string, unknown> | undefined
+  if (!o || typeof o !== 'object') return null
+  const base = LIGHTING.cinematic
+  const out = { ...base }
+  for (const k of Object.keys(base) as (keyof Lighting)[]) {
+    const v = o[k]
+    if (typeof base[k] === 'number' && typeof v === 'number' && Number.isFinite(v))
+      (out as Record<string, unknown>)[k] = Math.max(0, Math.min(k === 'shadowSoftness' ? 20 : 10, v))
+    else if (typeof base[k] === 'string' && typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v))
+      (out as Record<string, unknown>)[k] = v
+  }
+  return out
 }
 
 /** Post-processing a shader look adds when the user's Look leaves that part off. */

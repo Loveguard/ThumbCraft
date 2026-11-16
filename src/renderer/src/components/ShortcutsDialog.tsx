@@ -20,7 +20,7 @@ const SHORTCUTS: [string, string][] = [
   ['Next project tab', 'Ctrl Tab']
 ]
 
-/** Every keyboard and mouse shortcut on one card (they used to scroll past in the status bar). */
+/** Every keyboard and mouse shortcut on one card. */
 export function ShortcutsDialog({ onClose }: { onClose: () => void }): ReactNode {
   useEffect(() => {
     const key = (e: KeyboardEvent): void => {

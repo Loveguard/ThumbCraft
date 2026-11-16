@@ -61,6 +61,8 @@ export function mediaIdsOf(o: SceneObject, out: Set<string>): Set<string> {
 
 /** The parts of a scene that can use media: what's on screen, its undo history and its look. */
 export interface SceneMedia {
+  /** The animation's sound, if it has one. */
+  settings?: { animation?: { audio?: { mediaId: string } | null } | null }
   objects: SceneObject[]
   past: { objects?: SceneObject[] }[]
   future: { objects?: SceneObject[] }[]
@@ -74,6 +76,8 @@ export function mediaUsedBy(s: SceneMedia, out = new Set<string>()): Set<string>
     for (const o of list) mediaIdsOf(o, out)
   if (s.sky.hdriMediaId) out.add(s.sky.hdriMediaId)
   if (s.effects.lutMediaId) out.add(s.effects.lutMediaId)
+  const sound = s.settings?.animation?.audio?.mediaId
+  if (sound) out.add(sound)
   return out
 }
 

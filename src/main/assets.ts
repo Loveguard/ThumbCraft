@@ -7,6 +7,7 @@ import { basename, dirname, join } from 'node:path'
 import { unzipSync } from 'fflate'
 import { isSupported, locateCommand, releaseTimeOf } from '@shared/minecraft/compat'
 import type { AssetBundle, BiomeInfo } from '@shared/types'
+import { withPacks } from './resourcePacks'
 
 const KEEP = [
   'assets/minecraft/blockstates/',
@@ -134,8 +135,11 @@ export function newestJars(): string[] {
     .map((v) => v.jarPath)
 }
 
-/** In-memory copy of the files we need from the currently loaded jar. */
+/** In-memory copy of the files we need from the currently loaded jar, with the resource packs laid over it. */
 let files: Record<string, Uint8Array> = {}
+/** The jar's own files (vanilla), kept so packs can be switched without reading the jar again. */
+let jarFiles: Record<string, Uint8Array> = {}
+let reloads = 0
 let loadedVersion = ''
 let loadedJar = ''
 let obfuscated = false
@@ -227,11 +231,18 @@ export function loadJar(jarPath: string): AssetBundle {
   const id = versionOfJar(jarPath)
   const { base, releaseTime } = releaseOf(id, jarPath)
   if (!isSupported(base, releaseTime)) throw new Error(`ThumbCraft needs Minecraft 1.18 or newer (this is ${id}).`)
-  files = zip
+  jarFiles = zip
   loadedVersion = id
   loadedJar = jarPath
   obfuscated = !hasMojangNames
+  return bundleWithPacks()
+}
 
+/** The loaded jar's bundle with the current resource packs applied (after the pack list changed). */
+export function bundleWithPacks(): AssetBundle {
+  const { files: merged, applied } = withPacks(jarFiles)
+  files = merged
+  const zip = merged
   const blockstates: Record<string, unknown> = {}
   const models: Record<string, unknown> = {}
   const biomes: Record<string, BiomeInfo> = {}
@@ -252,7 +263,10 @@ export function loadJar(jarPath: string): AssetBundle {
     models,
     biomes,
     textures,
-    structures: structures.sort()
+    structures: structures.sort(),
+    packs: applied,
+    // Changes whenever the textures do, so the renderer never shows a cached texture from before.
+    stamp: `${++reloads}`
   }
 }
 

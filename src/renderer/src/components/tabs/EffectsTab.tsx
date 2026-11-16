@@ -6,6 +6,7 @@ import { registerMedia } from '../../media'
 import { errorText } from '../../errors'
 import { viewport } from '../Viewport'
 import { ColorSection, Group, Hint, Slider, Toggle } from '../controls'
+import { ResourcePacks } from '../ResourcePacks'
 
 type NumKey = { [K in keyof EffectSettings]: EffectSettings[K] extends number ? K : never }[keyof EffectSettings]
 type BoolKey = { [K in keyof EffectSettings]: EffectSettings[K] extends boolean ? K : never }[keyof EffectSettings]
@@ -88,6 +89,10 @@ export function EffectsTab(): ReactNode {
         checked={cleanOverlays}
         onChange={(on) => setEffects({ cleanOverlays: on })}
       />
+
+      <ColorSection id="fx-packs" title="Resource packs" color="#f472b6">
+        <ResourcePacks />
+      </ColorSection>
 
       <ColorSection id="fx-look" title="Look" color="#b48cff" defaultOpen>
         <LookPicker onPick={applyLook} />

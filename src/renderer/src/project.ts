@@ -15,6 +15,8 @@ import {
   newProjectInfo,
   terrainStore,
   useStore,
+  animationHooks,
+  withRest,
   type EffectSettings,
   type SceneObject,
   type SceneSettings,
@@ -55,7 +57,7 @@ export function serializeProject(): Uint8Array {
   let total = 0
 
   // Blob URLs are session-only; strip them (they are rebuilt from the embedded bytes on open).
-  const objects = s.objects.map((o) =>
+  const objects = withRest(s.objects).map((o) =>
     (o.kind === 'image' || o.kind === 'video') && o.mediaId ? { ...o, url: '' } : o
   )
 
@@ -72,9 +74,10 @@ export function serializeProject(): Uint8Array {
   }
 
   const mediaIds = new Set<string>()
-  for (const o of s.objects) mediaIdsOf(o, mediaIds)
+  for (const o of objects) mediaIdsOf(o, mediaIds)
   if (s.sky.preset === 'hdri' && s.sky.hdriMediaId) mediaIds.add(s.sky.hdriMediaId)
   if (s.effects.look === 'custom' && s.effects.lutMediaId) mediaIds.add(s.effects.lutMediaId)
+  if (s.settings.animation?.audio?.mediaId) mediaIds.add(s.settings.animation.audio.mediaId)
   const media = []
   for (const id of mediaIds) {
     const m = mediaStore.get(id)
@@ -171,6 +174,7 @@ const safeSkinUrl = (url: unknown, slim: boolean): string =>
 /** Replaces the current scene with a project file's contents. */
 export function loadProject(bytes: Uint8Array, path: string | null): OpenedProject {
   const { json, files } = readProjectFile(bytes)
+  animationHooks.exit?.()
 
   for (const t of json.terrains) {
     const { id, ...meta } = t
@@ -235,6 +239,7 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
 }
 
 export function newProject(): void {
+  animationHooks.exit?.()
   const { showGrid, snap, exportWidth, exportHeight, exportFormat } = useStore.getState().settings
   useStore.setState({
     // Scene look starts fresh; the user's own workspace preferences carry over.

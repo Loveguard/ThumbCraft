@@ -60,7 +60,7 @@ export function mobThumbnail(models: MobModels, layerKey: string, texture: strin
       const layer = models.layers[layerKey]
       if (!layer) return null
       try {
-        const mob = await buildMob(layer, texture)
+        const mob = await buildMob(layer, texture, layerKey)
         const url = renderThumbnail(mob)
         dispose(mob)
         return url

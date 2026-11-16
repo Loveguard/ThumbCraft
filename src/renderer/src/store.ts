@@ -5,8 +5,10 @@ import type { AssetBundle, TerrainData } from '@shared/types'
 import type { ExportFormat } from './exportImage'
 import type { VfxType } from './vfx'
 import type { StickerShape } from './stickers'
-import type { RenderMode } from './renderModes'
+import type { Lighting, RenderMode } from './renderModes'
 import type { PixelTextStyle } from './minecraft/builders'
+import { switchTextures } from './minecraft/assets'
+import type { AnimationData } from '@shared/animation'
 
 export type Vec3 = [number, number, number]
 
@@ -24,6 +26,21 @@ interface Base {
   flat?: boolean
   /** Objects sharing a group id are selected and moved together. */
   groupId?: string
+  /** A rim light painted on its edges (a picture effect, not a lamp in the scene). */
+  rim?: RimLight | null
+}
+
+/** A bright edge on one object, from the side a light would come from. */
+export interface RimLight {
+  color: string
+  /** How bright (0…4). */
+  intensity: number
+  /** Where on screen the light comes from, degrees: 0 from the right, 90 from above, 180 from the left. */
+  angle: number
+  /** How far in from the edge the light reaches, in 720p pixels. */
+  width: number
+  /** How far around the outline it goes (0 one side only … 1 all the way round). */
+  wrap: number
 }
 
 export interface TerrainObject extends Base {
@@ -240,6 +257,8 @@ export interface SplitSettings {
 
 export interface SceneSettings {
   renderMode: RenderMode
+  /** The Custom look's lighting (kept when switching to another look and back). */
+  customLighting?: Lighting | null
   ambientOcclusion: boolean
   fov: number
   fog: boolean
@@ -272,6 +291,8 @@ export interface SceneSettings {
   wind: number
   /** The user's saved camera ("shot"), to return to after looking around. */
   shot: (CameraState & { fov: number }) | null
+  /** Characters and objects moving over time (the Animation mode). */
+  animation?: AnimationData | null
 }
 
 export interface EffectSettings {
@@ -463,6 +484,18 @@ export const newProjectInfo = (): ProjectInfo => ({
   dirty: false,
   createdAt: Date.now()
 })
+
+/**
+ * While the Animation mode is on, the scene shows each animated object where the animation has it, and this keeps
+ * where the thumbnail has it (position, turn, pose), to put back afterwards and to save.
+ */
+export const animationRest = new Map<string, Partial<SceneObject>>()
+export const withRest = (objects: SceneObject[]): SceneObject[] =>
+  animationRest.size
+    ? objects.map((o) => (animationRest.has(o.id) ? ({ ...o, ...animationRest.get(o.id) } as SceneObject) : o))
+    : objects
+/** Leaves the Animation mode (set by it): before another project replaces the one on screen. */
+export const animationHooks: { exit: (() => void) | null } = { exit: null }
 
 /** Terrain voxels are large, so they live outside the reactive state. */
 export const terrainStore = new Map<string, TerrainData>()
@@ -660,7 +693,10 @@ export const useStore = create<State>((set) => ({
       if (merge) return { future: [] }
       return { past: [...s.past.slice(-99), { camera: before }], future: [] }
     }),
-  setAssets: (assets) => set({ assets }),
+  setAssets: (assets) => {
+    switchTextures(assets)
+    set({ assets })
+  },
   add: (o) =>
     set((s) => ({ ...history(s, `add:${o.id}`), objects: [...s.objects, o], selectedId: o.id, selectedIds: [o.id] })),
   duplicate: (id) =>

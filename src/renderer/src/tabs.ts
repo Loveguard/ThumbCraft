@@ -5,6 +5,7 @@ import { create } from 'zustand'
 import { backgroundScenes } from './media'
 import { releaseUnused } from './project'
 import {
+  animationHooks,
   cameraBridge,
   DEFAULT_SETTINGS,
   DEFAULT_SKY,
@@ -41,6 +42,7 @@ export const useTabs = create<TabState>(() => ({ tabs: [{ key: firstKey, snap: n
 backgroundScenes.get = () => useTabs.getState().tabs.flatMap((t) => (t.snap ? [t.snap] : []))
 
 function snapshot(): TabSnapshot {
+  animationHooks.exit?.()
   const s = useStore.getState()
   return {
     objects: s.objects,

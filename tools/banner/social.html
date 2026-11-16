@@ -1,0 +1,52 @@
+<!doctype html>
+<!-- GitHub's social preview card (1280×640): what a link to the repo shows on Discord, X and elsewhere.
+     Render with `node tools/banner/render.mjs`; upload docs/images/social-preview.jpg under Settings → General. -->
+<html><head><meta charset="utf-8">
+<style>
+@font-face { font-family: Bungee; src: url('../../node_modules/@fontsource/bungee/files/bungee-latin-400-normal.woff2'); }
+@font-face { font-family: Lilita; src: url('../../node_modules/@fontsource/lilita-one/files/lilita-one-latin-400-normal.woff2'); }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1280px; height: 640px; overflow: hidden; background: #0b1210; }
+.stage { position: relative; width: 1280px; height: 640px; overflow: hidden; font-family: Lilita, sans-serif; }
+.bg { position: absolute; inset: -30px; background: url('../../docs/images/preview-manhunt.jpg') center / cover; filter: blur(10px) saturate(1.2) brightness(0.42); }
+.tint { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 60% at 50% 30%, rgba(4, 22, 13, 0.85), rgba(6, 20, 14, 0.35) 75%, rgba(5, 14, 10, 0.7)); }
+.grid { position: absolute; inset: 0; opacity: 0.1;
+  background-image: linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px);
+  background-size: 32px 32px; mask-image: linear-gradient(180deg, black, transparent 70%); }
+.brand { position: absolute; left: 0; right: 0; top: 52px; display: flex; flex-direction: column; align-items: center; }
+.logo-row { display: flex; align-items: center; gap: 20px; }
+.logo { width: 88px; height: 88px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,.55), 0 0 0 2px rgba(134,239,172,.35); }
+.title { font-family: Bungee, sans-serif; font-size: 70px; line-height: 1; letter-spacing: 1px; position: relative; color: transparent; }
+.title .fill, .title .depth { position: absolute; left: 0; top: 0; white-space: nowrap; }
+.title .depth { color: #0f3d24;
+  text-shadow: 1px 1px 0 #0f3d24, 2px 2px 0 #0f3d24, 3px 3px 0 #0d3520, 4px 4px 0 #0d3520, 5px 5px 0 #0b2e1c, 6px 6px 0 #0b2e1c, 7px 7px 0 #092717, 8px 8px 0 #092717, 10px 14px 18px rgba(0,0,0,.6);
+  -webkit-text-stroke: 6px #06180f; }
+.title .fill { background: linear-gradient(180deg, #d9ffe6 0%, #86efac 38%, #22c55e 62%, #15803d 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.title .ghost { visibility: hidden; white-space: nowrap; }
+.tag { margin-top: 22px; font-size: 32px; white-space: nowrap; color: #ecfdf5; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
+.tag b { color: #86efac; font-weight: 400; }
+.free { position: absolute; right: 170px; top: 40px; transform: rotate(7deg); z-index: 5; font-family: Bungee, sans-serif; font-size: 22px; color: #1a1300; background: linear-gradient(180deg, #fde68a, #f59e0b); padding: 8px 16px 6px; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.5), inset 0 -3px 0 rgba(0,0,0,.2); }
+.thumb { position: absolute; border-radius: 12px; overflow: hidden; background: #000 center / cover; width: 384px; height: 216px;
+  box-shadow: 0 22px 44px rgba(0,0,0,.7), 0 0 0 3px rgba(255,255,255,.9); }
+.thumb::after { content: attr(data-time); position: absolute; right: 8px; bottom: 8px; font: 14px Lilita, sans-serif; color: #fff; background: rgba(0,0,0,.82); padding: 1px 6px; border-radius: 4px; }
+.l { left: 110px; top: 362px; transform: rotate(-6deg); background-image: url('../../docs/images/preview-day1.jpg'); filter: brightness(.8); }
+.r { right: 110px; top: 362px; transform: rotate(6deg); background-image: url('../../docs/images/preview-100days.jpg'); filter: brightness(.8); }
+.c { left: 438px; top: 330px; width: 404px; height: 227px; z-index: 3; background-image: url('../../docs/images/preview-manhunt.jpg');
+  box-shadow: 0 30px 60px rgba(0,0,0,.8), 0 0 0 4px #fff, 0 0 40px rgba(134,239,172,.35); }
+.foot { position: absolute; left: 0; right: 0; bottom: 22px; text-align: center; font-size: 20px; color: #a7f3d0; opacity: .85; }
+</style></head>
+<body><div class="stage">
+  <div class="bg"></div><div class="tint"></div><div class="grid"></div>
+  <div class="brand">
+    <div class="logo-row">
+      <img class="logo" src="../../build/icon.png">
+      <div class="title"><span class="ghost">THUMBCRAFT</span><span class="depth">THUMBCRAFT</span><span class="fill">THUMBCRAFT</span></div>
+    </div>
+    <div class="tag">The <b>free 3D thumbnail studio</b> for Minecraft creators</div>
+  </div>
+  <div class="free">100% FREE</div>
+  <div class="thumb l" data-time="14:20"></div>
+  <div class="thumb r" data-time="22:51"></div>
+  <div class="thumb c" data-time="31:07"></div>
+  <div class="foot">Windows · macOS · github.com/Loveguard/ThumbCraft</div>
+</div></body></html>

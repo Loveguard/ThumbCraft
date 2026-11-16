@@ -33,6 +33,11 @@ const api: BlockFrameApi = {
     return () => ipcRenderer.removeListener('terrain:progress', listener)
   },
   savePng: (dataUrl, name) => ipcRenderer.invoke('file:savePng', dataUrl, name),
+  savePsd: (bytes, name) => ipcRenderer.invoke('file:savePsd', bytes, name),
+  chooseVideoFile: (name, ext) => ipcRenderer.invoke('file:chooseVideo', name, ext),
+  writeVideo: (bytes) => ipcRenderer.invoke('file:writeVideo', bytes),
+  saveDataFile: (bytes, name, kind) => ipcRenderer.invoke('file:saveData', bytes, name, kind),
+  openDataFile: (kind) => ipcRenderer.invoke('file:openData', kind),
   savePngs: (images) => ipcRenderer.invoke('file:savePngs', images),
   eulaAccepted: () => ipcRenderer.invoke('mc:eulaAccepted'),
   acceptEula: () => ipcRenderer.invoke('mc:acceptEula'),
@@ -54,6 +59,25 @@ const api: BlockFrameApi = {
     const listener = (_e: unknown, u: { version: string; ready: boolean; url: string }): void => cb(u)
     ipcRenderer.on('app:update', listener)
     return () => ipcRenderer.removeListener('app:update', listener)
+  },
+  listResourcePacks: () => ipcRenderer.invoke('packs:list'),
+  addResourcePacks: (folder) => ipcRenderer.invoke('packs:add', folder),
+  setResourcePacks: (list) => ipcRenderer.invoke('packs:set', list),
+  listSystemFonts: () => ipcRenderer.invoke('fonts:list'),
+  readSystemFont: (path, index) => ipcRenderer.invoke('fonts:read', path, index),
+  onClaudeRequest: (cb) => {
+    const listener = (_e: unknown, r: { id: number; method: string; params: Record<string, unknown> }): void =>
+      void cb(r.method, r.params ?? {}).then(
+        (result) => ipcRenderer.send('claude:response', { id: r.id, ok: true, result }),
+        (e: unknown) =>
+          ipcRenderer.send('claude:response', {
+            id: r.id,
+            ok: false,
+            error: e instanceof Error ? e.message : String(e)
+          })
+      )
+    ipcRenderer.on('claude:request', listener)
+    return () => ipcRenderer.removeListener('claude:request', listener)
   },
   onFlushRequest: (cb) => {
     const listener = (): void => void cb().finally(() => ipcRenderer.send('app:flushed'))

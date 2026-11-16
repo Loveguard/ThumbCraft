@@ -59,6 +59,10 @@ export interface AssetBundle {
   textures: string[]
   /** Vanilla structure template ids, e.g. "village/plains/houses/plains_small_house_1". */
   structures: string[]
+  /** Resource packs applied over the jar's textures and models, top first. */
+  packs?: string[]
+  /** Changes whenever the served textures change (packs switched), to bust cached images. */
+  stamp?: string
 }
 
 export interface SkinResult {

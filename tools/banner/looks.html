@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- The README's "looks" strip: one thumbnail in four colour looks, cut from docs/images/looks-comparison.jpg.
+     Render with `node tools/banner/render.mjs`. -->
+<html><head><meta charset="utf-8">
+<style>
+@font-face { font-family: Lilita; src: url('../../node_modules/@fontsource/lilita-one/files/lilita-one-latin-400-normal.woff2'); }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1600px; height: 300px; overflow: hidden; background: #0d1117; }
+.row { display: flex; gap: 20px; padding: 28px 24px; }
+.card { width: 370px; }
+/* Each look is a 640×360 tile in the comparison sheet; the sheet is shown at 370/640 scale. */
+.img { width: 370px; height: 208px; border-radius: 10px; box-shadow: 0 10px 24px rgba(0,0,0,.6), 0 0 0 2px rgba(255,255,255,.12);
+  background: url('../../docs/images/looks-comparison.jpg') no-repeat; background-size: calc(1316px * 370 / 640) auto; }
+.label { margin-top: 12px; text-align: center; font: 24px Lilita, sans-serif; color: #e6edf3; letter-spacing: .5px; }
+.label span { color: #86efac; }
+</style></head>
+<body><div class="row">
+  <div class="card"><div class="img" style="background-position: calc(-12px * 370 / 640) calc(-52px * 370 / 640)"></div><div class="label">Original</div></div>
+  <div class="card"><div class="img" style="background-position: calc(-12px * 370 / 640) calc(-464px * 370 / 640)"></div><div class="label"><span>Look:</span> Blockbuster</div></div>
+  <div class="card"><div class="img" style="background-position: calc(-664px * 370 / 640) calc(-464px * 370 / 640)"></div><div class="label"><span>Look:</span> Moonlight</div></div>
+  <div class="card"><div class="img" style="background-position: calc(-12px * 370 / 640) calc(-1288px * 370 / 640)"></div><div class="label"><span>Look:</span> Neon</div></div>
+</div></body></html>

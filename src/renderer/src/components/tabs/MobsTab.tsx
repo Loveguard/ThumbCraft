@@ -20,9 +20,13 @@ import { ColorSection, Hint, Pager, usePaged } from '../controls'
 const GIANT = 'minecraft:giant#main'
 
 const pretty = (key: string): string => {
-  const name = layerModel(key)
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
+  // "sign/standing/oak" reads as "Oak sign", "hanging_sign/oak/wall" as "Oak hanging sign (wall)".
+  const model = layerModel(key).replace(
+    /^(hanging_sign|sign)\/(?:(standing|wall)\/)?([a-z_]+)(?:\/([a-z_]+))?$/,
+    (_m, kind: string, place: string | undefined, wood: string, attach: string | undefined) =>
+      `${wood} ${place === 'wall' ? 'wall ' : ''}${kind}${attach ? ` (${attach})` : ''}`
+  )
+  const name = model.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
   const layer = layerName(key)
   return layer === 'main' ? name : `${name} (${layer.replace(/_/g, ' ')})`
 }

@@ -183,71 +183,73 @@ export function StartPanel(): ReactNode {
 
   if (!empty || hidden) return null
   return (
-    <div className="start-panel">
-      <button className="icon-btn sm close" title="Hide" onClick={() => setHidden(true)}>
-        <X size={15} />
-      </button>
-      <h2>Start a thumbnail</h2>
-      <p>Pick a ready-made layout (instant, no world generation), then change the text and add your own skin.</p>
-      <div className="template-grid">
-        {TEMPLATES.filter((t) => !t.secret).map((t) => (
-          <TemplateCard key={t.id} t={t} />
-        ))}
-      </div>
-      {unlocked ? (
-        <>
-          <h4 className="secret-title">Loveguard's thumbnails</h4>
-          <div className="template-grid">
-            {TEMPLATES.filter((t) => t.secret).map((t) => (
-              <TemplateCard key={t.id} t={t} />
-            ))}
-          </div>
-        </>
-      ) : (
-        <SecretCode onUnlock={() => setUnlocked(true)} />
-      )}
-      <div className="row">
-        <button onClick={() => useLayout.getState().openAssetTab('biomes')}>
-          <Mountain size={16} /> Generate a real biome
+    <div className="start-backdrop" onClick={(e) => e.target === e.currentTarget && setHidden(true)}>
+      <div className="start-panel" role="dialog" aria-label="Start a thumbnail">
+        <button className="icon-btn sm close" title="Hide" onClick={() => setHidden(true)}>
+          <X size={15} />
         </button>
-        <button onClick={() => void openProjectFile()}>
-          <FolderOpen size={16} /> Open project…
-        </button>
+        <h2>Start a thumbnail</h2>
+        <p>Pick a ready-made layout (instant, no world generation), then change the text and add your own skin.</p>
+        <div className="template-grid">
+          {TEMPLATES.filter((t) => !t.secret).map((t) => (
+            <TemplateCard key={t.id} t={t} />
+          ))}
+        </div>
+        {unlocked ? (
+          <>
+            <h4 className="secret-title">Loveguard's thumbnails</h4>
+            <div className="template-grid">
+              {TEMPLATES.filter((t) => t.secret).map((t) => (
+                <TemplateCard key={t.id} t={t} />
+              ))}
+            </div>
+          </>
+        ) : (
+          <SecretCode onUnlock={() => setUnlocked(true)} />
+        )}
+        <div className="row">
+          <button onClick={() => useLayout.getState().openAssetTab('biomes')}>
+            <Mountain size={16} /> Generate a real biome
+          </button>
+          <button onClick={() => void openProjectFile()}>
+            <FolderOpen size={16} /> Open project…
+          </button>
+        </div>
+        {recent && recent.length > 0 && (
+          <>
+            <h4>Recent projects</h4>
+            <div className="recent-grid">
+              {recent.slice(0, 6).map((r) => (
+                <div key={r.id} className="recent-card">
+                  <button
+                    className="recent-open"
+                    onClick={() => void openRecentProject(r.id)}
+                    title={r.savedPath ?? 'Recovered automatically'}
+                  >
+                    {r.thumbnail ? <img src={r.thumbnail} alt="" /> : <div className="thumb-empty" />}
+                    <strong>{r.name}</strong>
+                    <span>
+                      {timeAgo(r.updatedAt)}
+                      {r.savedPath ? '' : ' · not saved yet'}
+                    </span>
+                  </button>
+                  <button
+                    className="icon-btn sm forget"
+                    title="Remove from recent (deletes the recovery copy)"
+                    onClick={() =>
+                      void window.blockframe
+                        .forgetRecent(r.id)
+                        .then(() => setRecent((list) => list?.filter((x) => x.id !== r.id) ?? null))
+                    }
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
-      {recent && recent.length > 0 && (
-        <>
-          <h4>Recent projects</h4>
-          <div className="recent-grid">
-            {recent.slice(0, 6).map((r) => (
-              <div key={r.id} className="recent-card">
-                <button
-                  className="recent-open"
-                  onClick={() => void openRecentProject(r.id)}
-                  title={r.savedPath ?? 'Recovered automatically'}
-                >
-                  {r.thumbnail ? <img src={r.thumbnail} alt="" /> : <div className="thumb-empty" />}
-                  <strong>{r.name}</strong>
-                  <span>
-                    {timeAgo(r.updatedAt)}
-                    {r.savedPath ? '' : ' · not saved yet'}
-                  </span>
-                </button>
-                <button
-                  className="icon-btn sm forget"
-                  title="Remove from recent (deletes the recovery copy)"
-                  onClick={() =>
-                    void window.blockframe
-                      .forgetRecent(r.id)
-                      .then(() => setRecent((list) => list?.filter((x) => x.id !== r.id) ?? null))
-                  }
-                >
-                  <X size={13} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
     </div>
   )
 }

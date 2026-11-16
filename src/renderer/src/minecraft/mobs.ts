@@ -1,6 +1,7 @@
 // three.js builders for mob models exported from the game (see src/shared/minecraft/entityModels.ts).
 import * as THREE from 'three'
 import type { DumpedLayer, DumpedPart, MobModels } from '@shared/minecraft/entityModels'
+import { standaloneBlockEntity } from '@shared/minecraft/blockEntities'
 import { assetUrl } from './assets'
 
 let modelsPromise: Promise<MobModels> | null = null
@@ -37,7 +38,7 @@ function partGeometry(part: DumpedPart): THREE.BufferGeometry | null {
   return g
 }
 
-function buildPart(part: DumpedPart, path: string, material: THREE.Material): THREE.Group {
+export function buildPart(part: DumpedPart, path: string, material: THREE.Material): THREE.Group {
   const g = new THREE.Group()
   g.name = path
   g.position.set(...part.pivot)
@@ -58,21 +59,33 @@ function buildPart(part: DumpedPart, path: string, material: THREE.Material): TH
   return g
 }
 
-/**
- * Builds a mob the way LivingEntityRenderer places it: model space is in pixels with Y pointing down,
- * flipped by scale(-1,-1,1), turned 180° and lifted 1.501 blocks, so the feet rest on y=0.
- */
-export async function buildMob(layer: DumpedLayer, texture: string): Promise<THREE.Group> {
+/** The material entity models are drawn with: their texture, pixel-sharp, cut out where it is transparent. */
+export async function entityMaterial(texture: string): Promise<THREE.MeshLambertMaterial> {
   const tex = await new THREE.TextureLoader().loadAsync(assetUrl(texture))
   tex.magFilter = THREE.NearestFilter
   tex.minFilter = THREE.NearestFilter
   tex.generateMipmaps = false
   tex.colorSpace = THREE.SRGBColorSpace
-  const material = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.1, side: THREE.DoubleSide })
+  return new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.1, side: THREE.DoubleSide })
+}
+
+/**
+ * Builds a mob the way LivingEntityRenderer places it: model space is in pixels with Y pointing down,
+ * flipped by scale(-1,-1,1), turned 180° and lifted 1.501 blocks, so the feet rest on y=0. Chests and signs
+ * are placed the way their block entity renderers do instead (upright in their block, standing on y=0).
+ */
+export async function buildMob(layer: DumpedLayer, texture: string, layerKey?: string): Promise<THREE.Group> {
+  const material = await entityMaterial(texture)
   const wrapper = new THREE.Group()
   wrapper.name = 'mob'
-  wrapper.position.y = 1.501
-  wrapper.scale.set(1 / 16, -1 / 16, -1 / 16)
+  const block = layerKey ? standaloneBlockEntity(layerKey) : null
+  if (block) {
+    wrapper.matrix.fromArray(block)
+    wrapper.matrixAutoUpdate = false
+  } else {
+    wrapper.position.y = 1.501
+    wrapper.scale.set(1 / 16, -1 / 16, -1 / 16)
+  }
   wrapper.add(buildPart(layer.root, '', material))
   return wrapper
 }
