@@ -39,7 +39,7 @@ even when ThumbCraft is closed; its tools appear as soon as the app is open.
 Either through the same launcher:
 
 ```
-claude mcp add thumbcraft -- node C:\Users\User\ClaudePers\mcp\thumbcraft-mcp.cjs
+claude mcp add thumbcraft -- node <path to this folder>\thumbcraft-mcp.cjs
 ```
 
 or straight to the app (copy the key from `claude-bridge.json`):
@@ -50,19 +50,19 @@ claude mcp add --transport http thumbcraft http://127.0.0.1:47821/mcp --header "
 
 ## The tools
 
-| Tool | What it does |
-| --- | --- |
-| `get_scene`, `get_object` | Everything in the thumbnail, with ids |
-| `get_options` | Valid poses, skins, fonts, stickers, effects, biomes, looks, templates, mobs, animation blocks |
-| `screenshot` | The thumbnail as it would export, returned as an image Claude can see |
-| `add_player`, `add_mob`, `add_text`, `add_sticker`, `add_effect` | Add things (real skins by username) |
-| `set_ground`, `apply_template` | Swap the landscape, or start from a ready-made thumbnail |
-| `update_object`, `remove_object`, `duplicate_object`, `arrange` | Move, pose, restyle, delete, layer order, groups |
-| `set_camera` | Place the camera, or frame an object from a side |
-| `set_look` | Render mode, colour look, sky, sun, weather and every effect |
-| `history` | Undo and redo |
-| `export_thumbnail`, `project` | Save the image (or a layered .psd) and the project |
-| `animation`, `export_animation` | Animation mode: plain-English scripts, blocks, camera moves, presets, video/GIF export |
+| Tool                                                             | What it does                                                                                   |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `get_scene`, `get_object`                                        | Everything in the thumbnail, with ids                                                          |
+| `get_options`                                                    | Valid poses, skins, fonts, stickers, effects, biomes, looks, templates, mobs, animation blocks |
+| `screenshot`                                                     | The thumbnail as it would export, returned as an image Claude can see                          |
+| `add_player`, `add_mob`, `add_text`, `add_sticker`, `add_effect` | Add things (real skins by username)                                                            |
+| `set_ground`, `apply_template`                                   | Swap the landscape, or start from a ready-made thumbnail                                       |
+| `update_object`, `remove_object`, `duplicate_object`, `arrange`  | Move, pose, restyle, delete, layer order, groups                                               |
+| `set_camera`                                                     | Place the camera, or frame an object from a side                                               |
+| `set_look`                                                       | Render mode, colour look, sky, sun, weather and every effect                                   |
+| `history`                                                        | Undo and redo                                                                                  |
+| `export_thumbnail`, `project`                                    | Save the image (or a layered .psd) and the project                                             |
+| `animation`, `export_animation`                                  | Animation mode: plain-English scripts, blocks, camera moves, presets, video/GIF export         |
 
 Files Claude saves go where it says (an absolute path), or into `Pictures\ThumbCraft` when it only gives a name.
 Only image, video, .psd, .zip and .bfproj files can be written.

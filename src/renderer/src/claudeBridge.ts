@@ -894,7 +894,9 @@ const handlers: Record<string, Handler> = {
         const oid = objectId()
         const had = new Set((animationOf().tracks.find((t) => t.objectId === oid)?.clips ?? []).map((c) => c.id))
         addClip(oid, type, num(p.at), p.upper_body === true ? 'upper' : undefined)
-        const made = animationOf().tracks.find((t) => t.objectId === oid)?.clips?.find((c) => !had.has(c.id))
+        const made = animationOf()
+          .tracks.find((t) => t.objectId === oid)
+          ?.clips?.find((c) => !had.has(c.id))
         const len = num(p.length)
         if (made && len && len > 0) setClipDuration(oid, made.id, len)
         break
