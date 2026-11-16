@@ -1,0 +1,16 @@
+name: Feature idea
+description: Suggest something that would make your thumbnails better.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: Describe the feature, and the thumbnail you'd make with it. A reference image helps a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How do you do it today?
+      description: Optional. A workaround, another app, or "I can't".
