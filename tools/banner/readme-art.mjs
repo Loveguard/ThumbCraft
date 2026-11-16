@@ -1,4 +1,4 @@
-// Builds the HTML for the README's section graphics (editor, features, install, first thumbnail, how it works,
+// Builds the HTML for the README's section graphics (editor, features, install, first thumbnail, animation steps, how it works,
 // privacy). render.mjs turns each <section> into docs/images/readme/<id>.jpg. Icons are the app's own lucide set.
 import { createRequire } from 'node:module'
 
@@ -337,6 +337,95 @@ const first = `
   </div>
 </section>`
 
+/* ---------- Animation: six steps, drawn like the app's own Animation mode ---------- */
+const ui = 'background:#1b1c20;border:1px solid #2c2e34;border-radius:8px'
+const tile = (i, t, on) =>
+  `<div style="${ui};padding:9px 0;display:grid;justify-items:center;gap:5px;font-size:12px;color:${on ? '#fff' : '#9aa1ad'};${on ? 'box-shadow:0 0 0 2px #0a84ff;background:#0a84ff22' : ''}">${icon(i, 16)}${t}</div>`
+const seg = (items, on) =>
+  `<div style="display:flex;background:#111215;border:1px solid #2c2e34;border-radius:9px;padding:3px;font-size:13px">${items.map((t, i) => `<div style="flex:1;text-align:center;padding:6px 14px;border-radius:6px;${i === on ? 'background:#2f3138;color:#fff;font-weight:600' : 'color:#8b929e'}">${t}</div>`).join('')}</div>`
+const clip = (c, l, w, t) =>
+  `<div style="position:absolute;left:${l}px;width:${w}px;top:2px;bottom:2px;border-radius:5px;background:${c};color:#0b0c0e;font:600 11px Inter,sans-serif;padding:3px 7px;white-space:nowrap;overflow:hidden">${t}</div>`
+const lane = (name, clips) =>
+  `<div style="display:flex;align-items:center;height:24px;margin-top:4px"><div style="width:74px;font-size:11.5px;color:#9aa1ad;white-space:nowrap">${name}</div><div style="position:relative;flex:1;height:100%;background:#ffffff0a;border-radius:5px">${clips}</div></div>`
+const cursor = (x, y) =>
+  `<svg style="position:absolute;left:${x}px;top:${y}px;width:26px;filter:drop-shadow(0 3px 5px rgba(0,0,0,.6))" viewBox="0 0 24 24"><path d="M4 2l15 11-6.5 1.2 3.6 7.3-2.7 1.3-3.6-7.4L4 20z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg>`
+const scene = (f, pos = 'center') => `background:url('${img(f)}') ${pos}/cover`
+const animSteps = [
+  [
+    'Switch to Animation',
+    'The switch is in the middle of the top bar. Your scene stays as it is and a timeline opens under it.',
+    `<div style="position:absolute;inset:0;display:grid;place-items:center;background:#131417"><div style="width:250px">${seg(['Thumbnail', 'Animation'], 1)}</div></div>${cursor(262, 112)}`
+  ],
+  [
+    'Pick a character, add a block',
+    'Click a player or mob under <b>Characters</b>, then click a block such as Walk, or drag it onto the timeline.',
+    `<div style="position:absolute;inset:0;background:#131417;padding:14px 18px">
+      <div style="font-size:11.5px;color:#8b929e;margin-bottom:5px">Characters</div>
+      <div style="${ui};padding:6px 10px;font-size:13px;display:flex;gap:8px;align-items:center;color:#fff;box-shadow:0 0 0 2px #0a84ff">${icon('User', 15)} Steve</div>
+      <div style="margin:9px 0 8px">${seg(['Move', 'Act', 'Camera'], 0)}</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px">${tile('Footprints', 'Walk', true)}${tile('Wind', 'Run')}${tile('Zap', 'Sprint')}${tile('Waves', 'Swim')}</div>
+    </div>${cursor(84, 158)}`
+  ],
+  [
+    'Draw the path',
+    'Press <b>Add points</b> and click the ground where the character should go. Drag the yellow points to bend the path. <b>Go to a spot</b> finds the way by itself.',
+    `<div style="position:absolute;inset:0;${scene('scene-1.jpg')};filter:brightness(.8)"></div>
+     <svg style="position:absolute;inset:0;width:100%;height:100%" viewBox="0 0 400 190"><path d="M60 150 C120 120 150 160 215 128 S310 95 350 110" fill="none" stroke="#facc15" stroke-width="3.5" stroke-dasharray="9 7" stroke-linecap="round"/>${[
+       [60, 150],
+       [215, 128],
+       [350, 110]
+     ]
+       .map(([x, y]) => `<circle cx="${x}" cy="${y}" r="7.5" fill="#facc15" stroke="#1a1300" stroke-width="2.5"/>`)
+       .join('')}</svg>${cursor(338, 108)}`
+  ],
+  [
+    'Arrange the timeline',
+    'Drag a block to move it in time and drag its edges to make it longer or shorter. <span class="kbd">Space</span> plays, <span class="kbd">Del</span> removes the selected block.',
+    `<div style="position:absolute;inset:0;background:#131417;padding:14px 16px">
+      <div style="display:flex;align-items:center;gap:10px;color:#cfd3da;font-size:12px;margin-bottom:6px">${icon('SkipBack', 15)}${icon('Play', 16)}<span>1.60 s <span style="color:#6b7280">/ 4.00 s</span></span></div>
+      ${lane('Camera', clip('#fde68a', 20, 150, 'Push in'))}
+      ${lane('Steve', clip('#86efac', 0, 120, 'Walk') + clip('#fca5a5', 126, 70, 'Punch') + clip('#86efac', 202, 80, 'Cheer'))}
+      ${lane('Upper body', clip('#93c5fd', 60, 90, 'Wave'))}
+      ${lane('Warden', clip('#86efac', 90, 170, 'Walk'))}
+      <div style="position:absolute;left:218px;top:40px;bottom:14px;width:2px;background:#0a84ff"></div>
+    </div>${cursor(208, 92)}`
+  ],
+  [
+    'Move the camera',
+    'Open the <b>Camera</b> blocks and drop Orbit, Push in or Crane up on the camera row. Move the view in the scene and the selected block takes it.',
+    `<div style="position:absolute;inset:0;${scene('preview-manhunt.jpg')};filter:brightness(.8)"></div>
+     <div style="position:absolute;inset:18px 26px;border:2px dashed rgba(255,255,255,.9);border-radius:6px"></div>
+     <div style="position:absolute;inset:44px 78px;border:2px solid #fde68a;border-radius:6px;box-shadow:0 0 0 999px rgba(0,0,0,.28)"></div>
+     <div style="position:absolute;left:12px;bottom:10px;font:600 12px Inter;background:#fde68a;color:#1a1300;padding:4px 8px;border-radius:6px;display:flex;gap:5px;align-items:center">${icon('Video', 13)} Push in</div>`
+  ],
+  [
+    'Export',
+    'The <b>Export</b> button saves the video. Its arrow picks MP4, WebM, GIF or a PNG sequence and the size, or sends the current frame to a thumbnail tab.',
+    `<div style="position:absolute;inset:0;background:#131417;padding:10px 18px">
+      <div style="display:flex;justify-content:flex-end"><div style="display:flex;align-items:center;gap:7px;background:#0a84ff;color:#fff;font:600 13px Inter;padding:7px 12px;border-radius:8px">${icon('Film', 15)} Export ${icon('ChevronDown', 14)}</div></div>
+      <div style="${ui};margin:6px 0 0 auto;width:262px;padding:7px 10px;font-size:12.5px;color:#cfd3da;display:grid;gap:5px">
+        <div style="color:#8b929e;font-size:11px">Export as</div>
+        <div style="display:flex;gap:7px;align-items:center;color:#fff">${icon('Check', 13)} MP4 video</div>
+        <div style="padding-left:20px">GIF</div><div style="padding-left:20px">PNG sequence</div>
+        <div style="border-top:1px solid #2c2e34;padding-top:6px;display:flex;gap:7px;align-items:center">${icon('Image', 13)} Send this frame to a thumbnail tab</div>
+      </div>
+    </div>`
+  ]
+]
+const animation = `
+<section id="animation-steps" style="width:1280px;padding:28px;"><div class="grid"></div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px;position:relative">
+    ${animSteps
+      .map(
+        ([t, d, art], n) => `<div class="card">
+        <div style="height:190px;position:relative;overflow:hidden">${art}</div>
+        <div style="padding:16px 18px 20px"><div style="display:flex;align-items:center;gap:10px"><div class="num" style="width:34px;height:34px;font-size:17px;border-radius:9px">${n + 1}</div><div class="h" style="font-size:22px">${t}</div></div>
+        <div class="p" style="font-size:14px;margin-top:10px">${d}</div></div></div>`
+      )
+      .join('')}
+  </div>
+</section>`
+
 /* ---------- How it works ---------- */
 const src = (i, c, t, d) =>
   `<div class="card" style="display:flex;gap:14px;align-items:center;padding:16px 18px"><div class="ico" style="${tint(c)}">${icon(i, 22)}</div><div><div style="font-weight:600;font-size:16px">${t}</div><div class="p" style="font-size:13.5px">${d}</div></div></div>`
@@ -386,5 +475,14 @@ const privacy = `
   </div>
 </section>`
 
-export const sections = ['editor', 'pillars', 'features', 'install', 'first-thumbnail', 'how-it-works', 'privacy']
-export const html = `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${editor}${what}${features}${install}${first}${how}${privacy}</body></html>`
+export const sections = [
+  'editor',
+  'pillars',
+  'features',
+  'install',
+  'first-thumbnail',
+  'animation-steps',
+  'how-it-works',
+  'privacy'
+]
+export const html = `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${editor}${what}${features}${install}${first}${animation}${how}${privacy}</body></html>`
