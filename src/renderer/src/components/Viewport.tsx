@@ -284,28 +284,43 @@ function overlayMaterialProps(onTop: boolean): Partial<THREE.MeshBasicMaterialPa
   return { depthTest: !onTop, depthWrite: !onTop }
 }
 
+/** Frees a picture's or video's texture; a video also stops playing (it would keep decoding unseen). */
+function disposeTexture(t: THREE.Texture): void {
+  const video = (t as THREE.VideoTexture).isVideoTexture ? (t.image as HTMLVideoElement | undefined) : undefined
+  if (video) {
+    video.pause()
+    video.removeAttribute('src')
+    video.load()
+  }
+  t.dispose()
+}
+
 function ImageNode({ o, order }: { o: ImageObject; order: number }): ReactNode {
-  const texture = useAsync(async () => {
-    if (o.kind === 'video') {
-      const v = document.createElement('video')
-      v.src = o.url
-      v.loop = true
-      v.muted = true
-      v.playsInline = true
-      await v.play().catch(() => undefined)
-      const t = new THREE.VideoTexture(v)
+  const texture = useAsync(
+    async () => {
+      if (o.kind === 'video') {
+        const v = document.createElement('video')
+        v.src = o.url
+        v.loop = true
+        v.muted = true
+        v.playsInline = true
+        await v.play().catch(() => undefined)
+        const t = new THREE.VideoTexture(v)
+        t.colorSpace = THREE.SRGBColorSpace
+        return t
+      }
+      const t = await new THREE.TextureLoader().loadAsync(o.url)
       t.colorSpace = THREE.SRGBColorSpace
+      if (o.pixelated) {
+        t.magFilter = THREE.NearestFilter
+        t.minFilter = THREE.NearestFilter
+        t.generateMipmaps = false
+      }
       return t
-    }
-    const t = await new THREE.TextureLoader().loadAsync(o.url)
-    t.colorSpace = THREE.SRGBColorSpace
-    if (o.pixelated) {
-      t.magFilter = THREE.NearestFilter
-      t.minFilter = THREE.NearestFilter
-      t.generateMipmaps = false
-    }
-    return t
-  }, [o.url, o.kind, o.pixelated])
+    },
+    [o.url, o.kind, o.pixelated],
+    disposeTexture
+  )
   if (!texture) return null
   const h = 4
   return (
@@ -492,13 +507,17 @@ function LightningNode({ o }: { o: LightningObject }): ReactNode {
 }
 
 function LightNode({ o }: { o: LightObject }): ReactNode {
-  const custom = useAsync(async () => {
-    const m = o.gobo === 'custom' && o.goboMediaId ? mediaStore.get(o.goboMediaId) : null
-    if (!m) return null
-    const t = await new THREE.TextureLoader().loadAsync(m.url)
-    t.colorSpace = THREE.SRGBColorSpace
-    return t
-  }, [o.gobo, o.goboMediaId])
+  const custom = useAsync(
+    async () => {
+      const m = o.gobo === 'custom' && o.goboMediaId ? mediaStore.get(o.goboMediaId) : null
+      if (!m) return null
+      const t = await new THREE.TextureLoader().loadAsync(m.url)
+      t.colorSpace = THREE.SRGBColorSpace
+      return t
+    },
+    [o.gobo, o.goboMediaId],
+    disposeTexture
+  )
   const map = o.lightType === 'spot' && o.gobo ? (o.gobo === 'custom' ? custom : goboTexture(o.gobo)) : null
   // three.js only projects a spotlight pattern through its shadow map.
   const shadows = o.shadows || !!map
@@ -906,19 +925,53 @@ function screenRect(box: THREE.Box3, camera: THREE.Camera, v: THREE.Vector3): Sc
   return r
 }
 
+/**
+ * Says when something measured from scene objects (a box around them, their centre) has to be measured again:
+ * one of them moved, the scene changed, something is still being built, or a third of a second has passed.
+ * Measuring walks every part of the object, which is too much to do on every frame for nothing.
+ */
+class MeasureWatch {
+  private last: number[] = []
+  private scene: unknown = null
+  private frames = 0
+  changed(roots: (THREE.Object3D | null | undefined)[]): boolean {
+    const scene = useStore.getState().objects
+    let changed = scene !== this.scene || building.count > 0 || ++this.frames >= 20
+    this.scene = scene
+    let i = 0
+    for (const root of roots) {
+      const e = root?.matrixWorld.elements
+      for (let k = 0; k < 16; k++, i++) {
+        const v = e ? e[k] : NaN
+        if (!Object.is(this.last[i], v)) {
+          this.last[i] = v
+          changed = true
+        }
+      }
+    }
+    if (this.last.length !== i) {
+      this.last.length = i
+      changed = true
+    }
+    if (changed) this.frames = 0
+    return changed
+  }
+}
+
 /** Keeps the floating selection toolbar just above the selected object on screen (and the rulers' selection marks). */
 function SelectionTracker(): null {
   const ids = useStore(useShallow((s) => selection(s)))
   const box = useMemo(() => new THREE.Box3(), [])
   const one = useMemo(() => new THREE.Box3(), [])
   const v = useMemo(() => new THREE.Vector3(), [])
+  const watch = useMemo(() => new MeasureWatch(), [])
   useFrame(({ camera, size }) => {
     const el = viewport.selectionToolbar
+    const roots = ids.map((id) => viewport.objects.get(id))
     // Above everything selected, so it never sits on the group's handles.
-    box.makeEmpty()
-    for (const id of ids) {
-      const obj = viewport.objects.get(id)
-      if (obj?.visible) box.union(one.setFromObject(obj))
+    if (watch.changed(roots)) {
+      box.makeEmpty()
+      for (const obj of roots) if (obj?.visible) box.union(one.setFromObject(obj))
     }
     if (rulerBridge.update) rulerBridge.update(box.isEmpty() ? null : screenRect(box, camera, v))
     if (!el) return
@@ -1724,8 +1777,10 @@ function ObjectGizmo({ id, target }: { id: string; target: THREE.Object3D }): Re
   }, [scene, pivot])
   const at = useMemo(() => new THREE.Vector3(), [])
   // Follow the object (undo, the properties panel, a model still loading) while it isn't being dragged.
+  const watch = useMemo(() => new MeasureWatch(), [])
   useFrame(() => {
     if (start.current) return
+    if (!watch.changed([target]) && pivot.scale.x === 1) return
     const c = drawnCentre(target, at) ?? target.getWorldPosition(at)
     if (!pivot.position.equals(c) || pivot.scale.x !== 1) {
       pivot.position.copy(c)

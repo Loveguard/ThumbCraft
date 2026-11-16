@@ -566,7 +566,30 @@ export interface CameraState {
 export interface HistoryEntry {
   objects?: SceneObject[]
   camera?: CameraState
+  /** The look of the scene before a change in the Look, Effects or Sky panels. */
+  settings?: SceneSettings
+  effects?: EffectSettings
+  sky?: SkySettings
 }
+
+/**
+ * Settings that are how you work, not how the picture looks (and the animation, which has its own undo): changing
+ * them is not an undo step, and undoing something else never puts an older one back.
+ */
+const WORKSPACE_SETTINGS: (keyof SceneSettings)[] = [
+  'showGrid',
+  'showRulers',
+  'snap',
+  'exportWidth',
+  'exportHeight',
+  'exportFormat',
+  'split',
+  'shot',
+  'animation'
+]
+
+/** The Animation mode turns this on: there, Ctrl+Z undoes animation edits, and the scene's history waits. */
+export const sceneHistory = { paused: false }
 
 /** The viewport registers these so undo can read and restore the view. */
 export const cameraBridge: { get: (() => CameraState | null) | null; set: ((c: CameraState) => void) | null } = {
@@ -589,6 +612,19 @@ function applyEntry(s: State, e: HistoryEntry): { reverse: HistoryEntry; patch: 
       patch.selectedJoint = null
     }
     patch.selectedIds = s.selectedIds.filter((id) => e.objects!.some((o) => o.id === id))
+  }
+  if (e.settings) {
+    reverse.settings = s.settings
+    const kept = Object.fromEntries(WORKSPACE_SETTINGS.map((k) => [k, s.settings[k]]))
+    patch.settings = { ...e.settings, ...kept } as SceneSettings
+  }
+  if (e.effects) {
+    reverse.effects = s.effects
+    patch.effects = e.effects
+  }
+  if (e.sky) {
+    reverse.sky = s.sky
+    patch.sky = e.sky
   }
   const now = e.camera && cameraBridge.get?.()
   if (e.camera && now) {
@@ -615,12 +651,30 @@ export function selection(s: Pick<State, 'selectedId' | 'selectedIds'>): string[
   return s.selectedIds.includes(s.selectedId) ? s.selectedIds : [s.selectedId]
 }
 
-const history = (s: State, key: string): Pick<State, 'past' | 'future'> => {
+type Undoable = 'objects' | 'settings' | 'effects' | 'sky'
+
+const history = (s: State, key: string, what: Undoable = 'objects'): Pick<State, 'past' | 'future'> => {
   const now = Date.now()
   const merge = key === lastCommit.key && now - lastCommit.at < 600
+  // One action that touches several things at once (a sky preset also moves the sun) is one step.
+  const last = s.past[s.past.length - 1]
+  const together = !merge && !!lastCommit.key && lastCommit.key !== 'camera' && now - lastCommit.at < 50
   lastCommit = { key, at: now }
   if (merge) return { past: s.past, future: [] }
-  return { past: [...s.past.slice(-99), { objects: s.objects }], future: [] }
+  if (together && last && !last.camera) {
+    if (what in last) return { past: s.past, future: [] }
+    return { past: [...s.past.slice(0, -1), { ...last, [what]: s[what] }], future: [] }
+  }
+  return { past: [...s.past.slice(-99), { [what]: s[what] }], future: [] }
+}
+
+/** A change in the Look, Effects or Sky panels as an undo step (a slider drag collapses into one). */
+const lookHistory = (s: State, what: Exclude<Undoable, 'objects'>, patch: object): Partial<State> => {
+  const keys = Object.keys(patch).filter((k) => what !== 'settings' || !WORKSPACE_SETTINGS.includes(k as never))
+  const before = s[what] as unknown as Record<string, unknown>
+  const changed = keys.filter((k) => !Object.is(before[k], (patch as Record<string, unknown>)[k]))
+  if (sceneHistory.paused || !changed.length) return {}
+  return history(s, `${what}:${keys.join(',')}`, what)
 }
 
 /** Sun and fill for a night sky (your own lights do the work) and for daytime. */
@@ -842,9 +896,9 @@ export const useStore = create<State>((set) => ({
       return { ...history(s, `reorder:${id}:${Date.now()}`), objects }
     }),
   setTransformMode: (transformMode) => set({ transformMode, selectedJoint: null }),
-  setSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
-  setEffects: (patch) => set((s) => ({ effects: { ...s.effects, ...patch } })),
-  setSky: (patch) => set((s) => ({ sky: { ...s.sky, ...patch } })),
+  setSettings: (patch) => set((s) => ({ ...lookHistory(s, 'settings', patch), settings: { ...s.settings, ...patch } })),
+  setEffects: (patch) => set((s) => ({ ...lookHistory(s, 'effects', patch), effects: { ...s.effects, ...patch } })),
+  setSky: (patch) => set((s) => ({ ...lookHistory(s, 'sky', patch), sky: { ...s.sky, ...patch } })),
   setProject: (patch) => set((s) => ({ project: { ...s.project, ...patch } })),
   setStatus: (status) => set({ status })
 }))

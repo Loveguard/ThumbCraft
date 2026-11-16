@@ -353,6 +353,8 @@ export function Effects(): ReactNode {
     }
   })
 
+  // The same vector from one render to the next, so the effect isn't handed a new one on every panel change.
+  const chromaticOffset = useMemo(() => new THREE.Vector2(e.chromaticAmount, e.chromaticAmount), [e.chromaticAmount])
   const effects: ReactElement[] = []
   // The cartoon look works on the raw render, before glow and grading.
   if (cartoon) effects.push(<Cartoon key="cartoon" />)
@@ -417,14 +419,7 @@ export function Effects(): ReactNode {
   // The film print sits on the finished colour, under the lens and screen effects.
   if (hasFilmPrint(e)) effects.push(<PaperPass key="paper" e={e} />)
   if (e.chromatic)
-    effects.push(
-      <ChromaticAberration
-        key="ca"
-        offset={new THREE.Vector2(e.chromaticAmount, e.chromaticAmount)}
-        radialModulation
-        modulationOffset={0.2}
-      />
-    )
+    effects.push(<ChromaticAberration key="ca" offset={chromaticOffset} radialModulation modulationOffset={0.2} />)
   // CRT before the always-on-top layers keeps titles clean; "over everything" moves it after them (below).
   if (e.warp)
     effects.push(<CustomEffect key="warp" make={() => new LensWarpEffect()} apply={(x) => x.setAmount(e.warpAmount)} />)

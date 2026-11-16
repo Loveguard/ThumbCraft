@@ -47,3 +47,46 @@ describe('undo history', () => {
     expect(useStore.getState().past).toHaveLength(0)
   })
 })
+
+describe('undo for the look of the scene', () => {
+  beforeEach(() => {
+    useStore.setState({ objects: [], past: [], future: [], selectedId: null })
+    useStore.getState().undo() // forgets the last commit, so steps from other tests never merge with these
+  })
+
+  it('undoes an effect change and a slider drag as one step', () => {
+    const s = useStore.getState()
+    const before = s.effects.bloomIntensity
+    s.setEffects({ bloomIntensity: 1.1 })
+    useStore.getState().setEffects({ bloomIntensity: 1.4 })
+    expect(useStore.getState().past).toHaveLength(1)
+    useStore.getState().undo()
+    expect(useStore.getState().effects.bloomIntensity).toBe(before)
+    useStore.getState().redo()
+    expect(useStore.getState().effects.bloomIntensity).toBe(1.4)
+  })
+
+  it('treats a sky preset and the sun it moves as one step', () => {
+    const s = useStore.getState()
+    const sun = s.settings.sunElevation
+    s.setSky({ preset: 'sunset' })
+    useStore.getState().setSettings({ sunElevation: 2 })
+    expect(useStore.getState().past).toHaveLength(1)
+    useStore.getState().undo()
+    expect(useStore.getState().sky.preset).toBe('biome')
+    expect(useStore.getState().settings.sunElevation).toBe(sun)
+  })
+
+  it('leaves workspace settings alone', () => {
+    const s = useStore.getState()
+    s.setSettings({ showGrid: !s.settings.showGrid })
+    expect(useStore.getState().past).toHaveLength(0)
+    const grid = useStore.getState().settings.showGrid
+    useStore.getState().setSettings({ fog: !s.settings.fog })
+    useStore.getState().setSettings({ exportWidth: 1920 })
+    useStore.getState().undo()
+    expect(useStore.getState().settings.fog).toBe(s.settings.fog)
+    expect(useStore.getState().settings.showGrid).toBe(grid)
+    expect(useStore.getState().settings.exportWidth).toBe(1920)
+  })
+})

@@ -8,6 +8,7 @@ import { viewport } from './components/Viewport'
 import { currentLookId } from './grading'
 import { backgroundScenes, MAX_MEDIA, MAX_PROJECT, mediaIdsOf, mediaStore, pruneMedia, registerMedia } from './media'
 import { defaultSkinUrl } from './minecraft/builders'
+import { checkObjects } from './projectObjects'
 import {
   DEFAULT_SETTINGS,
   DEFAULT_SKY,
@@ -123,6 +124,9 @@ export function serializeProject(): Uint8Array {
 export interface OpenedProject {
   name: string
   minecraftVersion: string | null
+  /** Objects left out because the file doesn't hold what they need, and objects with a field put right. */
+  dropped: number
+  repaired: number
 }
 
 const ENTRY = /^(project\.json|terrain\/[^/]+\/(blocks|biomes)\.u16|media\/[^/]+)$/
@@ -188,7 +192,12 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
     const b = files[`media/${m.id}`]
     if (b) registerMedia(m.name, m.mime, b, m.id)
   }
-  const objects = json.objects.map((o) =>
+  // Objects from an older, hand-edited or damaged file are put right before anything draws them.
+  const checked = checkObjects(json.objects, {
+    terrain: (id) => terrainStore.has(id),
+    media: (id) => mediaStore.has(id)
+  })
+  const objects = checked.objects.map((o) =>
     o.kind === 'image' || o.kind === 'video'
       ? { ...o, url: o.mediaId ? (mediaStore.get(o.mediaId)?.url ?? '') : safeMediaUrl(o.url) }
       : o.kind === 'player'
@@ -235,7 +244,12 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
     })
   }
   releaseUnused()
-  return { name: json.name, minecraftVersion: json.minecraftVersion }
+  return {
+    name: json.name,
+    minecraftVersion: json.minecraftVersion,
+    dropped: checked.dropped,
+    repaired: checked.repaired
+  }
 }
 
 export function newProject(): void {

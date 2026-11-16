@@ -83,6 +83,7 @@ import {
   animationHooks,
   animationRest,
   cameraBridge,
+  sceneHistory,
   terrainStore,
   useStore,
   withRest,
@@ -434,6 +435,7 @@ export function enterAnimation(): void {
   if (useAnim.getState().mode === 'animation') return
   const s = useStore.getState()
   stash = { past: s.past, future: s.future }
+  sceneHistory.paused = true
   write({ past: [], future: [], selectedJoint: null })
   useAnim.setState({ mode: 'animation', playing: false, selectedClip: null, addingPoints: false, past: [], future: [] })
   unsubscribe = useStore.subscribe(onSceneChange)
@@ -449,6 +451,7 @@ export function exitAnimation(): void {
   useAnim.setState({ mode: 'thumbnail', playing: false, selectedClip: null, addingPoints: false })
   unsubscribe?.()
   unsubscribe = null
+  sceneHistory.paused = false
   animationHooks.exit = null
   const restored = withRest(useStore.getState().objects)
   const ids = [...animationRest.keys()]

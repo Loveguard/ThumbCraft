@@ -59,13 +59,20 @@ export function mediaIdsOf(o: SceneObject, out: Set<string>): Set<string> {
   return out
 }
 
+/** One undo step, as far as media goes: the objects, sky or look it would put back. */
+interface SceneStep {
+  objects?: SceneObject[]
+  sky?: { hdriMediaId?: string | null }
+  effects?: { lutMediaId?: string | null }
+}
+
 /** The parts of a scene that can use media: what's on screen, its undo history and its look. */
 export interface SceneMedia {
   /** The animation's sound, if it has one. */
   settings?: { animation?: { audio?: { mediaId: string } | null } | null }
   objects: SceneObject[]
-  past: { objects?: SceneObject[] }[]
-  future: { objects?: SceneObject[] }[]
+  past: SceneStep[]
+  future: SceneStep[]
   sky: { hdriMediaId?: string | null }
   effects: { lutMediaId?: string | null }
 }
@@ -74,8 +81,11 @@ export interface SceneMedia {
 export function mediaUsedBy(s: SceneMedia, out = new Set<string>()): Set<string> {
   for (const list of [s.objects, ...[...s.past, ...s.future].map((e) => e.objects ?? [])])
     for (const o of list) mediaIdsOf(o, out)
-  if (s.sky.hdriMediaId) out.add(s.sky.hdriMediaId)
-  if (s.effects.lutMediaId) out.add(s.effects.lutMediaId)
+  // An undone sky or look still finds its image or .cube file.
+  for (const e of [s, ...s.past, ...s.future]) {
+    if (e.sky?.hdriMediaId) out.add(e.sky.hdriMediaId)
+    if (e.effects?.lutMediaId) out.add(e.effects.lutMediaId)
+  }
   const sound = s.settings?.animation?.audio?.mediaId
   if (sound) out.add(sound)
   return out
