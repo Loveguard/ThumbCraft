@@ -42,7 +42,7 @@
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^5.0.0",
     "ag-psd": "^33.0.0",
-    "electron": "^44.5.1",
+    "electron": "^44.9.1",
     "electron-builder": "^26.0.0",
     "electron-vite": "^5.0.0",
     "gifenc": "^1.0.3",
