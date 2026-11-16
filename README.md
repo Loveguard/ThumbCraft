@@ -2,8 +2,6 @@
 
 <a href="#new-animation-mode-beta"><img src="docs/images/animation.jpg" alt="New in ThumbCraft 0.6: the Animation update (beta). Minecraft animation without the hard part: action blocks, camera moves, sound, MP4 and GIF export." width="100%"></a>
 
-<img src="docs/images/banner.jpg" alt="ThumbCraft: the free 3D thumbnail studio for Minecraft creators" width="100%">
-
 # ThumbCraft
 
 Build a 3D scene from real Minecraft terrain, drop in your skin and your mobs, add big bold text and export a
@@ -85,6 +83,26 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 > [report what you find](https://github.com/Loveguard/ThumbCraft/issues).
 
 Switch from **Thumbnail** to **Animation** in the top bar and the same scene gets a timeline.
+
+### How it works
+
+![Six steps: 1. Switch to Animation in the top bar. 2. Pick a character and add a block such as Walk. 3. Draw the path by clicking the ground. 4. Arrange the blocks on the timeline. 5. Move the camera with camera blocks. 6. Export a video.](docs/images/readme/animation-steps.jpg)
+
+1. **Switch to Animation.** The switch sits in the middle of the top bar. Your scene stays as it is and a timeline
+   opens under it.
+2. **Pick a character, add a block.** Click a player or mob under **Characters**, then click a block (Walk, Run,
+   Punch, Cheer and so on) or drag it onto the timeline. **Move** blocks travel, **Act** blocks play on the spot.
+3. **Draw the path.** For a moving block, press **Add points** and click the ground where the character should go
+   (Enter or Esc stops). Drag the yellow points to bend the path, or use **Go to a spot** and the character finds
+   its own way.
+4. **Arrange the timeline.** Drag a block to move it in time and drag its edges to make it longer or shorter.
+   **Space** plays and pauses, **Delete** removes the selected block, and Ctrl Z undoes.
+5. **Move the camera.** Under **Camera**, drop Orbit, Push in, Crane up or another move on the camera row. Move the
+   view in the scene and the selected camera block takes it.
+6. **Export.** The **Export** button saves the video. Its arrow picks MP4, WebM, GIF or a PNG sequence and the
+   size, or sends the current frame to a thumbnail tab.
+
+### What it can do
 
 - **Blocks, not keyframes.** Drop Walk, Run, Sprint, Punch, Cheer and other blocks on a character's lane. Draw the
   path by clicking the ground, or use **Go to** and the character finds its own way across the terrain.
