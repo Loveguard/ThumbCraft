@@ -650,11 +650,6 @@ export interface WalkSubject {
 
 const DT = 1 / 240
 
-/** Seconds a walk along `path` takes for this subject (start to stop). */
-export function walkDuration(path: AnimPath, scale = 1): number {
-  return walkKeys(path, { kind: 'mob', scale, rotation: [0, 0, 0] }).at(-1)!.t - path.start
-}
-
 /** Which way a rotation (degrees) faces in the ground plane, in radians (0 faces +Z). */
 export function yawOfRotation(rotation: Vec3): number {
   const f = new THREE.Vector3(0, 0, 1).applyQuaternion(quaternionOf(rotation))

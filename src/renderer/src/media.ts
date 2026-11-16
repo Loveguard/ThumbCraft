@@ -45,11 +45,6 @@ export async function registerFile(file: File, mime = file.type): Promise<MediaE
   return registerMedia(file.name, mime, new Uint8Array(await file.arrayBuffer()))
 }
 
-export function clearMedia(): void {
-  for (const m of mediaStore.values()) URL.revokeObjectURL(m.url)
-  mediaStore.clear()
-}
-
 /** Media files an object uses (so they are saved with the project and kept in memory). */
 export function mediaIdsOf(o: SceneObject, out: Set<string>): Set<string> {
   if ((o.kind === 'image' || o.kind === 'video') && o.mediaId) out.add(o.mediaId)

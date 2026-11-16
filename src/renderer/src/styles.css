@@ -291,29 +291,11 @@ kbd {
   border-radius: 2px;
   background: var(--bg-panel);
 }
-.toolgroup {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-.toolgroup .divider {
-  margin: 0 4px;
-}
 .export {
   display: flex;
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
-}
-.select-btn {
-  background: var(--bg-raised);
-  border-radius: var(--radius-md);
-  padding: 7px 10px;
-  font-weight: 500;
 }
 
 /* rail + asset panel */
@@ -429,18 +411,6 @@ kbd {
 .overlay > * {
   pointer-events: auto;
 }
-.view-chip {
-  position: absolute;
-  left: 0;
-  top: -36px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border-strong);
-  color: var(--text-2);
-  font-size: 11px;
-  font-weight: 500;
-}
 .float-bar {
   position: absolute;
   display: flex;
@@ -451,11 +421,6 @@ kbd {
   background: var(--bg-raised);
   border: 1px solid var(--border-strong);
   box-shadow: var(--shadow-float);
-}
-.selection-bar {
-  left: 0;
-  top: 0;
-  will-change: transform;
 }
 .view-bar {
   left: 50%;
@@ -811,9 +776,6 @@ kbd {
 .status span:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.status-msg {
-  color: var(--warn);
 }
 
 /* first-run setup */
@@ -1314,12 +1276,6 @@ button.link {
   overflow-wrap: anywhere;
 }
 
-.chip-count {
-  margin-left: 4px;
-  opacity: 0.6;
-  font-weight: 400;
-}
-
 .app-error {
   position: fixed;
   inset: 0;
@@ -1454,12 +1410,6 @@ img.template-art {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.status-right {
-  display: flex;
-  gap: 14px;
-  align-items: center;
 }
 .update-notice {
   color: var(--accent);
@@ -2097,21 +2047,6 @@ input[type='checkbox']:checked::after {
   border-radius: 6px;
   display: block;
 }
-.toolgroup {
-  background: transparent;
-  border: 0;
-  padding: 0;
-  gap: 2px;
-}
-.select-btn {
-  background: transparent;
-  color: var(--text-2);
-  padding: 0 6px;
-}
-.select-btn:hover {
-  background: var(--bg-input);
-  color: var(--text);
-}
 
 /* Left rail: icons first, quiet labels, selection shown with a neutral lift. */
 .rail {
@@ -2208,12 +2143,6 @@ input[type='checkbox']:checked::after {
 .tool.active:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text);
-}
-.view-chip {
-  background: rgba(24, 25, 28, 0.7);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  color: var(--text-3);
 }
 
 /* Status bar. */
@@ -2574,7 +2503,6 @@ body {
 /* Floating glass: menus, the viewport bars, the start panel and dialogs. */
 .menu,
 .float-bar,
-.view-chip,
 .start-panel,
 .batch-export {
   background: var(--glass-sheen), var(--glass-strong);
@@ -4712,14 +4640,6 @@ button:hover:not(:disabled) {
 .tl-lane.active {
   background: var(--bg-hover);
 }
-.tl-path {
-  position: absolute;
-  top: 9px;
-  height: 8px;
-  border-radius: 4px;
-  background: rgba(255, 210, 58, 0.16);
-  pointer-events: none;
-}
 .tl-key {
   position: absolute;
   top: 8px;
@@ -4789,11 +4709,6 @@ button:hover:not(:disabled) {
   font-style: normal;
   font-size: 10.5px;
   color: #ffd23a;
-}
-.anim-drawing p {
-  margin: 0 0 8px;
-  font-size: 12px;
-  color: var(--text-2);
 }
 .animate-panel .muted {
   margin: 0;

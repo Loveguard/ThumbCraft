@@ -178,7 +178,7 @@ export function litematicToTerrain(root: NbtCompound): TerrainData {
   return box.finish()
 }
 
-export { gunzipCapped, MAX_INFLATED } from './inflate'
+export { gunzipCapped } from './inflate'
 
 const maybeGunzip = (bytes: Uint8Array): Uint8Array =>
   bytes[0] === 0x1f && bytes[1] === 0x8b ? gunzipCapped(bytes) : bytes
