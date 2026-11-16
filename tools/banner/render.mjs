@@ -1,4 +1,4 @@
-// Renders the README images: `node tools/banner/render.mjs [name…]` (names: banner.html, social.html, looks.html, or a
+// Renders the README images: `node tools/banner/render.mjs [name…]` (names: banner.html, animation.html, social.html, looks.html, or a
 // section id from readme-art.mjs such as features, or support.html). Needs Playwright with a Chromium and the fonts from `npm install`.
 import { chromium } from 'playwright'
 import { writeFileSync, rmSync, mkdirSync } from 'node:fs'
@@ -10,6 +10,7 @@ const only = process.argv.slice(2)
 const want = (name) => !only.length || only.includes(name)
 const pages = [
   ['banner.html', 1280, 400, '../../docs/images/banner.jpg'],
+  ['animation.html', 1280, 400, '../../docs/images/animation.jpg'],
   ['social.html', 1280, 640, '../../docs/images/social-preview.jpg'],
   ['looks.html', 1600, 300, '../../docs/images/looks.jpg']
 ]
