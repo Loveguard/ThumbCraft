@@ -10,7 +10,6 @@ import {
   GAITS,
   compileClips,
   canLayer,
-  keyAt,
   laneOf,
   mobLimbs,
   MIN_CLIP,
@@ -53,11 +52,9 @@ import { parseScript } from '@shared/script'
 import {
   clampScene,
   fitsKind,
-  propDef,
   putSceneKey,
   sampleScene,
   SCENE_PROPS,
-  type SceneKey,
   type ScenePropId,
   type SceneTrack
 } from '@shared/sceneTracks'
@@ -604,11 +601,6 @@ export function setKeyChannel(id: string, index: number, channel: string, v: num
 export function clearTrack(id: string): void {
   commit(withTrack(animationOf(), id, () => null))
   syncTracks()
-}
-
-export const keyIndexAtPlayhead = (id: string | null): number => {
-  const tr = trackOf(id)
-  return tr ? keyAt(tr.keys, useAnim.getState().time) : -1
 }
 
 // ------------------------------------------------------------------ blocks
@@ -1539,17 +1531,6 @@ export function followPrevious(clipId: string): void {
   )
 }
 
-/** Makes the viewport's camera as it is now the view the first block starts from. */
-export function setCameraHome(): void {
-  const a = animationOf()
-  const home = currentView()
-  if (!a.camera || !home) return
-  // The view you see is the lane's own while a block covers the playhead; the start is what the camera looked like
-  // before any block, so step off the lane first.
-  commit({ ...a, camera: { ...a.camera, home } })
-  say('The camera lane now starts from this view.')
-}
-
 // ------------------------------------------------------------------ scene tracks
 
 const sceneOf = (): SceneTrack[] => animationOf().scene ?? []
@@ -1794,9 +1775,6 @@ export function rackFocus(fromId: string, toId: string, at = useAnim.getState().
     }
   })
 }
-
-export type { SceneKey }
-export { propDef as scenePropDef }
 
 // ------------------------------------------------------------------ export reframing
 

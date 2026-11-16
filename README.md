@@ -1,5 +1,7 @@
 <div align="center">
 
+<a href="#new-animation-mode-beta"><img src="docs/images/animation.jpg" alt="New in ThumbCraft 0.6: the Animation update (beta). Minecraft animation without the hard part: action blocks, camera moves, sound, MP4 and GIF export." width="100%"></a>
+
 <img src="docs/images/banner.jpg" alt="ThumbCraft: the free 3D thumbnail studio for Minecraft creators" width="100%">
 
 # ThumbCraft

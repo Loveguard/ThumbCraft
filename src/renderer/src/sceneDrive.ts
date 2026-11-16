@@ -132,5 +132,3 @@ export function releaseScene(keep: Set<string>, write: Write): void {
   if (objects !== s.objects) out.objects = objects
   if (Object.keys(out).length) write(out)
 }
-
-export const sceneDriven = (): boolean => rest.size > 0

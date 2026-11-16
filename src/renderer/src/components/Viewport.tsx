@@ -753,8 +753,8 @@ function Bridge(): null {
       const yaw = Math.atan2(camera.position.x - point.x, camera.position.z - point.z)
       return { point, faceCameraYaw: Math.round(THREE.MathUtils.radToDeg(yaw)) }
     }
-    viewport.capture = (w, h) => {
-      const cam = camera as THREE.PerspectiveCamera
+    /** Hides the gizmos and guides for a capture; returns them so they can be shown again. */
+    const hideHelpers = (): THREE.Object3D[] => {
       const helpers: THREE.Object3D[] = []
       scene.traverse((o) => {
         if (isHelperObject(o) && o.visible) {
@@ -762,15 +762,25 @@ function Bridge(): null {
           o.visible = false
         }
       })
+      return helpers
+    }
+    /** Sizes the renderer (through the effect chain when there is one) and the camera for a capture. */
+    const resize = (composer: typeof composerHandle.current, width: number, height: number, ratio: number): void => {
+      const cam = camera as THREE.PerspectiveCamera
+      gl.setPixelRatio(ratio)
+      if (composer) composer.setSize(width, height, false)
+      else gl.setSize(width, height, false)
+      cam.aspect = width / height
+      cam.updateProjectionMatrix()
+    }
+    viewport.capture = (w, h) => {
+      const cam = camera as THREE.PerspectiveCamera
+      const helpers = hideHelpers()
       const prevRatio = gl.getPixelRatio()
       const composer = composerHandle.current
       // Render once at the export size, through the post-processing chain when effects are on.
       const renderAt = (width: number, height: number, ratio: number): void => {
-        gl.setPixelRatio(ratio)
-        if (composer) composer.setSize(width, height, false)
-        else gl.setSize(width, height, false)
-        cam.aspect = width / height
-        cam.updateProjectionMatrix()
+        resize(composer, width, height, ratio)
         renderFrame(gl, scene, cam, composer)
       }
       try {
@@ -799,13 +809,7 @@ function Bridge(): null {
       canvas.width = w
       canvas.height = h
       const g = canvas.getContext('2d', { willReadFrequently: true })!
-      const setSize = (width: number, height: number, ratio: number): void => {
-        gl.setPixelRatio(ratio)
-        if (composer) composer.setSize(width, height, false)
-        else gl.setSize(width, height, false)
-        cam.aspect = width / height
-        cam.updateProjectionMatrix()
-      }
+      const setSize = resize.bind(null, composer)
       // Effect time stays put (delta 0), so film grain is identical in every pass.
       const grab = (): ImageData => {
         renderFrame(gl, scene, cam, composer, false, 0)
@@ -836,22 +840,10 @@ function Bridge(): null {
     }
     viewport.frames = (w, h) => {
       const cam = camera as THREE.PerspectiveCamera
-      const helpers: THREE.Object3D[] = []
-      scene.traverse((o) => {
-        if (isHelperObject(o) && o.visible) {
-          helpers.push(o)
-          o.visible = false
-        }
-      })
+      const helpers = hideHelpers()
       const prevRatio = gl.getPixelRatio()
       const composer = composerHandle.current
-      const setSize = (width: number, height: number, ratio: number): void => {
-        gl.setPixelRatio(ratio)
-        if (composer) composer.setSize(width, height, false)
-        else gl.setSize(width, height, false)
-        cam.aspect = width / height
-        cam.updateProjectionMatrix()
-      }
+      const setSize = resize.bind(null, composer)
       setSize(w, h, 1)
       return {
         draw: (g, delta) => {

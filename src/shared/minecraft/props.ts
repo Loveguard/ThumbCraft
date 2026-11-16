@@ -1,4 +1,4 @@
-// Small hand-built block props for scenes (a table, a glass pane, a white room, distant towers) and two
+// Small hand-built block props for scenes (a glass pane, a dungeon) and two
 // remixes of a structure (scrambled into rainbow blocks, or ruined). All plain TerrainData.
 import type { BlockState, Dimension, TerrainData } from '../types'
 
@@ -51,45 +51,9 @@ export function blockBox(
   }
 }
 
-/** A long wooden table: a plank top on four log legs. Its top surface is TABLE_HEIGHT blocks up. */
-export const TABLE_HEIGHT = 3
-export function buildTable(length = 16, depth = 4): TerrainData {
-  return blockBox(length, TABLE_HEIGHT, depth, (x, y, z) => {
-    if (y === TABLE_HEIGHT - 1) return 'spruce_planks'
-    const leg = (x === 1 || x === length - 2) && (z === 0 || z === depth - 1)
-    return leg ? ['stripped_spruce_log', { axis: 'y' }] : null
-  })
-}
-
 /** A big flat sheet of hazy white glass, one block thick, for "looking through a pane" shots. */
 export function buildGlassPane(width = 18, height = 14): TerrainData {
   return blockBox(width, height, 1, () => 'white_stained_glass')
-}
-
-/** A bright, empty room: white floor and two tall white walls, open towards the camera and the back. */
-export function buildWhiteRoom(width = 18, length = 26, height = 18): TerrainData {
-  return blockBox(width, height, length, (x, y) => {
-    if (y === 0) return 'white_concrete'
-    if (x === 0 || x === width - 1) return 'white_concrete'
-    return null
-  })
-}
-
-/** A scatter of tall dark towers, for a blurred city skyline far behind the subject. */
-export function buildDarkTowers(width = 60, depth = 10): TerrainData {
-  const towers: [number, number, number][] = []
-  for (let i = 0; i < 9; i++)
-    towers.push([
-      Math.floor(hash(i, 1, 2, 7) * (width - 4)),
-      10 + Math.floor(hash(i, 3, 4, 7) * 18),
-      3 + Math.floor(hash(i, 5, 6, 7) * 3)
-    ])
-  return blockBox(width, 30, depth, (x, y, z) => {
-    for (const [tx, h, w] of towers)
-      if (x >= tx && x < tx + w && z >= 2 && z < 2 + w && y < h)
-        return hash(x, y, z, 9) < 0.06 ? 'purple_stained_glass' : 'blackstone'
-    return null
-  })
 }
 
 const RAINBOW = [
