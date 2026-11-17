@@ -172,7 +172,7 @@ function ExportMenu({ onClose }: { onClose: () => void }): ReactNode {
         </strong>
       </button>
       <button
-        title="A .psd with the background, each player, mob, title and sticker on its own layer"
+        title="A .psd with the sky, the terrain and each build, mob, player, effect, title and sticker on its own layer, in folders by kind"
         onClick={() => {
           onClose()
           void exportPsd(w, h).catch(reportExportError)

@@ -96,10 +96,16 @@ export const viewport: {
   capture: ((w: number, h: number) => string) | null
   /**
    * The frame at w×h, the frame with all of `ids` hidden (the background), and for each id the frame with only
-   * that object hidden. Every render uses the same effect time, so the only differences are the objects.
+   * that object hidden. With `ground`, also the background with those hidden too (the sky). Every render uses the
+   * same effect time, so the only differences are the objects.
    */
   captureLayers:
-    | ((w: number, h: number, ids: string[]) => { full: ImageData; background: ImageData; without: LayerCapture[] })
+    | ((
+        w: number,
+        h: number,
+        ids: string[],
+        ground?: string[]
+      ) => { full: ImageData; background: ImageData; sky: ImageData | null; without: LayerCapture[] })
     | null
   /**
    * Renders frame after frame at w×h (a video): `draw` renders the scene as it is now into `g`, advancing animated
@@ -792,7 +798,7 @@ function Bridge(): null {
         renderAt(size.width, size.height, prevRatio)
       }
     }
-    viewport.captureLayers = (w, h, ids) => {
+    viewport.captureLayers = (w, h, ids, ground = []) => {
       const cam = camera as THREE.PerspectiveCamera
       const hidden: THREE.Object3D[] = []
       const hide = (o: THREE.Object3D | undefined): void => {
@@ -830,7 +836,9 @@ function Bridge(): null {
         }
         for (const id of ids) hide(viewport.objects.get(id))
         const background = grab()
-        return { full, background, without }
+        for (const id of ground) hide(viewport.objects.get(id))
+        const sky = ground.length ? grab() : null
+        return { full, background, sky, without }
       } finally {
         hidden.slice(helperCount).forEach((o) => (o.visible = true))
         hidden.slice(0, helperCount).forEach((o) => (o.visible = true))
