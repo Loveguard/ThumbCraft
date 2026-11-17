@@ -197,12 +197,12 @@ function charactersOnly(w: number, h: number): (g: CanvasRenderingContext2D, del
     .objects.filter((o) => o.visible && (o.kind === 'player' || o.kind === 'mob'))
     .map((o) => o.id)
   return (g) => {
-    if (!viewport.captureLayers) throw new Error('The viewport is not ready yet')
-    const cap = viewport.captureLayers(w, h, ids)
+    if (!viewport.captureStates) throw new Error('The viewport is not ready yet')
+    const [full, background] = viewport.captureStates(w, h, [[], ids])
     // What differs from the frame with the characters hidden is theirs.
     const out = g.createImageData(w, h)
-    const a = cap.full.data
-    const b = cap.background.data
+    const a = full.data
+    const b = background.data
     for (let i = 0; i < a.length; i += 4) {
       const d = Math.max(Math.abs(a[i] - b[i]), Math.abs(a[i + 1] - b[i + 1]), Math.abs(a[i + 2] - b[i + 2]))
       if (d < 6) continue
