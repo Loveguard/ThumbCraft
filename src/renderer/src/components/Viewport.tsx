@@ -85,28 +85,14 @@ export interface Placement {
 }
 
 /** Live handles used by panels (placement, push/pull along view axis) and by export. */
-/** One layer of a layered capture: what to hide to see what lies behind it. */
-export interface LayerCapture {
-  id: string
-  pixels: ImageData
-}
-
 export const viewport: {
   camera: THREE.PerspectiveCamera | null
   capture: ((w: number, h: number) => string) | null
   /**
-   * The frame at w×h, the frame with all of `ids` hidden (the background), and for each id the frame with only
-   * that object hidden. With `ground`, also the background with those hidden too (the sky). Every render uses the
-   * same effect time, so the only differences are the objects.
+   * The frame at w×h once for each list of object ids, with those objects (and their lights) hidden. Every render
+   * uses the same effect time, so the only differences are the objects.
    */
-  captureLayers:
-    | ((
-        w: number,
-        h: number,
-        ids: string[],
-        ground?: string[]
-      ) => { full: ImageData; background: ImageData; sky: ImageData | null; without: LayerCapture[] })
-    | null
+  captureStates: ((w: number, h: number, states: string[][]) => ImageData[]) | null
   /**
    * Renders frame after frame at w×h (a video): `draw` renders the scene as it is now into `g`, advancing animated
    * effects (grain…) by `delta` seconds; `end` puts the viewport back.
@@ -123,7 +109,7 @@ export const viewport: {
 } = {
   camera: null,
   capture: null,
-  captureLayers: null,
+  captureStates: null,
   frames: null,
   placement: null,
   objects: new Map(),
@@ -798,51 +784,33 @@ function Bridge(): null {
         renderAt(size.width, size.height, prevRatio)
       }
     }
-    viewport.captureLayers = (w, h, ids, ground = []) => {
+    viewport.captureStates = (w, h, states) => {
       const cam = camera as THREE.PerspectiveCamera
-      const hidden: THREE.Object3D[] = []
-      const hide = (o: THREE.Object3D | undefined): void => {
-        if (o?.visible) {
-          o.visible = false
-          hidden.push(o)
-        }
-      }
-      scene.traverse((o) => isHelperObject(o) && hide(o))
-      const helperCount = hidden.length
+      const helpers = hideHelpers()
       const prevRatio = gl.getPixelRatio()
       const composer = composerHandle.current
       const canvas = document.createElement('canvas')
       canvas.width = w
       canvas.height = h
       const g = canvas.getContext('2d', { willReadFrequently: true })!
-      const setSize = resize.bind(null, composer)
-      // Effect time stays put (delta 0), so film grain is identical in every pass.
-      const grab = (): ImageData => {
-        renderFrame(gl, scene, cam, composer, false, 0)
-        g.clearRect(0, 0, w, h)
-        g.drawImage(gl.domElement, 0, 0, w, h)
-        return g.getImageData(0, 0, w, h)
-      }
       try {
-        setSize(w, h, 1)
-        const full = grab()
-        const without: LayerCapture[] = []
-        for (const id of ids) {
-          const o = viewport.objects.get(id)
-          if (!o?.visible) continue
-          o.visible = false
-          without.push({ id, pixels: grab() })
-          o.visible = true
-        }
-        for (const id of ids) hide(viewport.objects.get(id))
-        const background = grab()
-        for (const id of ground) hide(viewport.objects.get(id))
-        const sky = ground.length ? grab() : null
-        return { full, background, sky, without }
+        resize(composer, w, h, 1)
+        return states.map((ids) => {
+          const hidden = ids.map((id) => viewport.objects.get(id)).filter((o) => o?.visible) as THREE.Object3D[]
+          hidden.forEach((o) => (o.visible = false))
+          try {
+            // Effect time stays put (delta 0), so film grain is identical in every pass.
+            renderFrame(gl, scene, cam, composer, false, 0)
+            g.clearRect(0, 0, w, h)
+            g.drawImage(gl.domElement, 0, 0, w, h)
+            return g.getImageData(0, 0, w, h)
+          } finally {
+            hidden.forEach((o) => (o.visible = true))
+          }
+        })
       } finally {
-        hidden.slice(helperCount).forEach((o) => (o.visible = true))
-        hidden.slice(0, helperCount).forEach((o) => (o.visible = true))
-        setSize(size.width, size.height, prevRatio)
+        helpers.forEach((o) => (o.visible = true))
+        resize(composer, size.width, size.height, prevRatio)
         renderFrame(gl, scene, cam, composer)
       }
     }

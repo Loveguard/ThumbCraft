@@ -1,11 +1,14 @@
-// Layered export for Photoshop: the sky, the terrain, then one layer per build, mob, player, effect and title, each
-// kind in its own folder, one layer per sticker, and the flattened thumbnail on top (hidden). Each 3D layer is the
-// part of the finished frame (effects included) that changes when that one object is hidden, so stacking the layers
-// gives the frame back.
+// Layered export for Photoshop. The sky, the terrain and one layer per build, mob, player, image and title are
+// rendered with every effect switched off, so none of them carries an effect's glow. Each effect then gets a folder
+// of its own: what it covers (Normal) and the light it adds to everything around it (Linear Dodge), so hiding the
+// folder takes its glow off the character too. Stickers come last, and the flattened thumbnail sits on top (hidden).
+// Each object layer is the part of the frame that changes when that one object is hidden; screen-wide effects such as
+// the colour look or CRT stay in every layer, and stacking all the layers gives the thumbnail back exactly.
 import { writePsdUint8Array, type Layer } from 'ag-psd'
 import * as THREE from 'three'
 import { sceneSettled } from './capture'
 import { viewport } from './components/Viewport'
+import { splitEffect } from './psdLayers'
 import { drawStickers } from './stickers'
 import { useStore, type SceneObject, type StickerObject } from './store'
 
@@ -13,12 +16,14 @@ import { useStore, type SceneObject, type StickerObject } from './store'
 const own = (o: SceneObject): boolean =>
   o.visible && o.kind !== 'light' && o.kind !== 'sticker' && !(o.kind === 'terrain' && o.ground)
 
+/** Kinds that light up or cover what's around them; they get their own folders above everything else. */
+const isEffect = (o: SceneObject): boolean => o.kind === 'vfx' || o.kind === 'lightning'
+
 /** The folder each kind of layer goes in, bottom to top as Photoshop stacks them. */
 const FOLDERS: [string, SceneObject['kind'][]][] = [
   ['Builds', ['terrain', 'model']],
   ['Mobs', ['mob']],
   ['Players', ['player']],
-  ['Effects', ['vfx', 'lightning']],
   ['Images', ['image', 'video', 'mirror']],
   ['Text', ['text', 'pixelText']]
 ]
@@ -74,9 +79,22 @@ function cutOut(
   return { data: box.getImageData(x0, y0, x1 - x0 + 1, y1 - y0 + 1), left: x0, top: y0 }
 }
 
+/** A full-frame layer, or nothing when it's empty. */
+function layerOf(
+  name: string,
+  data: Uint8ClampedArray<ArrayBuffer>,
+  w: number,
+  h: number,
+  blendMode?: Layer['blendMode']
+): Layer[] {
+  for (let i = 3; i < data.length; i += 4)
+    if (data[i]) return [{ name, canvas: canvasOf(new ImageData(data, w, h)), ...(blendMode && { blendMode }) }]
+  return []
+}
+
 /** A finished thumbnail at w×h as a layered .psd file. */
 export async function layeredPsd(w: number, h: number): Promise<Uint8Array> {
-  if (!viewport.captureLayers || !viewport.camera) throw new Error('The viewport is not ready yet')
+  if (!viewport.captureStates || !viewport.camera) throw new Error('The viewport is not ready yet')
   await document.fonts.ready
   await sceneSettled()
   const s = useStore.getState()
@@ -87,46 +105,64 @@ export async function layeredPsd(w: number, h: number): Promise<Uint8Array> {
   const dist = (id: string): number =>
     viewport.objects.get(id)?.getWorldPosition(new THREE.Vector3()).distanceTo(cam) ?? 0
   objects.sort((a, b) => dist(b.id) - dist(a.id))
-  const cap = viewport.captureLayers(
-    w,
-    h,
-    objects.map((o) => o.id),
-    ground
-  )
+  const effects = objects.filter(isEffect).map((o) => o.id)
+  const solids = objects.filter((o) => !isEffect(o))
+  const solidIds = solids.map((o) => o.id)
+
+  // Every frame needed, in one go: the scene without effects, then without each solid object in turn, the
+  // background, the sky, and the effects switched back on one by one (the last of those is the thumbnail).
+  const frames = viewport.captureStates(w, h, [
+    effects,
+    ...solidIds.map((id) => [...effects, id]),
+    [...effects, ...solidIds],
+    ...(ground.length ? [[...effects, ...solidIds, ...ground]] : []),
+    ...effects.map((_, i) => effects.slice(i + 1))
+  ])
+  const base = frames[0]
+  const without = frames.slice(1, 1 + solidIds.length)
+  const background = frames[1 + solidIds.length]
+  const skyFrame = ground.length ? frames[2 + solidIds.length] : null
+  const lit = frames.slice(frames.length - effects.length)
+  const full = lit.at(-1) ?? base
 
   // The bottom layer is the sky; the terrain is what the ground adds to it. Without ground it is all one layer.
-  const sky = cap.sky ?? new ImageData(new Uint8ClampedArray(cap.background.data), w, h)
-  const terrain = cap.sky ? (cutOut(cap.background, cap.sky, false)?.data ?? new ImageData(w, h)) : null
+  const sky = skyFrame ?? new ImageData(new Uint8ClampedArray(background.data), w, h)
+  const terrain = skyFrame ? (cutOut(background, skyFrame, false)?.data ?? new ImageData(w, h)) : null
   const stack = canvasOf(sky).getContext('2d')!
   if (terrain) stack.drawImage(canvasOf(terrain), 0, 0)
   const cuts = new Map<string, Layer>()
-  for (const o of objects) {
-    const without = cap.without.find((x) => x.id === o.id)
-    const cut = without && cutOut(cap.full, without.pixels)
-    if (!cut) continue
+  solids.forEach((o, i) => {
+    const cut = cutOut(base, without[i])
+    if (!cut) return
     const canvas = canvasOf(cut.data)
     stack.drawImage(canvas, cut.left, cut.top)
     cuts.set(o.id, { name: o.name, canvas, left: cut.left, top: cut.top })
-  }
-  // Where the stacked layers still differ from the frame (two objects sharing a shadow, faint glows), the frame's
-  // own pixels go into the terrain (or the sky), so the layers always add up to exactly the thumbnail.
+  })
+  // Where the stacked layers still differ from the frame without effects (two objects sharing a shadow), that
+  // frame's own pixels go into the terrain (or the sky), so the layers always add up exactly.
   const fix = terrain ?? sky
   const stacked = stack.getImageData(0, 0, w, h).data
-  const full = cap.full.data
-  for (let i = 0; i < full.length; i += 4)
-    if (stacked[i] !== full[i] || stacked[i + 1] !== full[i + 1] || stacked[i + 2] !== full[i + 2])
-      for (let k = 0; k < 4; k++) fix.data[i + k] = full[i + k]
+  for (let i = 0; i < base.data.length; i += 4)
+    if (stacked[i] !== base.data[i] || stacked[i + 1] !== base.data[i + 1] || stacked[i + 2] !== base.data[i + 2])
+      for (let k = 0; k < 4; k++) fix.data[i + k] = base.data[i + k]
 
   // Each kind in its folder, nearer objects above farther ones inside it.
   const layers: Layer[] = []
   for (const [name, kinds] of FOLDERS) {
-    const children = objects.filter((o) => kinds.includes(o.kind) && cuts.has(o.id)).map((o) => cuts.get(o.id)!)
+    const children = solids.filter((o) => kinds.includes(o.kind) && cuts.has(o.id)).map((o) => cuts.get(o.id)!)
     if (children.length) layers.push({ name, opened: true, children })
   }
+  // Each effect is what changed when it was switched on, over the frame before it.
+  const effectFolders = objects.filter(isEffect).flatMap((o, i) => {
+    const { cover, light } = splitEffect(lit[i].data, (i ? lit[i - 1] : base).data)
+    const children = [...layerOf(o.name, cover, w, h), ...layerOf(`${o.name} light`, light, w, h, 'linear dodge')]
+    return children.length ? [{ name: o.name, opened: true, children }] : []
+  })
+  if (effectFolders.length) layers.push({ name: 'Effects', opened: true, children: effectFolders })
   const stickerLayers: Layer[] = []
 
   const stickers = s.objects.filter((o): o is StickerObject => o.kind === 'sticker' && o.visible)
-  const flat = canvasOf(cap.full)
+  const flat = canvasOf(full)
   for (const st of stickers) {
     const c = document.createElement('canvas')
     c.width = w
