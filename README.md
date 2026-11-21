@@ -86,27 +86,29 @@ Switch from **Thumbnail** to **Animation** in the top bar and the same scene get
 
 ### How it works
 
-![Six steps: 1. Switch to Animation in the top bar. 2. Pick a character and add a block such as Walk. 3. Draw the path by clicking the ground. 4. Arrange the blocks on the timeline. 5. Move the camera with camera blocks. 6. Export a video.](docs/images/readme/animation-steps.jpg)
+![Six steps: 1. Switch to Animation in the top bar. 2. Pick a character and a ready-made scene. 3. Click the character for quick actions or draw a walk. 4. Arrange the blocks on the timeline. 5. Set camera shots. 6. Export for YouTube, Shorts or GIF.](docs/images/readme/animation-steps.jpg)
 
 1. **Switch to Animation.** The switch sits in the middle of the top bar. Your scene stays as it is and a timeline
-   opens under it.
-2. **Pick a character, add a block.** Click a player or mob under **Characters**, then click a block (Walk, Run,
-   Punch, Cheer and so on) or drag it onto the timeline. **Move** blocks travel, **Act** blocks play on the spot.
-3. **Draw the path.** For a moving block, press **Add points** and click the ground where the character should go
-   (Enter or Esc stops). Drag the yellow points to bend the path, or use **Go to a spot** and the character finds
-   its own way.
+   opens under it. A short guide shows the first time.
+2. **Pick a character and a scene.** Click a player or mob under **Characters**, then a ready-made scene such as
+   Victory, Sword duel or Nap. It plays straight away. Or type what happens ("Alex walks to the cave, panics,
+   runs") and press **Make it**.
+3. **Add what happens next.** Click the character in the scene for quick actions, or pick from the
+   **What happens next?** list (Move, Everyday, Feelings, Fight, Work, with a search box). Press **Draw a walk**
+   and drag across the ground to draw where it goes, or **Go to a spot** and it finds its own way.
 4. **Arrange the timeline.** Drag a block to move it in time and drag its edges to make it longer or shorter.
-   **Space** plays and pauses, **Delete** removes the selected block, and Ctrl Z undoes.
-5. **Move the camera.** Under **Camera**, drop Orbit, Push in, Crane up or another move on the camera row. Move the
-   view in the scene and the selected camera block takes it.
-6. **Export.** The **Export** button saves the video. Its arrow picks MP4, WebM, GIF or a PNG sequence and the
-   size, or sends the current frame to a thumbnail tab.
+   **Space** plays and pauses, **Delete** removes the selected block, and Ctrl Z undoes anything.
+5. **Set the shots.** Frame the view and press **Set shot here**. Move it and press again: the camera glides
+   between your shots. Orbit, Push in, Crane up and more are there too.
+6. **Export.** Under the **Export** arrow pick **YouTube**, **Shorts** or **GIF**, then export. Shorts shows the
+   tall frame and where YouTube's buttons sit.
 
 ### What it can do
 
-- **Blocks, not keyframes.** Drop Walk, Run, Sprint, Punch, Cheer and other blocks on a character's lane. Draw the
-  path by clicking the ground, or use **Go to** and the character finds its own way across the terrain.
-- **Camera moves.** Orbit, push in, crane up, whip pan, fly-through and more on the camera's own lane.
+- **Blocks, not keyframes.** Walk, Run, Punch, Cheer and 30 more on a character's row. Each action can repeat,
+  play once or freeze at the end, and ease in snappy, smooth or gentle.
+- **Poses that hold.** Add a **Pose** block and pose the character: it holds that pose for as long as the block.
+- **Camera moves.** Shots you set, plus orbit, push in, crane up, whip pan, fly-through and more on the camera row.
 - **The scene changes too.** Sun, weather, the look, focus and titles (typewriter, counter) can change over time.
 - **Sound.** Add a track and line blocks up with its beats; characters can talk along with it.
 - **Export.** MP4 or WebM, GIF, a PNG sequence, or just the characters on a transparent background, with motion

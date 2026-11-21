@@ -3,6 +3,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import * as THREE from 'three'
 import { fullPose } from '@shared/minecraft/playerModel'
+import { cleanSceneTracks } from '@shared/sceneTracks'
 import type { TerrainData } from '@shared/types'
 import { viewport } from './components/Viewport'
 import { currentLookId } from './grading'
@@ -208,6 +209,9 @@ export function loadProject(bytes: Uint8Array, path: string | null): OpenedProje
   const { skyColor: legacySkyColor, ...settings } = json.settings as SceneSettings & { skyColor?: string | null }
   // The Vivid render mode became Painterly, which became Cartoon.
   if (['vivid', 'painterly'].includes(settings.renderMode as string)) settings.renderMode = 'cartoon'
+  // Scene tracks from a project made elsewhere (or an older save) keep only what still makes sense.
+  if (settings.animation?.scene)
+    settings.animation = { ...settings.animation, scene: cleanSceneTracks(settings.animation.scene) }
   useStore.setState({
     objects,
     selectedId: null,

@@ -76,6 +76,12 @@ export type ClipType =
   | 'think'
   | 'fall'
   | 'sleep'
+  | 'pose'
+  | 'lunge'
+  | 'spin'
+
+/** How a block eases into and out of its action: quick and crisp, the usual, or slow and soft. */
+export type ClipEase = 'snappy' | 'smooth' | 'gentle'
 
 /** How a block plays: over and over to fill its length, once through, or up to its pose and held there. */
 export type ClipMode = 'loop' | 'once' | 'hold'
@@ -102,6 +108,10 @@ export interface Clip {
   exact?: boolean
   /** Climb: the way to face (radians, 0 faces +Z), toward the wall the ladder is on. */
   face?: number
+  /** Pose blocks: the pose they go to and hold. */
+  pose?: Pose
+  /** Actions: how they ease in and out (default smooth). */
+  ease?: ClipEase
 }
 
 export interface AnimTrack {
@@ -669,10 +679,6 @@ export interface LocomotionResult {
  * slows to a stop in the pose it started in. Keys fall on every quarter step (contact, passing…), which is enough
  * for the smooth playback between them to reproduce the cycle, and are easy to adjust by hand afterwards.
  */
-export function walkKeys(path: AnimPath, who: WalkSubject): AnimKey[] {
-  return locomotion(path, who).keys
-}
-
 export function locomotion(path: AnimPath, who: WalkSubject): LocomotionResult {
   const g = GAITS[path.gait]
   const curve = new PathCurve(path.points)
@@ -846,7 +852,10 @@ export const CLIPS: Record<ClipType, ClipDef> = {
   clap: act('Clap', 2, ['loop', 'once'], 0.5, 'Claps the hands in front'),
   think: act('Think', 2.5, ['hold', 'once'], 1, 'Hand to the chin, head tilted'),
   fall: act('Fall', 3, ['once'], 3, 'Flails, drops flat on the back and lies there, then gets up'),
-  sleep: act('Sleep', 4, ['once'], 4, 'Lies down on the back, breathing slowly, then wakes')
+  sleep: act('Sleep', 4, ['once'], 4, 'Lies down on the back, breathing slowly, then wakes'),
+  pose: act('Pose', 2, ['hold'], 1, 'Goes to a pose you set and holds it: select the block, then pose the character'),
+  lunge: act('Lunge', 1.2, ['once', 'loop'], 1.2, 'Lunges forward and springs back', false),
+  spin: act('Spin', 1.5, ['once', 'loop'], 1.5, 'Turns all the way round on the spot', false)
 }
 /** Blocks that only use the head, body and arms, and so can be dropped on the upper-body row to play over a walk. */
 const UPPER: ClipType[] = [
@@ -871,7 +880,8 @@ const UPPER: ClipType[] = [
   'block',
   'cheer',
   'clap',
-  'think'
+  'think',
+  'pose'
 ]
 export const canLayer = (type: ClipType): boolean => UPPER.includes(type)
 export const laneOf = (c: Pick<Clip, 'layer'>): 'base' | 'upper' => c.layer ?? 'base'
@@ -908,7 +918,10 @@ export const CLIP_ORDER: ClipType[] = [
   'clap',
   'think',
   'fall',
-  'sleep'
+  'sleep',
+  'pose',
+  'lunge',
+  'spin'
 ]
 /** How a block plays (what it was set to, else its type's first mode). */
 export const modeOf = (c: Pick<Clip, 'type' | 'mode'>): ClipMode | null => {
@@ -1002,6 +1015,9 @@ const over = (rest: Pose, set: Partial<Pose>): Pose => {
   return out
 }
 
+/** Seconds an action takes to ease in and out, by its ease. */
+const EASE_TIME: Record<ClipEase, number> = { snappy: 0.12, smooth: 0.35, gentle: 0.8 }
+
 /** What a player's pose is `t` seconds into an action that lasts `dur`, easing in and out of `rest`. */
 function actionPose(
   type: ClipType,
@@ -1010,13 +1026,14 @@ function actionPose(
   rest: Pose,
   u = 0,
   mode: ClipMode = 'once',
-  join?: { from?: Pose; exit?: boolean }
+  join?: { from?: Pose; exit?: boolean },
+  extra: { ease?: ClipEase; pose?: Partial<Pose> } = {}
 ): Pose {
-  const ease = Math.min(0.35, dur / 3)
+  const ease = Math.min(EASE_TIME[extra.ease ?? 'smooth'], dur / 3)
   // Settles in with a little overshoot rather than gliding to a stop, and eases out smoothly. A block that runs
   // straight into another action doesn't drop back to rest first: it carries on into the next one's pose.
-  const e =
-    (join?.from ? smoothstep(t / ease) : backOut(t / ease)) * (join?.exit === false ? 1 : smoothstep((dur - t) / ease))
+  const settle = join?.from || extra.ease === 'gentle' ? smoothstep : backOut
+  const e = settle(t / ease) * (join?.exit === false ? 1 : smoothstep((dur - t) / ease))
   const a = (2 * Math.PI * t) / 1
   const TAU = 2 * Math.PI
   // Poses reached and left again (held ones stop at the top): 0 at rest, 1 at the peak.
@@ -1217,6 +1234,27 @@ function actionPose(
       })
       break
     }
+    case 'pose':
+      target = extra.pose ? over(rest, extra.pose) : rest
+      break
+    case 'lunge': {
+      const k = lungeOf(u)
+      target = over(rest, {
+        head: [-10 * k, 0, 0],
+        body: [22 * k, 0, 0],
+        rightArm: [-80 * k, 0, -8 * k],
+        leftArm: [-80 * k, 0, 8 * k],
+        rightLeg: [-28 * k, 0, 0],
+        leftLeg: [18 * k, 0, 0]
+      })
+      break
+    }
+    case 'spin':
+      target = over(rest, {
+        rightArm: [0, 0, -40 * Math.sin(Math.PI * u)],
+        leftArm: [0, 0, 40 * Math.sin(Math.PI * u)]
+      })
+      break
     case 'wave':
       target = over(rest, {
         head: [0, 10, 4],
@@ -1236,6 +1274,9 @@ function actionPose(
   }
   return lerpPose(join?.from && t < ease ? join.from : rest, target, e)
 }
+
+/** A lunge's reach (0…1) through one go: out fast, back slower. */
+const lungeOf = (u: number): number => (u < 0.35 ? smoothstep(u / 0.35) : 1 - smoothstep((u - 0.35) / 0.65))
 
 /** The jump: a crouch, a push, a tucked flight and a soft landing. Returns the pose and the lift in blocks. */
 function jumpPose(u: number, rest: Pose, height: number): { pose: Pose; lift: number } {
@@ -1374,10 +1415,16 @@ function actionKeys(
         pose = j.pose
         lift = j.lift
       } else
-        pose = actionPose(clip.type, t, clip.duration, rest ?? fullPose(undefined), beatOf(clip, t), mode, {
-          from: join.before && from.pose ? from.pose : undefined,
-          exit: !join.after
-        })
+        pose = actionPose(
+          clip.type,
+          t,
+          clip.duration,
+          rest ?? fullPose(undefined),
+          beatOf(clip, t),
+          mode,
+          { from: join.before && from.pose ? from.pose : undefined, exit: !join.after },
+          clip
+        )
       setPose(key, pose)
       // Feet stay on the ground while crouching, and leave it only in flight.
       key.position[1] += (lift ? lift : -footDrop(pose)) * scale
@@ -1388,6 +1435,14 @@ function actionKeys(
         const w = Math.min(1, Math.max(0, (u - 0.3) / 0.5))
         if (u > 0.3 && u < 0.8) key.position[1] += 1.1 * 4 * w * (1 - w) * scale
       }
+    }
+    if (clip.type === 'lunge') {
+      const k = lungeOf(beatOf(clip, t)) * 0.9 * scale
+      key.position[0] += Math.sin(from.yaw) * k
+      key.position[2] += Math.cos(from.yaw) * k
+    } else if (clip.type === 'spin') {
+      const turn = 2 * Math.PI * smoothstep(beatOf(clip, t))
+      key.rotation = rotationOf(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), from.yaw + turn))
     }
     keys.push(key)
   }
@@ -1651,7 +1706,11 @@ function layerKeys(
           stance,
           e * (mode === 'once' ? Math.sin(Math.PI * Math.min(1, u)) : 1)
         )
-      } else pose = actionPose(c.type, Math.max(0, local), c.duration, pose, u, mode)
+      } else {
+        // Over a walk a pose keeps the legs to the row below.
+        const set = c.pose && Object.fromEntries(Object.entries(c.pose).filter(([n]) => !/Leg|Shin/.test(n)))
+        pose = actionPose(c.type, Math.max(0, local), c.duration, pose, u, mode, undefined, { ease: c.ease, pose: set })
+      }
     }
     out.push({ t, position: [...st.position], rotation: [...st.rotation], pose })
   }
@@ -1675,3 +1734,14 @@ function dedupe(keys: AnimKey[]): AnimKey[] {
   }
   return out
 }
+
+/** The actions (blocks that don't travel), grouped the way the Animate panel lists them. */
+export const ACTION_GROUPS: [string, ClipType[]][] = [
+  [
+    'Everyday',
+    ['pose', 'idle', 'wave', 'point', 'nod', 'shake', 'bow', 'think', 'sit', 'sleep', 'eat', 'reach', 'jump']
+  ],
+  ['Feelings', ['laugh', 'cheer', 'clap', 'shrug', 'facepalm', 'panic', 'cower']],
+  ['Fight', ['punch', 'slash', 'block', 'lunge', 'hit', 'spin', 'fall']],
+  ['Work', ['mine', 'chop']]
+]

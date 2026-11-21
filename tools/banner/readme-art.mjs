@@ -357,18 +357,18 @@ const animSteps = [
     `<div style="position:absolute;inset:0;display:grid;place-items:center;background:#131417"><div style="width:250px">${seg(['Thumbnail', 'Animation'], 1)}</div></div>${cursor(262, 112)}`
   ],
   [
-    'Pick a character, add a block',
-    'Click a player or mob under <b>Characters</b>, then click a block such as Walk, or drag it onto the timeline.',
+    'Pick a character and a scene',
+    'Click a player or mob under <b>Characters</b>, then a ready-made scene such as Victory. It plays straight away.',
     `<div style="position:absolute;inset:0;background:#131417;padding:14px 18px">
       <div style="font-size:11.5px;color:#8b929e;margin-bottom:5px">Characters</div>
       <div style="${ui};padding:6px 10px;font-size:13px;display:flex;gap:8px;align-items:center;color:#fff;box-shadow:0 0 0 2px #0a84ff">${icon('User', 15)} Steve</div>
-      <div style="margin:9px 0 8px">${seg(['Move', 'Act', 'Camera'], 0)}</div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px">${tile('Footprints', 'Walk', true)}${tile('Wind', 'Run')}${tile('Zap', 'Sprint')}${tile('Waves', 'Swim')}</div>
+      <div style="font-size:11.5px;color:#8b929e;margin:10px 0 5px">Start Steve from a scene</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px">${tile('PartyPopper', 'Victory', true)}${tile('Swords', 'Sword duel')}${tile('Siren', 'Spooked')}${tile('Bed', 'Nap')}</div>
     </div>${cursor(84, 158)}`
   ],
   [
-    'Draw the path',
-    'Press <b>Add points</b> and click the ground where the character should go. Drag the yellow points to bend the path. <b>Go to a spot</b> finds the way by itself.',
+    'Add what happens next',
+    'Click the character in the scene for quick actions, or press <b>Draw a walk</b> and drag across the ground. Drag the yellow points to bend the path.',
     `<div style="position:absolute;inset:0;${scene('scene-1.jpg')};filter:brightness(.8)"></div>
      <svg style="position:absolute;inset:0;width:100%;height:100%" viewBox="0 0 400 190"><path d="M60 150 C120 120 150 160 215 128 S310 95 350 110" fill="none" stroke="#facc15" stroke-width="3.5" stroke-dasharray="9 7" stroke-linecap="round"/>${[
        [60, 150],
@@ -385,14 +385,14 @@ const animSteps = [
       <div style="display:flex;align-items:center;gap:10px;color:#cfd3da;font-size:12px;margin-bottom:6px">${icon('SkipBack', 15)}${icon('Play', 16)}<span>1.60 s <span style="color:#6b7280">/ 4.00 s</span></span></div>
       ${lane('Camera', clip('#fde68a', 20, 150, 'Push in'))}
       ${lane('Steve', clip('#86efac', 0, 120, 'Walk') + clip('#fca5a5', 126, 70, 'Punch') + clip('#86efac', 202, 80, 'Cheer'))}
-      ${lane('Upper body', clip('#93c5fd', 60, 90, 'Wave'))}
+      ${lane('Arms, head', clip('#93c5fd', 60, 90, 'Wave'))}
       ${lane('Warden', clip('#86efac', 90, 170, 'Walk'))}
       <div style="position:absolute;left:218px;top:40px;bottom:14px;width:2px;background:#0a84ff"></div>
     </div>${cursor(208, 92)}`
   ],
   [
-    'Move the camera',
-    'Open the <b>Camera</b> blocks and drop Orbit, Push in or Crane up on the camera row. Move the view in the scene and the selected block takes it.',
+    'Set the shots',
+    'Frame the view and press <b>Set shot here</b>. Move it, press again, and the camera glides between your shots. Orbit, Push in and more are there too.',
     `<div style="position:absolute;inset:0;${scene('preview-manhunt.jpg')};filter:brightness(.8)"></div>
      <div style="position:absolute;inset:18px 26px;border:2px dashed rgba(255,255,255,.9);border-radius:6px"></div>
      <div style="position:absolute;inset:44px 78px;border:2px solid #fde68a;border-radius:6px;box-shadow:0 0 0 999px rgba(0,0,0,.28)"></div>
@@ -400,13 +400,14 @@ const animSteps = [
   ],
   [
     'Export',
-    'The <b>Export</b> button saves the video. Its arrow picks MP4, WebM, GIF or a PNG sequence and the size, or sends the current frame to a thumbnail tab.',
+    'Under the <b>Export</b> arrow pick <b>YouTube</b>, <b>Shorts</b> or <b>GIF</b>, then export. WebM, PNG sequences and more sizes are there too.',
     `<div style="position:absolute;inset:0;background:#131417;padding:10px 18px">
       <div style="display:flex;justify-content:flex-end"><div style="display:flex;align-items:center;gap:7px;background:#0a84ff;color:#fff;font:600 13px Inter;padding:7px 12px;border-radius:8px">${icon('Film', 15)} Export ${icon('ChevronDown', 14)}</div></div>
       <div style="${ui};margin:6px 0 0 auto;width:262px;padding:7px 10px;font-size:12.5px;color:#cfd3da;display:grid;gap:5px">
+        <div style="color:#8b929e;font-size:11px">Quick pick</div>
+        ${seg(['YouTube', 'Shorts', 'GIF'], 1)}
         <div style="color:#8b929e;font-size:11px">Export as</div>
         <div style="display:flex;gap:7px;align-items:center;color:#fff">${icon('Check', 13)} MP4 video</div>
-        <div style="padding-left:20px">GIF</div><div style="padding-left:20px">PNG sequence</div>
         <div style="border-top:1px solid #2c2e34;padding-top:6px;display:flex;gap:7px;align-items:center">${icon('Image', 13)} Send this frame to a thumbnail tab</div>
       </div>
     </div>`

@@ -6,6 +6,7 @@ import type { Vec3 } from './animation'
 
 export type CamType =
   | 'hold'
+  | 'glide'
   | 'follow'
   | 'orbit'
   | 'bullet'
@@ -31,6 +32,10 @@ export interface CamClip {
   amount?: number
   /** A start view set by moving the viewport; without it the block starts where the one before it ended. */
   view?: CamView
+  /** Glide blocks: the shot they move to (set with Set shot here). */
+  to?: CamView
+  /** Made with Set shot here: moving the view changes it only while it is selected. */
+  shot?: boolean
 }
 
 export interface CamView {
@@ -55,6 +60,7 @@ export interface CamDef {
 
 export const CAMS: Record<CamType, CamDef> = {
   hold: { label: 'Hold', duration: 2, hint: 'Stays where it is' },
+  glide: { label: 'Glide', duration: 2, hint: 'Moves smoothly from the shot before to one you set' },
   follow: { label: 'Follow', duration: 3, hint: 'Keeps its distance from the character as it moves' },
   orbit: { label: 'Orbit', duration: 4, hint: 'Circles the character' },
   bullet: { label: 'Bullet time', duration: 3, hint: 'A full turn around the character' },
@@ -77,6 +83,7 @@ export const CAMS: Record<CamType, CamDef> = {
 
 export const CAM_ORDER: CamType[] = [
   'hold',
+  'glide',
   'follow',
   'orbit',
   'bullet',
@@ -126,6 +133,20 @@ function evaluate(
   t: number,
   subjectAt: (id: string, t: number) => Subject | null
 ): CamView {
+  if (clip.type === 'glide') {
+    const to = clip.to ?? from
+    const k = smooth(u)
+    const mix = (a: Vec3, b: Vec3): Vec3 => [
+      a[0] + (b[0] - a[0]) * k,
+      a[1] + (b[1] - a[1]) * k,
+      a[2] + (b[2] - a[2]) * k
+    ]
+    return {
+      position: mix(from.position, to.position),
+      target: mix(from.target, to.target),
+      fov: from.fov + (to.fov - from.fov) * k
+    }
+  }
   const amount = clip.amount ?? 1
   const s0 = clip.subject && clip.type !== 'hold' ? subjectAt(clip.subject, clip.start) : null
   const s = clip.subject && clip.type !== 'hold' ? subjectAt(clip.subject, t) : null

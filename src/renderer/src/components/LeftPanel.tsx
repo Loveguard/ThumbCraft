@@ -23,6 +23,7 @@ import { MediaTab, PlayersTab, TextTab, WorldTab } from './tabs/SceneTabs'
 import { useLayout } from '../layout'
 import { useAnim } from '../animation'
 import { AnimatePanel } from './AnimatePanel'
+import { AppErrorBoundary } from './AppErrorBoundary'
 
 interface TabDef {
   id: string
@@ -127,7 +128,11 @@ const ANIMATE_TAB: TabDef = {
   icon: Clapperboard,
   title: 'Animate',
   subtitle: 'Walk, run or sprint characters along a path, and set keys',
-  body: () => <AnimatePanel />
+  body: () => (
+    <AppErrorBoundary area="Animate panel">
+      <AnimatePanel />
+    </AppErrorBoundary>
+  )
 }
 const ANIMATION_TABS = [ANIMATE_TAB, ...TABS.filter((t) => ['players', 'mobs', 'media'].includes(t.id))]
 

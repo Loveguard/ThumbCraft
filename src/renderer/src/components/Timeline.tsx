@@ -124,7 +124,7 @@ export function Timeline(): ReactNode {
       .filter(canWalk)
       .flatMap((o): Row[] => [
         { id: o.id, obj: o.id, name: o.name },
-        ...(o.kind === 'player' ? [{ id: `${o.id}:upper`, obj: o.id, name: 'Upper body', upper: true }] : [])
+        ...(o.kind === 'player' ? [{ id: `${o.id}:upper`, obj: o.id, name: 'Arms and head', upper: true }] : [])
       ]),
     ...animation.tracks
       .filter((t) => !objects.some((o) => o.id === t.objectId && canWalk(o)))

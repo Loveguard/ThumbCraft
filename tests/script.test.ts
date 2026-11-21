@@ -49,3 +49,10 @@ describe('parseScript', () => {
     expect(unknown).toEqual(['contemplates the void'])
   })
 })
+
+describe('new actions in a description', () => {
+  it('reads lunges and spins', () => {
+    const r = parseScript('Alex lunges, then spins', { characters: ['Alex'], places: [] })
+    expect(r.steps.map((s) => (s.kind === 'clip' ? s.type : s.kind))).toEqual(['lunge', 'spin'])
+  })
+})
