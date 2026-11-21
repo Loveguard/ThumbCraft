@@ -1273,6 +1273,17 @@ function IdleFrameloop(): null {
   return null
 }
 
+/** A ray from the camera through the pointer. */
+function pointerRay(e: MouseEvent, gl: THREE.WebGLRenderer, camera: THREE.Camera): THREE.Raycaster {
+  const rect = gl.domElement.getBoundingClientRect()
+  const r = new THREE.Raycaster()
+  r.setFromCamera(
+    new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1),
+    camera
+  )
+  return r
+}
+
 /** The ground point under the pointer: the first thing hit that isn't `skip`, else the level `y`. */
 function groundAt(
   e: MouseEvent,
@@ -1281,12 +1292,7 @@ function groundAt(
   skip: string | null,
   y: number
 ): Vec3 | null {
-  const rect = gl.domElement.getBoundingClientRect()
-  const r = new THREE.Raycaster()
-  r.setFromCamera(
-    new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1),
-    camera
-  )
+  const r = pointerRay(e, gl, camera)
   const targets: THREE.Object3D[] = []
   for (const [id, o] of viewport.objects) if (id !== skip && o.visible) targets.push(o)
   const hit = r.intersectObjects(targets, true).find((h) => {
@@ -1346,15 +1352,7 @@ function DrawAndRing(): ReactNode {
       const was = down.selected
       down = null
       // Which character is under the pointer, if any.
-      const rect = gl.domElement.getBoundingClientRect()
-      const r = new THREE.Raycaster()
-      r.setFromCamera(
-        new THREE.Vector2(
-          ((e.clientX - rect.left) / rect.width) * 2 - 1,
-          -((e.clientY - rect.top) / rect.height) * 2 + 1
-        ),
-        camera
-      )
+      const r = pointerRay(e, gl, camera)
       const people = useStore.getState().objects.filter(canWalk)
       let best: { id: string; d: number } | null = null
       for (const o of people) {
@@ -1438,18 +1436,7 @@ function AnimationPaths(): ReactNode {
     if (!clipId && !going) return
     const el = gl.domElement.closest('.viewport') as HTMLElement | null
     if (!el) return
-    const rayAt = (e: MouseEvent): THREE.Raycaster => {
-      const rect = gl.domElement.getBoundingClientRect()
-      const r = new THREE.Raycaster()
-      r.setFromCamera(
-        new THREE.Vector2(
-          ((e.clientX - rect.left) / rect.width) * 2 - 1,
-          -((e.clientY - rect.top) / rect.height) * 2 + 1
-        ),
-        camera
-      )
-      return r
-    }
+    const rayAt = (e: MouseEvent): THREE.Raycaster => pointerRay(e, gl, camera)
     const current = (): { objectId: string; points: Vec3[] } | null => {
       const sel = useAnim.getState().selectedClip
       const c = clipOf(sel)
@@ -1563,30 +1550,18 @@ function AnimationPaths(): ReactNode {
       // Not a selection click: the scene's own click handling never sees it.
       e.stopPropagation()
       if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return
-      const ray = rayAt(e)
       const owner = useAnim.getState().selectedClip?.objectId ?? useStore.getState().selectedId
-      const targets: THREE.Object3D[] = []
-      for (const [id, o] of viewport.objects) if (id !== owner && o.visible) targets.push(o)
-      const hit = ray.intersectObjects(targets, true).find((h) => {
-        for (let p: THREE.Object3D | null = h.object; p; p = p.parent) if (isHelperObject(p) || !p.visible) return false
-        return true
-      })
-      let point = hit?.point
-      if (!point) {
-        // Nothing there: the level the character stands on.
-        const level = current()?.points.at(-1)?.[1] ?? 0
-        point =
-          ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -level), new THREE.Vector3()) ?? undefined
-      }
+      // Nothing there: the level the character stands on.
+      const point = groundAt(e, gl, camera, owner, current()?.points.at(-1)?.[1] ?? 0)
       if (point && sending) {
         const who = useStore.getState().selectedId
         useAnim.setState({ goingTo: false })
-        if (who) goTo(who, [point.x, point.y, point.z])
+        if (who) goTo(who, point)
       } else if (point && picking) {
         const sel = useAnim.getState().selectedClip
-        if (sel) setClipReach(sel.objectId, sel.clipId, { target: [point.x, point.y, point.z] })
+        if (sel) setClipReach(sel.objectId, sel.clipId, { target: point })
         useAnim.setState({ pickingTarget: false })
-      } else if (point) addClipPoint([point.x, point.y, point.z])
+      } else if (point) addClipPoint(point)
     }
     el.addEventListener('pointerdown', onDown, true)
     el.addEventListener('click', onClick, true)

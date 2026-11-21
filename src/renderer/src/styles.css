@@ -5343,18 +5343,6 @@ button {
   text-transform: none;
   color: var(--text-2);
 }
-.animate-panel .seg-wrap {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  padding: 2px 0;
-  background: var(--bg-panel);
-}
-.animate-panel .segmented.tabs button {
-  font-size: 12px;
-  padding: 6px 4px;
-  white-space: nowrap;
-}
 .animate-panel .anim-characters {
   gap: 0;
   border-radius: 12px;

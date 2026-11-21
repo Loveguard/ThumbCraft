@@ -33,6 +33,8 @@ const ACTIONS: [RegExp, ClipType][] = [
   [/\b(panic(s|ked|king)?|freak(s|ed)?( out)?|scream(s|ed)?|flail(s|ed)?|screams?)\b/, 'panic'],
   [/\b(cower(s|ed|ing)?|hid(e|es)|ducks?|tremble[sd]?|shiver(s|ed)?|cringe[sd]?)\b/, 'cower'],
   [/\b(facepalm(s|ed)?|face-palm(s|ed)?)\b/, 'facepalm'],
+  [/\b(lunge[sd]?|lunging|pounce[sd]?|charge[sd]? at)\b/, 'lunge'],
+  [/\b(spin(s|ning)?|spun|twirl(s|ed)?|turns? (all the way )?around)\b/, 'spin'],
   [/\b(punch(es|ed|ing)?|jab(s|bed)?|fight(s|ing)?|box(es|ed)?)\b/, 'punch'],
   [
     /\b(slash(es|ed|ing)?|swing(s|ing)? (a |his |her |their |the )?(sword|blade|axe)|swung|attack(s|ed|ing)?|strikes?)\b/,

@@ -679,10 +679,6 @@ export interface LocomotionResult {
  * slows to a stop in the pose it started in. Keys fall on every quarter step (contact, passing…), which is enough
  * for the smooth playback between them to reproduce the cycle, and are easy to adjust by hand afterwards.
  */
-export function walkKeys(path: AnimPath, who: WalkSubject): AnimKey[] {
-  return locomotion(path, who).keys
-}
-
 export function locomotion(path: AnimPath, who: WalkSubject): LocomotionResult {
   const g = GAITS[path.gait]
   const curve = new PathCurve(path.points)
