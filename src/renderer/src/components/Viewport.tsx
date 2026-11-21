@@ -74,7 +74,8 @@ import {
   type Vec3
 } from '../store'
 import { ensureFont } from '../textStyles'
-import { LIGHTNING_ALPHA, lightningGeometry } from '@shared/minecraft/lightning'
+import { LIGHTNING_ALPHA, lightningFlicker, lightningGeometry } from '@shared/minecraft/lightning'
+import { onEffectTime } from '../effectClock'
 import { Weather } from './Weather'
 import { VfxNode } from './VfxNode'
 import { errorText } from '../errors'
@@ -481,10 +482,23 @@ function LightningNode({ o }: { o: LightningObject }): ReactNode {
   }, [o.seed, o.thickness])
   useEffect(() => () => geometry.dispose(), [geometry])
   const color = useMemo(() => new THREE.Color(o.color).multiplyScalar(o.brightness), [o.color, o.brightness])
+  const material = useRef<THREE.MeshBasicMaterial>(null)
+  const flash = useRef<THREE.PointLight>(null)
+  // In Animation mode the bolt flickers and strikes again every couple of seconds, as lightning does.
+  useEffect(
+    () =>
+      onEffectTime((t, moving) => {
+        const k = moving && !o.still ? lightningFlicker(t, o.seed) : 1
+        if (material.current) material.current.opacity = LIGHTNING_ALPHA * k
+        if (flash.current) flash.current.intensity = 45 * o.brightness * k
+      }),
+    [o.still, o.seed, o.brightness]
+  )
   return (
     <>
       <mesh geometry={geometry} renderOrder={600}>
         <meshBasicMaterial
+          ref={material}
           color={color}
           transparent
           opacity={LIGHTNING_ALPHA}
@@ -496,7 +510,14 @@ function LightningNode({ o }: { o: LightningObject }): ReactNode {
       </mesh>
       {o.flash && (
         // A gentler flash than before: enough to light the ground and nearby players without whiting them out.
-        <pointLight position={[0, 3, 0]} color="#d6dcff" intensity={45 * o.brightness} distance={30} decay={2} />
+        <pointLight
+          ref={flash}
+          position={[0, 3, 0]}
+          color="#d6dcff"
+          intensity={45 * o.brightness}
+          distance={30}
+          decay={2}
+        />
       )}
     </>
   )

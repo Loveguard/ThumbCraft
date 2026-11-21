@@ -6,6 +6,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { assetUrl, loadImage } from '../minecraft/assets'
 import { terrainStore, useStore, type SceneObject, type WeatherType } from '../store'
+import { EFFECT_TIME, onEffectTime } from '../effectClock'
 
 /** Radius (blocks) around the view's focus that gets weather. */
 const RADIUS = 28
@@ -58,7 +59,16 @@ function makeGround(objects: SceneObject[]): (x: number, z: number) => number | 
   }
 }
 
-function weatherMaterial(map: THREE.Texture, brightness: number, wind: number): THREE.MeshBasicMaterial {
+/** How fast the texture runs down a strip (texture lengths a second: it repeats every 4 blocks). */
+const FALL = { rain: 2.4, snow: 0.3 }
+
+function weatherMaterial(
+  map: THREE.Texture,
+  brightness: number,
+  wind: number,
+  fall: number,
+  move: { value: number }
+): THREE.MeshBasicMaterial {
   const mat = new THREE.MeshBasicMaterial({
     map,
     color: new THREE.Color(brightness, brightness, brightness),
@@ -69,6 +79,9 @@ function weatherMaterial(map: THREE.Texture, brightness: number, wind: number): 
   })
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWind = { value: wind }
+    shader.uniforms.uTime = EFFECT_TIME
+    shader.uniforms.uMove = move
+    shader.uniforms.uFall = { value: fall }
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -78,6 +91,9 @@ attribute float aHeight;
 attribute float aV;
 attribute float aAlpha;
 uniform float uWind;
+uniform float uTime;
+uniform float uMove;
+uniform float uFall;
 varying float vAlpha;`
       )
       .replace(
@@ -93,7 +109,8 @@ vAlpha = aAlpha;`
         '#include <uv_vertex>',
         `#include <uv_vertex>
 #ifdef USE_MAP
-vMapUv = vec2(uv.x, uv.y * aHeight * 0.25 + aV);
+// In Animation mode it falls, each column at its own speed like in game.
+vMapUv = vec2(uv.x, uv.y * aHeight * 0.25 + aV + uMove * uTime * uFall * (0.8 + 0.4 * fract(aV)));
 #endif`
       )
     shader.fragmentShader = shader.fragmentShader
@@ -180,9 +197,15 @@ export function Weather(): ReactNode {
   }, [type, density, objects, focus])
   useEffect(() => () => geometry?.dispose(), [geometry])
 
+  const still = useStore((s) => !!s.settings.weatherStill)
+  const move = useMemo(() => ({ value: 0 }), [])
+  useEffect(() => onEffectTime((_, moving) => void (move.value = moving && !still ? 1 : 0)), [move, still])
   const material = useMemo(
-    () => (tex ? weatherMaterial(tex, night ? 0.12 : 0.75, type === 'snow' ? wind * 0.6 : wind * 0.35) : null),
-    [tex, night, wind, type]
+    () =>
+      tex && type !== 'none'
+        ? weatherMaterial(tex, night ? 0.12 : 0.75, type === 'snow' ? wind * 0.6 : wind * 0.35, FALL[type], move)
+        : null,
+    [tex, night, wind, type, move]
   )
   useEffect(() => () => material?.dispose(), [material])
 

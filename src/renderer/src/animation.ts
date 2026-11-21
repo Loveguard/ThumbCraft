@@ -74,6 +74,8 @@ import {
 } from '@shared/camera'
 import { fullPose, PLAYER_PIXEL, type Pose } from '@shared/minecraft/playerModel'
 import { viewport } from './components/Viewport'
+import { contactOf, makeFloor, type FloorFn } from './groundLock'
+import { setEffectTime } from './effectClock'
 import { applyPose } from './minecraft/builders'
 import { applyMobPose } from './minecraft/mobs'
 import { driveKey, driveScene, releaseScene, sceneValue } from './sceneDrive'
@@ -213,71 +215,100 @@ const write = (patch: Partial<Scene>): void => {
   }
 }
 
-/** Puts an object's 3D model where `o` says, right away (playback does this every frame without the store). */
-function applyToScene(o: Pick<SceneObject, 'id' | 'kind'>, st: Partial<AnimState> & { position: Vec3 }): void {
+/**
+ * Puts an object's 3D model where `o` says, right away (playback does this every frame without the store). With
+ * the time `t`, an animated character is then kept on the ground; the height it was moved by is returned.
+ */
+function applyToScene(
+  o: Pick<SceneObject, 'id' | 'kind'>,
+  st: Partial<AnimState> & { position: Vec3 },
+  t?: number
+): number {
   const obj = viewport.objects.get(o.id)
-  if (!obj) return
+  if (!obj) return 0
   // Leave the object alone while its handles are being dragged.
   const gizmo = viewport.gizmo as { dragging?: boolean } | null
-  if (gizmo?.dragging && useStore.getState().selectedId === o.id) return
+  if (gizmo?.dragging && useStore.getState().selectedId === o.id) return 0
   obj.position.set(...st.position)
   if (st.quaternion) obj.quaternion.copy(st.quaternion)
   else if (st.rotation) obj.rotation.set(...(st.rotation.map((v) => THREE.MathUtils.degToRad(v)) as Vec3))
   if (o.kind === 'player' && st.pose) {
     const p = obj.getObjectByName('player')
-    if (p) {
-      applyPose(p, st.pose)
-      if (p.userData.feetDrop) {
-        p.position.y += p.userData.feetDrop
-        p.userData.feetDrop = 0
-      }
-      // Over steps and slopes, a walker's feet meet the ground instead of sinking into it or hanging over it.
-      if (useAnim.getState().mode === 'animation' && trackOf(o.id)?.clips?.some(isMoving)) {
-        const grid = groundGrid()
-        if (grid) plantFeet(p, grid)
-      }
-    }
+    if (p) applyPose(p, st.pose)
   }
   if (o.kind === 'mob' && st.parts) {
     const m = obj.getObjectByName('mob')
     if (m) applyMobPose(m, st.parts)
   }
-}
-
-/** The top of the ground under (x, z), looking down from `from` for about three blocks; null when there is none. */
-function groundUnder(grid: Grid, x: number, z: number, from: number): number | null {
-  for (let y = from; y > from - 3; y -= 0.05) if (grid.at(x, y, z) === 'solid') return Math.round((y + 0.05) * 20) / 20
-  return null
+  if (t === undefined || useAnim.getState().mode !== 'animation' || !canWalk(o as SceneObject)) return 0
+  return lockToGround(o, obj, t)
 }
 
 /**
- * Keeps a walking character's feet on the ground. When both feet hang over a lower step or a downhill slope the
- * body drops until the lower one touches; then a foot that has sunk below a step or slope is brought up to it by
- * swinging the leg forward and bending the knee.
+ * How far a character may be set down onto the ground at time `t`: false when it shouldn't be (it stays where it
+ * was put unless it walks somewhere, and a jump, leap, swim or climb leaves the ground on purpose), otherwise how
+ * high its stride may lift it (a run's little hop).
  */
-export function plantFeet(player: THREE.Object3D, grid: Grid): void {
-  // How far each sole floats over the ground below it.
-  player.updateMatrixWorld(true)
+function dropAllowance(tr: AnimTrack | undefined, t: number, scale: number): number | false {
+  const clips = tr?.clips
+  if (!clips?.some(isMoving)) return false
+  let allow = 0
+  for (const c of clips) {
+    if (laneOf(c) !== 'base' || t < c.start || t >= c.start + c.duration) continue
+    if (c.type === 'jump' || c.type === 'leap') return false
+    if (!isMoving(c)) continue
+    const g = GAITS[(useAnim.getState().gaits[c.id] ?? c.type) as Gait] ?? GAITS.walk
+    if (g.free) return false
+    allow = g.hop * scale
+  }
+  return allow
+}
+
+let floorFor: { objects: SceneObject[]; floor: FloorFn | null } | null = null
+/** What characters stand on, as the scene is now (rebuilt when the objects change). */
+function floorNow(): FloorFn | null {
+  const objects = useStore.getState().objects
+  if (floorFor?.objects !== objects) floorFor = { objects, floor: makeFloor(solids(objects)) }
+  return floorFor.floor
+}
+
+/**
+ * Keeps a character on the ground: a walker hovering over a lower step or a downhill slope is set down onto it,
+ * a foot that has sunk below a step is lifted onto it by bending the leg, and anything still under the ground (a
+ * path dipping into a hill, a sit or a lie-down on a slope, a slab's top) lifts the whole character out of it.
+ */
+function lockToGround(o: Pick<SceneObject, 'id' | 'kind'>, obj: THREE.Object3D, t: number): number {
+  const model = obj.getObjectByName(o.kind === 'player' ? 'player' : 'mob')
+  const floor = floorNow()
+  if (!model || !floor) return 0
+  const scale = obj.scale.y || 1
+  const tr = trackOf(o.id)
+  const allow = dropAllowance(tr, t, scale)
+  let dy = 0
+  let c = contactOf(model, floor, obj.position.y, scale)
+  if (allow !== false && c.sink < 0.01 && c.gap > allow + 0.02 && c.gap < 1.1 * scale) {
+    dy = allow - c.gap
+    obj.position.y += dy
+    c = { sink: 0, gap: allow }
+  }
+  if (o.kind === 'player' && allow !== false) {
+    plantFeet(model, floor)
+    c = contactOf(model, floor, obj.position.y, scale)
+  }
+  if (c.sink > 0.01) {
+    obj.position.y += c.sink
+    dy += c.sink
+  }
+  return dy
+}
+
+/**
+ * Lifts a walking character's foot that has sunk below a step or slope up onto it, by swinging the leg forward
+ * and bending the knee.
+ */
+export function plantFeet(player: THREE.Object3D, floor: FloorFn): void {
+  player.updateWorldMatrix(true, true)
   const sole = new THREE.Vector3()
-  const gaps: number[] = []
-  for (const side of ['right', 'left']) {
-    const shin = player.getObjectByName(`${side}Shin`)
-    if (!shin) continue
-    sole.set(0, -6 * PLAYER_PIXEL, 0)
-    shin.localToWorld(sole)
-    const floor = groundUnder(grid, sole.x, sole.z, sole.y + 0.04)
-    gaps.push(floor === null ? Infinity : sole.y - floor)
-  }
-  // Only where the body itself hangs in the air (half way down a step): a runner's own flight is left alone.
-  const root = player.getWorldPosition(new THREE.Vector3())
-  const under = groundUnder(grid, root.x, root.z, root.y + 0.04)
-  const drop = Math.min(under === null ? 0 : root.y - under, ...gaps)
-  if (drop > 0.03 && drop < 1.1) {
-    const scale = player.parent?.getWorldScale(new THREE.Vector3()).y || 1
-    player.position.y -= drop / scale
-    player.userData.feetDrop = drop / scale
-    player.updateMatrixWorld(true)
-  }
   for (const side of ['right', 'left']) {
     const leg = player.getObjectByName(`${side}Leg`)
     const shin = player.getObjectByName(`${side}Shin`)
@@ -293,15 +324,15 @@ export function plantFeet(player: THREE.Object3D, grid: Grid): void {
       return sole.y
     }
     const now = height(0)
-    const floor = groundUnder(grid, sole.x, sole.z, now + 1.2)
-    const sunk = floor === null ? 0 : floor - now
+    const ground = floor(sole.x, sole.z, now + 1.2)
+    const sunk = ground === null ? 0 : ground - now
     if (sunk < 0.03 || sunk > 1.3) continue
     // The least swing of the leg (with the knee bent along with it) that brings the foot up to the ground.
     let lo = 0
     let hi = 1.6
     for (let i = 0; i < 9; i++) {
       const mid = (lo + hi) / 2
-      if (height(mid) < floor!) lo = mid
+      if (height(mid) < ground!) lo = mid
       else hi = mid
     }
     height(hi)
@@ -358,9 +389,10 @@ export function showFrame(t = useAnim.getState().time): void {
     const st = tr && stateAt(tr, t, o)
     if (!st) return o
     if (!animationRest.has(o.id)) animationRest.set(o.id, fieldsOf(o))
-    const next = { ...o, ...stateFields(o, st) } as SceneObject
+    const dy = applyToScene(o, st, t)
+    const at = dy ? { ...st, position: [st.position[0], st.position[1] + dy, st.position[2]] as Vec3 } : st
+    const next = { ...o, ...stateFields(o, at) } as SceneObject
     lastWritten.set(o.id, JSON.stringify(fieldsOf(next)))
-    applyToScene(o, st)
     changed = true
     return next
   })
@@ -375,7 +407,7 @@ export function posesAt(t: number): void {
   for (const tr of animationOf().tracks) {
     const o = s.objects.find((x) => x.id === tr.objectId)
     const st = o && stateAt(tr, t, o)
-    if (o && st) applyToScene(o, st)
+    if (o && st) applyToScene(o, st, t)
   }
   driveCamera(t)
   driveWorld(t)
@@ -495,6 +527,7 @@ export function exitAnimation(): void {
   releaseScene(new Set(), write)
   releaseReveal(new Set())
   useAnim.setState({ mode: 'thumbnail', playing: false, selectedClip: null, addingPoints: false })
+  setEffectTime(0, false)
   unsubscribe?.()
   unsubscribe = null
   sceneHistory.paused = false
@@ -942,14 +975,6 @@ const kindsOf = (t: TerrainData): Block[] => {
   let k = kindCache.get(t)
   if (!k) kindCache.set(t, (k = t.palette.map((b) => blockKind(b.name, b.properties))))
   return k
-}
-
-let gridFor: { objects: SceneObject[]; grid: Grid | null } | null = null
-/** `terrainGrid` of the scene as it is, kept until the objects change. */
-function groundGrid(): Grid | null {
-  const objects = useStore.getState().objects
-  if (gridFor?.objects !== objects) gridFor = { objects, grid: terrainGrid(objects) }
-  return gridFor.grid
 }
 
 /** The blocks of the scene's terrain and builds, as the route finder wants them (world coordinates, unturned). */
@@ -1629,6 +1654,7 @@ const sceneOf = (): SceneTrack[] => animationOf().scene ?? []
 /** The scene's own numbers (sun, look, focus, object opacity) at time `t`. */
 function driveWorld(t: number): void {
   if (useAnim.getState().mode !== 'animation') return
+  setEffectTime(t, true)
   driveScene(sceneOf(), t, write)
   driveReveal(sceneOf(), t)
 }

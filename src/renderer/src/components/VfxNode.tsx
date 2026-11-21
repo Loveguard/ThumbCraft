@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import * as THREE from 'three'
 import { assetUrl, loadImage } from '../minecraft/assets'
 import type { VfxObject } from '../store'
-import { vfxBounds, vfxLayers, type PuffLayer } from '../vfx'
+import { MOTION_KINDS, vfxBounds, vfxLayers, type PuffLayer } from '../vfx'
+import { EFFECT_TIME, onEffectTime } from '../effectClock'
 
 /** Soft, slightly ragged round puff (smoke, fog, flame), a sharp glowing dot (sparks) or a twinkle, drawn once. */
 const textures: Partial<Record<PuffLayer['texture'], THREE.Texture>> = {}
@@ -83,16 +84,88 @@ const vertexShader = /* glsl */ `
   attribute vec3 iOffset;
   attribute vec4 iColor;
   attribute vec2 iSizeRot;
+  attribute float iPhase;
+  uniform float uTime;
+  uniform float uMove;
+  uniform float uKind;
+  uniform float uSpeed;
+  uniform float uTravel;
+  uniform float uBurst;
   varying vec2 vUv;
   varying vec4 vColor;
+  const float TAU = 6.2831853;
   void main() {
     vUv = uv;
-    vColor = iColor;
-    vec4 mv = modelViewMatrix * vec4(iOffset, 1.0);
+    vec3 off = iOffset;
+    float size = iSizeRot.x;
+    float rot = iSizeRot.y;
+    float alpha = 1.0;
+    if (uMove > 0.5) {
+      float t = uTime;
+      if (uKind < 0.5) {
+        // Rise: through its own spot and on, fading in and out so the start over is never seen.
+        float u = fract(t * uSpeed / uTravel + iPhase);
+        off.y += (u - 0.5) * uTravel;
+        off.x += sin(t * 0.7 + iPhase * TAU) * 0.08 * uTravel;
+        rot += t * 0.25 * (iPhase - 0.5);
+        alpha = min(1.0, sin(3.14159 * u) * 1.6);
+      } else if (uKind < 1.5) {
+        // Flicker: a flame licks up from its spot, shrinking as it goes.
+        float u = fract(t * uSpeed / uTravel + iPhase);
+        off.y += u * uTravel;
+        size *= 1.15 - 0.6 * u;
+        alpha = min(1.0, smoothstep(0.0, 0.15, u) * (1.0 - u) * 2.2);
+      } else if (uKind < 2.5) {
+        // Swirl: round the middle, rising a little.
+        float a = t * uSpeed;
+        off.xz = mat2(cos(a), sin(a), -sin(a), cos(a)) * off.xz;
+        float u = fract(t * 0.25 + iPhase);
+        off.y += (u - 0.5) * uTravel;
+        alpha = min(1.0, sin(3.14159 * u) * 1.6);
+      } else if (uKind < 3.5) {
+        // Drift: a slow wander about its spot.
+        off.x += sin(t * uSpeed * TAU + iPhase * TAU) * uTravel;
+        off.z += cos(t * uSpeed * 0.8 * TAU + iPhase * 9.1) * uTravel;
+        rot += t * 0.1 * (iPhase - 0.5);
+      } else if (uKind < 4.5) {
+        // Twinkle: pulsing in size and brightness.
+        float w = 0.5 + 0.5 * sin(t * uSpeed * TAU + iPhase * TAU);
+        size *= 0.4 + 0.6 * w;
+        alpha = 0.35 + 0.65 * w;
+      } else {
+        // Burst: it goes off at uBurst seconds. Before that there is nothing; as laid out is its peak.
+        float k = t - uBurst;
+        vec3 c0 = vec3(0.0, uTravel, 0.0);
+        vec3 d = off - c0;
+        if (k < 0.0) alpha = 0.0;
+        else if (uSpeed < 0.5) {
+          // The fireball swells fast, then burns out.
+          float g = 1.0 - pow(1.0 - clamp(k / 0.35, 0.0, 1.0), 3.0);
+          off = c0 + d * (0.2 + 0.8 * g + 0.15 * max(k - 0.35, 0.0));
+          size *= 0.3 + 0.7 * g;
+          alpha = k < 0.35 ? 1.0 : max(0.0, 1.0 - (k - 0.35) / 0.9);
+        } else if (uSpeed < 1.5) {
+          // The smoke rolls out behind it, keeps billowing up and thins away.
+          float g = 1.0 - pow(1.0 - clamp(k / 0.6, 0.0, 1.0), 2.0);
+          off = c0 + d * (0.3 + 0.7 * g + 0.12 * k);
+          off.y += 0.35 * k;
+          size *= 0.5 + 0.5 * g + 0.1 * k;
+          alpha = smoothstep(0.0, 0.3, k) * max(0.0, 1.0 - max(k - 1.5, 0.0) / 2.5);
+        } else {
+          // Debris is thrown out and falls.
+          float g = min(1.0, k / 0.35);
+          off = c0 + d * (g * (2.0 - g) + 0.4 * max(k - 0.35, 0.0));
+          off.y -= 4.0 * pow(max(k - 0.35, 0.0), 2.0);
+          alpha = 1.0 - smoothstep(0.8, 1.6, k);
+        }
+      }
+    }
+    vColor = vec4(iColor.rgb, iColor.a * alpha);
+    vec4 mv = modelViewMatrix * vec4(off, 1.0);
     float scale = length(modelMatrix[0].xyz);
-    float c = cos(iSizeRot.y);
-    float s = sin(iSizeRot.y);
-    vec2 p = mat2(c, s, -s, c) * position.xy * iSizeRot.x * scale;
+    float c = cos(rot);
+    float s = sin(rot);
+    vec2 p = mat2(c, s, -s, c) * position.xy * size * scale;
     mv.xy += p;
     gl_Position = projectionMatrix * mv;
   }
@@ -110,7 +183,19 @@ const fragmentShader = /* glsl */ `
 `
 
 /** One layer of camera-facing puffs as a single instanced draw. */
-function PuffCloud({ layer, color, opacity }: { layer: PuffLayer; color: string; opacity: number }): ReactNode {
+function PuffCloud({
+  layer,
+  color,
+  opacity,
+  still,
+  burstAt
+}: {
+  layer: PuffLayer
+  color: string
+  opacity: number
+  still: boolean
+  burstAt: number
+}): ReactNode {
   const geometry = useMemo(() => {
     const base = new THREE.PlaneGeometry(1, 1)
     const g = new THREE.InstancedBufferGeometry()
@@ -121,22 +206,35 @@ function PuffCloud({ layer, color, opacity }: { layer: PuffLayer; color: string;
     const offset = new Float32Array(n * 3)
     const colors = new Float32Array(n * 4)
     const sizeRot = new Float32Array(n * 2)
+    const phase = new Float32Array(n)
     const tint = new THREE.Color(layer.color ?? color)
     layer.puffs.forEach((p, i) => {
       offset.set([p.x, p.y, p.z], i * 3)
       colors.set([tint.r * p.shade, tint.g * p.shade, tint.b * p.shade, p.alpha], i * 4)
       sizeRot.set([p.size, p.rot], i * 2)
+      // Where in its own cycle each puff is, scattered so they don't move in step.
+      phase[i] = (Math.sin(i * 12.9898 + p.rot * 78.233) * 43758.5453) % 1
     })
     g.setAttribute('iOffset', new THREE.InstancedBufferAttribute(offset, 3))
     g.setAttribute('iColor', new THREE.InstancedBufferAttribute(colors, 4))
     g.setAttribute('iSizeRot', new THREE.InstancedBufferAttribute(sizeRot, 2))
+    g.setAttribute('iPhase', new THREE.InstancedBufferAttribute(phase, 1))
     g.instanceCount = n
     return g
   }, [layer, color])
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
-        uniforms: { map: { value: puffTexture(layer.texture) }, opacity: { value: 1 } },
+        uniforms: {
+          map: { value: puffTexture(layer.texture) },
+          opacity: { value: 1 },
+          uTime: EFFECT_TIME,
+          uMove: { value: 0 },
+          uKind: { value: 0 },
+          uSpeed: { value: 0 },
+          uTravel: { value: 1 },
+          uBurst: { value: 0 }
+        },
         vertexShader,
         fragmentShader,
         transparent: true,
@@ -146,6 +244,14 @@ function PuffCloud({ layer, color, opacity }: { layer: PuffLayer; color: string;
     [layer.texture, layer.blending]
   )
   material.uniforms.opacity.value = opacity
+  material.uniforms.uKind.value = MOTION_KINDS.indexOf(layer.motion.kind)
+  material.uniforms.uSpeed.value = layer.motion.speed
+  material.uniforms.uTravel.value = layer.motion.travel
+  material.uniforms.uBurst.value = burstAt
+  useEffect(
+    () => onEffectTime((_, moving) => void (material.uniforms.uMove.value = moving && !still ? 1 : 0)),
+    [material, still]
+  )
   useEffect(() => () => geometry.dispose(), [geometry])
   useEffect(() => () => material.dispose(), [material])
   // Instanced billboards can't be ray-picked; the effect's click box handles selection.
@@ -153,7 +259,7 @@ function PuffCloud({ layer, color, opacity }: { layer: PuffLayer; color: string;
 }
 
 /** The game's own fire texture on two crossed planes, as the fire block is drawn in game. */
-function GameFire({ color }: { color: string }): ReactNode {
+function GameFire({ color, still }: { color: string; still: boolean }): ReactNode {
   const [map, setMap] = useState<THREE.Texture | null>(null)
   useEffect(() => {
     let alive = true
@@ -163,7 +269,7 @@ function GameFire({ color }: { color: string }): ReactNode {
       t.magFilter = THREE.NearestFilter
       t.minFilter = THREE.NearestFilter
       t.colorSpace = THREE.SRGBColorSpace
-      // Animated strips stack frames vertically: show the first.
+      // Animated strips stack frames vertically: a thumbnail shows the first, an animation plays them.
       t.repeat.set(1, img.width / img.height)
       t.offset.set(0, 1 - img.width / img.height)
       t.needsUpdate = true
@@ -174,6 +280,16 @@ function GameFire({ color }: { color: string }): ReactNode {
     }
   }, [])
   useEffect(() => () => map?.dispose(), [map])
+  useEffect(() => {
+    if (!map?.image) return
+    const img = map.image as HTMLImageElement
+    const frames = Math.max(1, Math.round(img.height / img.width))
+    // The game shows a new frame of fire every tick (20 a second).
+    return onEffectTime((t, moving) => {
+      const frame = moving && !still ? Math.floor(t * 20) % frames : 0
+      map.offset.y = 1 - (frame + 1) / frames
+    })
+  }, [map, still])
   if (!map) return null
   return (
     <group position={[0, 0.75, 0]} scale={1.5}>
@@ -329,9 +445,16 @@ export function VfxNode({ o, cinematic }: { o: VfxObject; cinematic: boolean }):
     <>
       {o.effect === 'beam' && <Beam color={o.color} opacity={o.opacity} />}
       {o.effect === 'beacon' && <BeaconBeam color={o.color} opacity={o.opacity} />}
-      {o.effect === 'fire' && <GameFire color="#ffffff" />}
+      {o.effect === 'fire' && <GameFire color="#ffffff" still={!!o.still} />}
       {layers.map((l, i) => (
-        <PuffCloud key={`${o.effect}-${i}`} layer={l} color={o.color} opacity={o.opacity} />
+        <PuffCloud
+          key={`${o.effect}-${i}`}
+          layer={l}
+          color={o.color}
+          opacity={o.opacity}
+          still={!!o.still}
+          burstAt={o.burstAt ?? 0}
+        />
       ))}
       {o.glow && cinematic && (
         <pointLight

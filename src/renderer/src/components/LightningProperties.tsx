@@ -48,6 +48,10 @@ export function LightningProperties({ o }: { o: LightningObject }): ReactNode {
         <input type="checkbox" checked={o.flash} onChange={(e) => set({ flash: e.target.checked })} />
         <span>Flash lights up the ground</span>
       </label>
+      <label className="check">
+        <input type="checkbox" checked={!o.still} onChange={(e) => set({ still: !e.target.checked })} />
+        <span>Strikes and flickers in Animation mode</span>
+      </label>
       <Hint>Turn on Bloom in the Sky tab for a glowing bolt. It shows best against a dark or stormy sky.</Hint>
     </>
   )
