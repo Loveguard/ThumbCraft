@@ -235,9 +235,14 @@ export function Hint({ children, label = 'How this works' }: { children: ReactNo
   const [open, setOpen] = useState(false)
   return (
     <div className={`tip ${open ? 'open' : ''}`}>
-      <button className="tip-toggle" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <CircleHelp size={13} />
-        <span>{label}</span>
+      <button
+        className="tip-toggle"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-label={label}
+        title={label}
+      >
+        <CircleHelp size={14} />
       </button>
       {open && <p>{children}</p>}
     </div>

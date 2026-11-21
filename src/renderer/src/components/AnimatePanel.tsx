@@ -43,7 +43,8 @@ import {
   NO_ANIMATION,
   type ClipEase,
   type ClipMode,
-  type ClipType
+  type ClipType,
+  ACTION_GROUPS
 } from '@shared/animation'
 import { STARTER_PRESETS } from '@shared/presets'
 import {
@@ -89,7 +90,7 @@ import { importSound, removeSound, setSound } from '../sound'
 import { PresetsSection } from './PresetsSection'
 import { CurvesPanel } from './CurvesPanel'
 import { ScenePanel } from './ScenePanel'
-import { ACTION_GROUPS, BlockIcon } from './blockIcons'
+import { BlockIcon } from './blockIcons'
 
 const MOVING: ClipType[] = ['walk', 'run', 'sprint', 'sneak']
 const MOVES = CLIP_ORDER.filter((t) => CLIPS[t].moves)
@@ -353,9 +354,9 @@ export function AnimatePanel(): ReactNode {
                     onChange={(auto) => setClipAuto(sel.objectId, clip.id, auto)}
                   />
                   {gaits[clip.id] && gaits[clip.id] !== 'walk' && clip.auto !== false && (
-                    <Hint>
+                    <p className="hint">
                       This length is too quick for a walk, so it {GAITS[gaits[clip.id]].label.toLowerCase()}s.
-                    </Hint>
+                    </p>
                   )}
                 </>
               )}
@@ -388,10 +389,10 @@ export function AnimatePanel(): ReactNode {
                 </div>
               )}
               {clip.type === 'pose' && (
-                <Hint>
+                <p className="hint">
                   Pose {clipObject.name} now: drag its joints in the scene, or use the pose controls on the right. It
                   goes into this pose and holds it for the whole block.
-                </Hint>
+                </p>
               )}
               {isMoving(clip) && (
                 <>
@@ -439,7 +440,7 @@ export function AnimatePanel(): ReactNode {
                     </button>
                   </div>
                   {laneOf(clip) === 'upper' && (
-                    <Hint>The legs carry on with the row below; only the head, body and arms do this.</Hint>
+                    <p className="hint">The legs carry on with the row below; only the head, body and arms do this.</p>
                   )}
                 </>
               )}
@@ -700,13 +701,13 @@ export function AnimatePanel(): ReactNode {
           </div>
           {animation.audio ? (
             <>
-              <Hint>
+              <p className="hint">
                 {animation.audio.name}
                 {animation.audio.bpm
                   ? `: about ${Math.round(animation.audio.bpm)} beats a minute.`
                   : ': no steady beat found.'}{' '}
                 Drag it on the timeline to move it.
-              </Hint>
+              </p>
               <Slider
                 label="Volume"
                 min={0}
@@ -761,7 +762,7 @@ export function AnimatePanel(): ReactNode {
               <Box size={14} /> Save for Blender (.glb)
             </button>
           </div>
-          {shareNote && <Hint>{shareNote}</Hint>}
+          {shareNote && <p className="hint">{shareNote}</p>}
           <CurvesPanel />
           <ScenePanel tracks={animation.scene ?? []} />
         </Group>

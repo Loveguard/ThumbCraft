@@ -437,8 +437,6 @@ function PlayerPose({ o }: { o: PlayerObject }): ReactNode {
   return (
     <>
       <PosePicker o={o} same={same} />
-      <Toggle label="Name tag" checked={!!o.nameTag} onChange={(nameTag) => update(o.id, { nameTag })} />
-      <Toggle label="Slim arms (Alex model)" checked={o.slim} onChange={(slim) => update(o.id, { slim })} />
       <Group id="joints" title="Joints">
         <Toggle
           label="Drag hands & feet in the viewport"
@@ -709,8 +707,18 @@ function Properties({ o }: { o: SceneObject }): ReactNode {
         </div>
       )}
 
-      {o.kind === 'player' && <PlayerPose o={o} />}
-      {o.kind === 'player' && <EquipmentProperties o={o} />}
+      {o.kind === 'player' && (
+        <>
+          <Group id="player:pose" title="Pose" defaultOpen>
+            <PlayerPose o={o} />
+          </Group>
+          <Group id="player:wear" title="Clothes and items">
+            <Toggle label="Slim arms (Alex model)" checked={o.slim} onChange={(slim) => set({ slim })} />
+            <Toggle label="Name tag" checked={!!o.nameTag} onChange={(nameTag) => set({ nameTag })} />
+            <EquipmentProperties o={o} />
+          </Group>
+        </>
+      )}
 
       {(o.kind === 'image' || o.kind === 'video') && (
         <>

@@ -1734,3 +1734,14 @@ function dedupe(keys: AnimKey[]): AnimKey[] {
   }
   return out
 }
+
+/** The actions (blocks that don't travel), grouped the way the Animate panel lists them. */
+export const ACTION_GROUPS: [string, ClipType[]][] = [
+  [
+    'Everyday',
+    ['pose', 'idle', 'wave', 'point', 'nod', 'shake', 'bow', 'think', 'sit', 'sleep', 'eat', 'reach', 'jump']
+  ],
+  ['Feelings', ['laugh', 'cheer', 'clap', 'shrug', 'facepalm', 'panic', 'cower']],
+  ['Fight', ['punch', 'slash', 'block', 'lunge', 'hit', 'spin', 'fall']],
+  ['Work', ['mine', 'chop']]
+]

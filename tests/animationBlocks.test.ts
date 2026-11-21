@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CLIPS, CLIP_ORDER, compileClips, sampleTrack, yawOfRotation, type Clip } from '@shared/animation'
 import { cameraAt, planCamera, type CamClip } from '@shared/camera'
 import { fullPose, type Pose } from '@shared/minecraft/playerModel'
-import { ACTION_GROUPS } from '../src/renderer/src/components/blockIcons'
+import { ACTION_GROUPS } from '../src/shared/animation'
 
 const who = {
   kind: 'player' as const,

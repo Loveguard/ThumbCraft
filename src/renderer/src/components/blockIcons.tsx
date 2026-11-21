@@ -85,14 +85,3 @@ export function BlockIcon({ type, size = 15 }: { type: ClipType; size?: number }
   const Icon = BLOCK_ICONS[type] ?? Activity
   return <Icon size={size} />
 }
-
-/** The actions (blocks that don't travel), grouped the way the Animate panel lists them. */
-export const ACTION_GROUPS: [string, ClipType[]][] = [
-  [
-    'Everyday',
-    ['pose', 'idle', 'wave', 'point', 'nod', 'shake', 'bow', 'think', 'sit', 'sleep', 'eat', 'reach', 'jump']
-  ],
-  ['Feelings', ['laugh', 'cheer', 'clap', 'shrug', 'facepalm', 'panic', 'cower']],
-  ['Fight', ['punch', 'slash', 'block', 'lunge', 'hit', 'spin', 'fall']],
-  ['Work', ['mine', 'chop']]
-]
