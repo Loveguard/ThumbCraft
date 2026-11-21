@@ -2025,6 +2025,68 @@ function watchContext(canvas: HTMLCanvasElement, rebuild: () => void): void {
   })
 }
 
+/**
+ * The biggest box of the export's shape that fits inside the frame's padding, kept up to date as the window or the
+ * panels change size. CSS alone (aspect-ratio with a max-height) stretches the picture once the height runs out.
+ */
+function useFitBox(frame: React.RefObject<HTMLDivElement | null>, ratio: number): [number, number] | null {
+  const [box, setBox] = useState<[number, number] | null>(null)
+  useEffect(() => {
+    const el = frame.current
+    if (!el) return
+    const fit = (): void => {
+      const cs = getComputedStyle(el)
+      const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+      const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+      if (w <= 0 || h <= 0) return
+      const next: [number, number] =
+        w / h > ratio ? [Math.floor(h * ratio), Math.floor(h)] : [Math.floor(w), Math.floor(w / ratio)]
+      setBox((b) => (b && b[0] === next[0] && b[1] === next[1] ? b : next))
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [frame, ratio])
+  return box
+}
+
+/** The canvas shapes most thumbnails and clips are made in, one click each, above the canvas. */
+const CANVAS_SHAPES: { label: string; hint: string; size: [number, number] }[] = [
+  { label: 'YouTube', hint: '16:9, 1280 × 720 (pick Full HD or 4K under Export)', size: [1280, 720] },
+  { label: 'Shorts', hint: '9:16, 1080 × 1920', size: [1080, 1920] },
+  { label: 'Square', hint: '1:1, 1080 × 1080', size: [1080, 1080] },
+  { label: 'Portrait', hint: '4:5, 1080 × 1350, for Instagram posts', size: [1080, 1350] }
+]
+
+function CanvasSize(): ReactNode {
+  const [w, h] = useStore(useShallow((s) => [s.settings.exportWidth, s.settings.exportHeight]))
+  const setSettings = useStore((s) => s.setSettings)
+  const same = (a: [number, number]): boolean => Math.abs(a[0] / a[1] - w / h) < 0.01
+  return (
+    <div className="canvas-size segmented" role="radiogroup" aria-label="Canvas shape">
+      {CANVAS_SHAPES.map((c) => (
+        <button
+          key={c.label}
+          role="radio"
+          aria-checked={same(c.size)}
+          className={same(c.size) ? 'active' : ''}
+          title={c.hint}
+          // Same shape already (a 4K YouTube thumbnail): keep its size.
+          onClick={() => !same(c.size) && setSettings({ exportWidth: c.size[0], exportHeight: c.size[1] })}
+        >
+          {c.label}
+        </button>
+      ))}
+      {!CANVAS_SHAPES.some((c) => same(c.size)) && (
+        <span className="canvas-size-custom">
+          {w} × {h}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function Viewport(): ReactNode {
   const objects = useStore((s) => s.objects)
   const select = useStore((s) => s.select)
@@ -2040,9 +2102,12 @@ export function Viewport(): ReactNode {
     setGlKey((k) => k + 1)
     if (view) setTimeout(() => cameraBridge.set?.(view), 100)
   }
+  const frame = useRef<HTMLDivElement>(null)
+  const box = useFitBox(frame, exportWidth / exportHeight)
   return (
-    <div className={`viewport-frame ${animating ? 'animating' : ''}`}>
-      <div className="viewport" style={{ aspectRatio: `${exportWidth} / ${exportHeight}` }}>
+    <div className={`viewport-frame ${animating ? 'animating' : ''}`} ref={frame}>
+      <CanvasSize />
+      <div className="viewport" style={box ? { width: box[0], height: box[1] } : { visibility: 'hidden' }}>
         <GlErrorBoundary onRetry={rebuild}>
           <Canvas
             key={glKey}

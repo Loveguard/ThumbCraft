@@ -389,9 +389,7 @@ kbd {
 }
 .viewport {
   position: relative;
-  max-width: 100%;
-  max-height: 100%;
-  width: 100%;
+  flex: none;
   border-radius: 6px;
   overflow: visible;
   box-shadow:
@@ -5743,4 +5741,22 @@ button {
   height: 18%;
   background: rgba(255, 80, 80, 0.18);
   border-top: 1px dashed rgba(255, 120, 120, 0.7);
+}
+
+/* The canvas shape picker, centred above the canvas. */
+.canvas-size {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  font-size: 12px;
+}
+.canvas-size button {
+  padding: 4px 12px;
+}
+.canvas-size-custom {
+  align-self: center;
+  padding: 0 10px;
+  color: var(--text-3);
 }
