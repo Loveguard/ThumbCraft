@@ -27,6 +27,7 @@ import {
   humanoidOf,
   isMoving,
   type Clip,
+  type ClipEase,
   type ClipMode,
   type ClipType,
   type Gait,
@@ -123,10 +124,18 @@ interface AnimUi {
   trails: 'selected' | 'all' | 'off'
   /** A short explanation to show for a moment. */
   note: string | null
-  /** Undo history of the animation (the scene's own history waits until you go back to the thumbnail). */
-  past: AnimationData[]
-  future: AnimationData[]
+  /** Dragging across the ground draws the selected character a walk. */
+  drawing: boolean
+  /** The quick actions shown next to a character clicked in the scene (screen point in the viewport). */
+  ring: { id: string; x: number; y: number } | null
+  /** Undo history of the animation, with the scene edits made meanwhile (the scene's own history waits). */
+  past: HistoryStep[]
+  future: HistoryStep[]
 }
+
+/** An undo step in Animation mode: the animation as it was, or the scene objects as they were. */
+type HistoryStep = AnimationData | { scene: SceneObject[] }
+const isSceneStep = (h: HistoryStep): h is { scene: SceneObject[] } => 'scene' in h
 
 export const useAnim = create<AnimUi>(() => ({
   mode: 'thumbnail',
@@ -148,6 +157,8 @@ export const useAnim = create<AnimUi>(() => ({
   onion: false,
   trails: 'selected',
   note: null,
+  drawing: false,
+  ring: null,
   past: [],
   future: []
 }))
@@ -216,8 +227,12 @@ function applyToScene(o: Pick<SceneObject, 'id' | 'kind'>, st: Partial<AnimState
     const p = obj.getObjectByName('player')
     if (p) {
       applyPose(p, st.pose)
-      // Over steps and slopes, a walker's feet come up to the ground instead of sinking into it.
-      if (trackOf(o.id)?.clips?.some(isMoving)) {
+      if (p.userData.feetDrop) {
+        p.position.y += p.userData.feetDrop
+        p.userData.feetDrop = 0
+      }
+      // Over steps and slopes, a walker's feet meet the ground instead of sinking into it or hanging over it.
+      if (useAnim.getState().mode === 'animation' && trackOf(o.id)?.clips?.some(isMoving)) {
         const grid = groundGrid()
         if (grid) plantFeet(p, grid)
       }
@@ -236,12 +251,33 @@ function groundUnder(grid: Grid, x: number, z: number, from: number): number | n
 }
 
 /**
- * Keeps a walking character's feet out of the ground: a foot that has sunk below a step or slope is brought up
- * to it by swinging the leg forward and bending the knee (the body stays where the path put it).
+ * Keeps a walking character's feet on the ground. When both feet hang over a lower step or a downhill slope the
+ * body drops until the lower one touches; then a foot that has sunk below a step or slope is brought up to it by
+ * swinging the leg forward and bending the knee.
  */
 export function plantFeet(player: THREE.Object3D, grid: Grid): void {
+  // How far each sole floats over the ground below it.
   player.updateMatrixWorld(true)
   const sole = new THREE.Vector3()
+  const gaps: number[] = []
+  for (const side of ['right', 'left']) {
+    const shin = player.getObjectByName(`${side}Shin`)
+    if (!shin) continue
+    sole.set(0, -6 * PLAYER_PIXEL, 0)
+    shin.localToWorld(sole)
+    const floor = groundUnder(grid, sole.x, sole.z, sole.y + 0.04)
+    gaps.push(floor === null ? Infinity : sole.y - floor)
+  }
+  // Only where the body itself hangs in the air (half way down a step): a runner's own flight is left alone.
+  const root = player.getWorldPosition(new THREE.Vector3())
+  const under = groundUnder(grid, root.x, root.z, root.y + 0.04)
+  const drop = Math.min(under === null ? 0 : root.y - under, ...gaps)
+  if (drop > 0.03 && drop < 1.1) {
+    const scale = player.parent?.getWorldScale(new THREE.Vector3()).y || 1
+    player.position.y -= drop / scale
+    player.userData.feetDrop = drop / scale
+    player.updateMatrixWorld(true)
+  }
   for (const side of ['right', 'left']) {
     const leg = player.getObjectByName(`${side}Leg`)
     const shin = player.getObjectByName(`${side}Shin`)
@@ -406,17 +442,30 @@ function onSceneChange(s: ReturnType<typeof useStore.getState>, prev: ReturnType
     const f = JSON.stringify(fieldsOf(o))
     if (f === lastWritten.get(o.id)) continue
     if (tr.clips?.length) {
-      // Blocks decide where a character is: put it back and say why.
+      // Posing a character inside a Pose block sets that block's pose; otherwise blocks decide where it is.
+      const posed = o.kind === 'player' ? poseBlockAt(tr, time) : undefined
+      if (posed && o.kind === 'player') {
+        const pose = fullPose(o.pose)
+        data = withTrack(data, o.id, (t) =>
+          rebuildTrack({ ...t, clips: t.clips!.map((c) => (c.id === posed.id ? { ...c, pose } : c)) })
+        )
+        lastWritten.set(o.id, f)
+        continue
+      }
       revert = true
       continue
     }
     lastWritten.set(o.id, f)
     data = withTrack(data, o.id, (t) => ({ ...t, keys: putKey(t.keys, keyOf(o, time)) }))
   }
-  if (data !== animationOf()) commit(data)
+  const keyed = data !== animationOf()
+  if (keyed) commit(data)
+  // A change to something that isn't animated is its own undo step here.
+  else if (!revert && s.past.length)
+    useAnim.setState((a) => ({ past: [...a.past.slice(-99), { scene: prev.objects }], future: [] }))
   if (revert) {
     showFrame()
-    say('This character moves by blocks. Select a block to change its path, or use Bake to keys to edit by hand.')
+    say('This character moves by blocks. Add a Pose block to pose it, or select a block to change its path.')
   }
   // Ctrl+Z undoes animation edits here; the scene's own steps would put the wrong frame back.
   if (s.past.length || s.future.length) write({ past: [], future: [] })
@@ -511,22 +560,37 @@ export function animationTick(delta: number): void {
   posesAt(t)
 }
 
+/** Puts a history step back, returning the step that undoes it again. */
+function restoreStep(step: HistoryStep): HistoryStep {
+  if (isSceneStep(step)) {
+    const now = { scene: useStore.getState().objects }
+    write({ objects: step.scene })
+    showFrame()
+    return now
+  }
+  const now = animationOf()
+  useStore.getState().setSettings({ animation: step })
+  syncTracks()
+  return now
+}
+
+/** Ctrl+Z in Animation mode: the last change, to the animation or to the scene. */
 export function undoAnimation(): void {
   const a = useAnim.getState()
   const prev = a.past.at(-1)
   if (!prev) return
-  useAnim.setState({ past: a.past.slice(0, -1), future: [animationOf(), ...a.future] })
-  useStore.getState().setSettings({ animation: prev })
-  syncTracks()
+  useAnim.setState({ past: a.past.slice(0, -1) })
+  const back = restoreStep(prev)
+  useAnim.setState((s) => ({ future: [back, ...s.future] }))
 }
 
 export function redoAnimation(): void {
   const a = useAnim.getState()
   const next = a.future[0]
   if (!next) return
-  useAnim.setState({ past: [...a.past, animationOf()], future: a.future.slice(1) })
-  useStore.getState().setSettings({ animation: next })
-  syncTracks()
+  useAnim.setState({ future: a.future.slice(1) })
+  const back = restoreStep(next)
+  useAnim.setState((s) => ({ past: [...s.past, back] }))
 }
 
 /** After tracks were added or removed: objects that lost theirs go back to the thumbnail, the rest show the frame. */
@@ -776,7 +840,7 @@ export function addClip(id: string, type: ClipType, at?: number, layer?: 'upper'
   if (!animationRest.has(id)) animationRest.set(id, fieldsOf(o))
   const all = trackOf(id)?.clips ?? []
   if (layer && (o.kind !== 'player' || !canLayer(type))) {
-    say(`${CLIPS[type].label} can't go on the upper body row.`)
+    say(`${CLIPS[type].label} can't go on the arms and head row.`)
     return
   }
   const clips = all.filter((c) => laneOf(c) === (layer ?? 'base'))
@@ -793,6 +857,7 @@ export function addClip(id: string, type: ClipType, at?: number, layer?: 'upper'
     duration: round3(spot.duration),
     ...(layer ? { layer } : {})
   }
+  if (type === 'pose' && o.kind === 'player') clip.pose = fullPose(o.pose)
   if (type === 'reach') {
     // In front of the character at chest height, until it is put on something.
     const at = subjectAt(id, clip.start)
@@ -1026,7 +1091,7 @@ export function setClipReach(
   editClips(id, (clips) => clips.map((c) => (c.id === clipId ? { ...c, ...patch } : c)), live)
 }
 
-/** Moves a block between the body row and the upper body row (when its kind allows). */
+/** Moves a block between the body row and the arms and head row (when its kind allows). */
 export function setClipLayer(id: string, clipId: string, layer: 'upper' | undefined): void {
   const o = useStore.getState().objects.find((x) => x.id === id)
   editClips(id, (clips) => {
@@ -1106,7 +1171,16 @@ export function bakeClips(id: string): void {
 // ------------------------------------------------------------------ copy and paste
 
 let clipboard:
-  | { type: ClipType; duration: number; mode?: ClipMode; layer?: 'upper'; target?: Vec3; hand?: 'left' | 'right' }
+  | {
+      type: ClipType
+      duration: number
+      mode?: ClipMode
+      layer?: 'upper'
+      target?: Vec3
+      hand?: 'left' | 'right'
+      pose?: Pose
+      ease?: ClipEase
+    }
   | { camera: true; type: CamType; duration: number; subject?: string | null; amount?: number }
   | null = null
 export const hasClipboard = (): boolean => clipboard !== null
@@ -1119,7 +1193,16 @@ export function copyClip(sel = useAnim.getState().selectedClip): void {
   }
   const c = clipOf(sel)
   if (c)
-    clipboard = { type: c.type, duration: c.duration, mode: c.mode, layer: c.layer, target: c.target, hand: c.hand }
+    clipboard = {
+      type: c.type,
+      duration: c.duration,
+      mode: c.mode,
+      layer: c.layer,
+      target: c.target,
+      hand: c.hand,
+      pose: c.pose,
+      ease: c.ease
+    }
 }
 
 export function cutClip(sel = useAnim.getState().selectedClip): void {
@@ -1142,13 +1225,14 @@ export function pasteClip(objectId: string, at?: number, lane?: 'base' | 'upper'
   }
   if (objectId === CAMERA) return
   const before = new Set((trackOf(objectId)?.clips ?? []).map((c) => c.id))
-  const { type, duration, mode, target, hand } = clipboard
+  const { type, duration, mode, target, hand, pose, ease } = clipboard
   const layer = (lane ?? clipboard.layer ?? 'base') === 'upper' ? 'upper' : undefined
   addClip(objectId, type, at, layer)
   const added = trackOf(objectId)?.clips?.find((c) => !before.has(c.id))
   if (added && mode) setClipMode(objectId, added.id, mode)
   if (added && (target || hand)) setClipReach(objectId, added.id, { target, hand })
   if (added && Math.abs(added.duration - duration) > 1e-3) setClipDuration(objectId, added.id, duration)
+  if (added && (pose || ease)) setClipFields(objectId, added.id, { pose, ease })
 }
 
 /** A copy right after the block, or at the first room after it. */
@@ -1507,9 +1591,16 @@ export function adoptViewportView(): boolean {
   if (!clips.length) return false
   const t = an.time
   const chosen =
-    camClipOf(an.selectedClip) ?? clips.find((c) => t >= c.start - 1e-6 && t <= c.start + c.duration + 1e-6)
+    camClipOf(an.selectedClip) ?? clips.find((c) => !c.shot && t >= c.start - 1e-6 && t <= c.start + c.duration + 1e-6)
   const wanted = currentView()
   if (!chosen || !wanted) return false
+  if (chosen.type === 'glide') {
+    // A glide's view is where it ends up.
+    setCamClip(chosen.id, { to: wanted })
+    showFrame()
+    say('The glide now ends on this view.')
+    return true
+  }
   const at = Math.min(chosen.start + chosen.duration, Math.max(chosen.start, t))
   const view = startFor(chosen, wanted, at, subjectAt)
   const first = clips[0].id === chosen.id
@@ -1901,4 +1992,106 @@ export function suggestionsFor(id: string, t = useAnim.getState().time): Suggest
       out.push({ id: `go:${o.id}`, label: `Walk to ${o.name}`, run: () => void goTo(id, o.position as Vec3) })
   }
   return out
+}
+
+// ------------------------------------------------------------------ quick ways in
+
+/** Plays from `t`, so a change is seen straight away. */
+export function playFrom(t: number): void {
+  seek(Math.max(0, t))
+  play()
+}
+
+/** Adds a block and plays it (a Pose block waits to be posed instead). */
+export function addClipAndPlay(id: string, type: ClipType, at?: number, layer?: 'upper'): void {
+  addClip(id, type, at, layer)
+  const sel = useAnim.getState().selectedClip
+  const c = sel?.objectId === id ? clipOf(sel) : undefined
+  if (c && type !== 'pose') playFrom(c.start - 0.25)
+}
+
+/** Adds a preset's blocks after a character's last one and plays them. */
+export function applyPresetAndPlay(p: Preset, objectId: string): void {
+  const end = (trackOf(objectId)?.clips ?? [])
+    .filter((c) => laneOf(c) === 'base')
+    .reduce((m, c) => Math.max(m, c.start + c.duration), 0)
+  applyPreset(p, objectId)
+  playFrom(end - 0.25)
+}
+
+/** Changes fields of a block that need no other care (its pose, its ease). */
+export function setClipFields(id: string, clipId: string, patch: Pick<Clip, 'pose' | 'ease'>): void {
+  editClips(id, (clips) => clips.map((c) => (c.id === clipId ? { ...c, ...patch } : c)))
+}
+
+export const setClipEase = (id: string, clipId: string, ease: ClipEase): void => setClipFields(id, clipId, { ease })
+
+/** The Pose block on a character's row (either row) under time `t`, if any. */
+function poseBlockAt(tr: AnimTrack, t: number): Clip | undefined {
+  const sel = clipOf(useAnim.getState().selectedClip)
+  if (sel?.type === 'pose' && tr.clips?.includes(sel)) return sel
+  return tr.clips?.find((c) => c.type === 'pose' && t >= c.start - 1e-6 && t <= c.start + c.duration + 1e-6)
+}
+
+/**
+ * Set shot here: the first press keeps the view as the opening shot; each press after that adds a Glide to the
+ * view as it is now, so a few presses make a smooth camera move through the shots.
+ */
+export function setShotHere(): void {
+  const view = currentView()
+  if (!view) return
+  if (useAnim.getState().playing) pause()
+  const clips = animationOf().camera?.clips ?? []
+  const end = clips.reduce((m, c) => Math.max(m, c.start + c.duration), 0)
+  const first = !clips.length
+  const clip: CamClip = first
+    ? { id: crypto.randomUUID(), type: 'hold', start: 0, duration: 1, view, shot: true, subject: null }
+    : { id: crypto.randomUUID(), type: 'glide', start: round3(end), duration: 2, to: view, shot: true, subject: null }
+  const a = animationOf()
+  commit({ ...a, camera: { home: first ? view : (a.camera?.home ?? view), clips: [...clips, clip] } })
+  selectClip(null)
+  seek(clip.start + clip.duration)
+  say(
+    first
+      ? 'Opening shot set. Move the view and press Set shot here again to glide to the next one.'
+      : 'Shot added: the camera glides there. Drag the Glide block to change how long it takes.'
+  )
+}
+
+/** A walk along points drawn on the ground, after the character's last block; it runs if it has to be fast. */
+export function drawWalk(id: string, drawn: Vec3[]): void {
+  const o = useStore.getState().objects.find((x) => x.id === id)
+  if (!o || !canWalk(o)) return
+  const base = (trackOf(id)?.clips ?? []).filter((c) => laneOf(c) === 'base')
+  const start = round3(base.reduce((m, c) => Math.max(m, c.start + c.duration), 0))
+  if (!animationRest.has(id)) animationRest.set(id, fieldsOf(o))
+  const from = subjectAt(id, start)?.position ?? o.position
+  // A point about every block along the stroke is plenty to follow it.
+  const path: Vec3[] = []
+  let last = from
+  for (const p of drawn)
+    if (Math.hypot(p[0] - last[0], p[2] - last[2]) >= 1) {
+      path.push(dropPoint(p))
+      last = p
+    }
+  const end = drawn.at(-1)
+  if (end && (!path.length || Math.hypot(end[0] - last[0], end[2] - last[2]) > 0.3)) path.push(dropPoint(end))
+  let length = 0
+  let at = from
+  for (const p of path) {
+    length += Math.hypot(p[0] - at[0], p[2] - at[2])
+    at = p
+  }
+  if (length < 0.5) return
+  const g = GAITS.walk
+  const clip: Clip = {
+    id: crypto.randomUUID(),
+    type: 'walk',
+    start,
+    duration: round3(Math.max(MIN_CLIP, length / g.speed + g.accel)),
+    path
+  }
+  editClips(id, (c) => [...c, clip])
+  selectClip({ objectId: id, clipId: clip.id })
+  playFrom(start - 0.25)
 }

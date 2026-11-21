@@ -186,6 +186,19 @@ function ExportMenu({ onClose }: { onClose: () => void }): ReactNode {
   )
 }
 
+/** One click for the usual places a clip goes: the kind of file and the size together. */
+const QUICK_EXPORTS = [
+  { id: 'youtube', label: 'YouTube', kind: 'video', size: '1080p', hint: 'A 1920 × 1080 video' },
+  {
+    id: 'shorts',
+    label: 'Shorts',
+    kind: 'video',
+    size: 'shorts',
+    hint: 'A tall 1080 × 1920 video, the character kept in the middle'
+  },
+  { id: 'gif', label: 'GIF', kind: 'gif', size: 'thumb', hint: 'A GIF the size of the thumbnail' }
+] as const
+
 /** What the animation is exported as and at what size, folded behind the Export video button's arrow. */
 function MovieMenu({ onClose }: { onClose: () => void }): ReactNode {
   const ref = useRef<HTMLDivElement>(null)
@@ -194,8 +207,34 @@ function MovieMenu({ onClose }: { onClose: () => void }): ReactNode {
     useShallow((a) => ({ exportKind: a.exportKind, exportSize: a.exportSize, blur: a.blur, follow: a.follow }))
   )
   const people = useStore((s) => s.objects).filter(canWalk)
+  const selectedId = useStore((s) => s.selectedId)
   return (
     <div className="menu export-menu" role="menu" ref={ref}>
+      <div className="menu-title">Quick pick</div>
+      <div className="segmented">
+        {QUICK_EXPORTS.map((q) => {
+          const on = exportKind === q.kind && exportSize === q.size
+          return (
+            <button
+              key={q.id}
+              className={on ? 'active' : ''}
+              title={q.hint}
+              onClick={() =>
+                useAnim.setState({
+                  exportKind: q.kind,
+                  exportSize: q.size,
+                  // A tall video keeps the selected (or first) character in the middle.
+                  ...(q.id === 'shorts' && !follow
+                    ? { follow: (people.find((p) => p.id === selectedId) ?? people[0])?.id ?? null }
+                    : {})
+                })
+              }
+            >
+              {q.label}
+            </button>
+          )
+        })}
+      </div>
       <div className="menu-title">Export as</div>
       {EXPORT_KINDS.map((k) => (
         <button

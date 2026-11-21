@@ -1300,6 +1300,16 @@ button.link {
   margin-top: 8px;
 }
 
+/* One part of the window failed: shown in its place, not over everything. */
+.app-error.area-error {
+  position: static;
+  padding: 20px 14px;
+  background: transparent;
+}
+.app-error.area-error strong {
+  font-size: 14px;
+}
+
 .template-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
@@ -5556,4 +5566,193 @@ button {
 .rim-remove {
   align-self: flex-start;
   gap: 6px;
+}
+
+/* Animation: the new blocks' colours. */
+.clip-pose {
+  --clip-color: #e0c060;
+}
+.clip-lunge {
+  --clip-color: #c4573c;
+}
+.clip-spin {
+  --clip-color: #5cb8a8;
+}
+
+/* Animation panel: first-run guide, header, describe box, scene starters, search and section titles. */
+.animate-panel .anim-coach {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  border: 1px solid var(--border-strong);
+}
+.animate-panel .anim-coach ol {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.animate-panel .anim-coach .insp-head .icon-btn {
+  margin-left: auto;
+}
+.animate-panel .anim-coach > button {
+  align-self: flex-start;
+}
+.anim-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.anim-head h4 {
+  margin: 0;
+}
+.animate-panel .describe {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.animate-panel .describe button {
+  align-self: flex-end;
+}
+.starter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.starter-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  color: var(--text);
+  text-align: left;
+}
+.starter-card:hover {
+  border-color: var(--accent);
+}
+.starter-card strong {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.starter-card em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.starter-icons {
+  display: flex;
+  gap: 4px;
+  color: var(--accent);
+}
+.animate-panel .next-title {
+  margin-bottom: 0;
+}
+.animate-panel h5 {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.anim-find {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  height: var(--row, 30px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+}
+.anim-find input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  outline: none;
+}
+
+/* Quick actions next to a character clicked in the scene. */
+.action-ring {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 170px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.action-ring-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 6px 6px;
+  font-size: 12px;
+}
+.action-ring > button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.action-ring > button:hover {
+  background: var(--bg-hover);
+}
+
+/* The tall Shorts frame over the viewport, with where YouTube's buttons and caption sit. */
+.shorts-guide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 5;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.shorts-frame {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 9 / 16;
+  max-width: 100%;
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45);
+}
+.shorts-buttons {
+  position: absolute;
+  right: 0;
+  bottom: 18%;
+  width: 16%;
+  height: 40%;
+  background: rgba(255, 80, 80, 0.18);
+  border-left: 1px dashed rgba(255, 120, 120, 0.7);
+}
+.shorts-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 18%;
+  background: rgba(255, 80, 80, 0.18);
+  border-top: 1px dashed rgba(255, 120, 120, 0.7);
 }
