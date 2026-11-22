@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useLazyImage } from '../../lazyImage'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   ENTITY_CATEGORIES,
   entityCategory,
@@ -33,23 +34,9 @@ const pretty = (key: string): string => {
 
 /** The mob's own model, rendered isometrically once it scrolls into view. */
 function MobIcon({ models, layerKey }: { models: MobModels; layerKey: string }): ReactNode {
-  const ref = useRef<HTMLSpanElement>(null)
-  const [src, setSrc] = useState<string | null>(null)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let alive = true
-    const io = new IntersectionObserver(([e]) => {
-      if (!e.isIntersecting) return
-      io.disconnect()
-      const texture = textureCandidates(layerKey, models.layers[layerKey], models.textureSizes)[0]
-      if (texture) void mobThumbnail(models, layerKey, texture).then((u) => alive && setSrc(u))
-    })
-    io.observe(el)
-    return () => {
-      alive = false
-      io.disconnect()
-    }
+  const [ref, src] = useLazyImage<HTMLSpanElement>(() => {
+    const texture = textureCandidates(layerKey, models.layers[layerKey], models.textureSizes)[0]
+    return texture ? mobThumbnail(models, layerKey, texture) : undefined
   }, [models, layerKey])
   return (
     <span ref={ref} className="asset-thumb">

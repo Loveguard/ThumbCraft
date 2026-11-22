@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useLazyImage } from '../../lazyImage'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { BACKDROPS } from '@shared/minecraft/backdrops'
 import { groupBiomes } from '@shared/minecraft/worldgen'
 import type { JavaInfo } from '@shared/api'
@@ -39,23 +40,10 @@ function BiomeArt({
   colormaps: Colormaps | null
 }): ReactNode {
   const assets = useStore((s) => s.assets)!
-  const ref = useRef<HTMLImageElement>(null)
-  const [src, setSrc] = useState<string | null>(null)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let alive = true
-    const io = new IntersectionObserver(([e]) => {
-      if (!e.isIntersecting) return
-      io.disconnect()
-      void biomePreview(assets, colormaps, id, dimension).then((u) => alive && setSrc(u))
-    })
-    io.observe(el)
-    return () => {
-      alive = false
-      io.disconnect()
-    }
-  }, [assets, colormaps, id, dimension])
+  const [ref, src] = useLazyImage<HTMLImageElement>(
+    () => biomePreview(assets, colormaps, id, dimension),
+    [assets, colormaps, id, dimension]
+  )
   return <img ref={ref} className="biome-art" src={src ?? undefined} alt="" style={{ opacity: src ? 1 : 0 }} />
 }
 

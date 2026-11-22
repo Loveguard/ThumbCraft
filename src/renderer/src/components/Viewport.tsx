@@ -21,6 +21,8 @@ import { SkyBackdrop } from './SkyBackdrop'
 import { snapPoint } from './snapping'
 import { ViewportOverlay } from './ViewportOverlay'
 import { Timeline } from './Timeline'
+import { AppErrorBoundary } from './AppErrorBoundary'
+import { ActionRing } from './ActionRing'
 import { buildBlockEntities, hasBlockEntities } from '../minecraft/blockEntities'
 import { applyMobPose, buildMob, mobModels } from '../minecraft/mobs'
 import { animationLength, PathCurve, sampleTrack } from '@shared/animation'
@@ -29,7 +31,9 @@ import {
   adoptViewportView,
   animationTick,
   beginEdit,
+  canWalk,
   clipOf,
+  drawWalk,
   dropPoint,
   finishEdit,
   goTo,
@@ -70,7 +74,8 @@ import {
   type Vec3
 } from '../store'
 import { ensureFont } from '../textStyles'
-import { LIGHTNING_ALPHA, lightningGeometry } from '@shared/minecraft/lightning'
+import { LIGHTNING_ALPHA, lightningFlicker, lightningGeometry } from '@shared/minecraft/lightning'
+import { onEffectTime } from '../effectClock'
 import { Weather } from './Weather'
 import { VfxNode } from './VfxNode'
 import { errorText } from '../errors'
@@ -477,10 +482,23 @@ function LightningNode({ o }: { o: LightningObject }): ReactNode {
   }, [o.seed, o.thickness])
   useEffect(() => () => geometry.dispose(), [geometry])
   const color = useMemo(() => new THREE.Color(o.color).multiplyScalar(o.brightness), [o.color, o.brightness])
+  const material = useRef<THREE.MeshBasicMaterial>(null)
+  const flash = useRef<THREE.PointLight>(null)
+  // In Animation mode the bolt flickers and strikes again every couple of seconds, as lightning does.
+  useEffect(
+    () =>
+      onEffectTime((t, moving) => {
+        const k = moving && !o.still ? lightningFlicker(t, o.seed) : 1
+        if (material.current) material.current.opacity = LIGHTNING_ALPHA * k
+        if (flash.current) flash.current.intensity = 45 * o.brightness * k
+      }),
+    [o.still, o.seed, o.brightness]
+  )
   return (
     <>
       <mesh geometry={geometry} renderOrder={600}>
         <meshBasicMaterial
+          ref={material}
           color={color}
           transparent
           opacity={LIGHTNING_ALPHA}
@@ -492,7 +510,14 @@ function LightningNode({ o }: { o: LightningObject }): ReactNode {
       </mesh>
       {o.flash && (
         // A gentler flash than before: enough to light the ground and nearby players without whiting them out.
-        <pointLight position={[0, 3, 0]} color="#d6dcff" intensity={45 * o.brightness} distance={30} decay={2} />
+        <pointLight
+          ref={flash}
+          position={[0, 3, 0]}
+          color="#d6dcff"
+          intensity={45 * o.brightness}
+          distance={30}
+          decay={2}
+        />
       )}
     </>
   )
@@ -1228,6 +1253,184 @@ function helperLine(points: THREE.Vector3[], color: string, opacity = 1): THREE.
   return line
 }
 
+/** Objects that move by themselves, so the view has to keep drawing. */
+const LIVELY = new Set(['vfx', 'video', 'lightning'])
+
+/**
+ * Snappier when nothing happens: the view draws every frame while you work, while it plays and while anything moves
+ * by itself (effects, videos, weather), and drops to a few frames a second a moment after you stop, which is
+ * enough to catch textures that finish loading.
+ */
+function IdleFrameloop(): null {
+  const { setFrameloop, invalidate } = useThree()
+  const lively = useStore((s) => s.settings.weather !== 'none' || s.objects.some((o) => LIVELY.has(o.kind)))
+  const playing = useAnim((s) => s.playing)
+  useEffect(() => {
+    if (lively || playing) {
+      setFrameloop('always')
+      return
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const wake = (): void => {
+      setFrameloop('always')
+      clearTimeout(timer)
+      timer = setTimeout(() => setFrameloop('demand'), 1500)
+    }
+    wake()
+    const slow = setInterval(() => invalidate(), 250)
+    const events = ['pointermove', 'pointerdown', 'wheel', 'keydown'] as const
+    for (const e of events) window.addEventListener(e, wake, { passive: true })
+    const stopScene = useStore.subscribe(wake)
+    const stopAnim = useAnim.subscribe(wake)
+    return () => {
+      clearTimeout(timer)
+      clearInterval(slow)
+      for (const e of events) window.removeEventListener(e, wake)
+      stopScene()
+      stopAnim()
+      setFrameloop('always')
+    }
+  }, [lively, playing, setFrameloop, invalidate])
+  return null
+}
+
+/** A ray from the camera through the pointer. */
+function pointerRay(e: MouseEvent, gl: THREE.WebGLRenderer, camera: THREE.Camera): THREE.Raycaster {
+  const rect = gl.domElement.getBoundingClientRect()
+  const r = new THREE.Raycaster()
+  r.setFromCamera(
+    new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1),
+    camera
+  )
+  return r
+}
+
+/** The ground point under the pointer: the first thing hit that isn't `skip`, else the level `y`. */
+function groundAt(
+  e: MouseEvent,
+  gl: THREE.WebGLRenderer,
+  camera: THREE.Camera,
+  skip: string | null,
+  y: number
+): Vec3 | null {
+  const r = pointerRay(e, gl, camera)
+  const targets: THREE.Object3D[] = []
+  for (const [id, o] of viewport.objects) if (id !== skip && o.visible) targets.push(o)
+  const hit = r.intersectObjects(targets, true).find((h) => {
+    for (let p: THREE.Object3D | null = h.object; p; p = p.parent) if (isHelperObject(p) || !p.visible) return false
+    return true
+  })
+  const p = hit?.point ?? r.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), new THREE.Vector3())
+  return p ? [p.x, p.y, p.z] : null
+}
+
+/**
+ * Animation mode, the direct ways: with Draw a walk on, dragging across the ground draws the selected character a
+ * walk there; clicking a character (without dragging) opens its quick actions next to it.
+ */
+function DrawAndRing(): ReactNode {
+  const mode = useAnim((s) => s.mode)
+  const drawing = useAnim((s) => s.drawing)
+  const { gl, camera } = useThree()
+  const [stroke, setStroke] = useState<Vec3[]>([])
+
+  useEffect(() => {
+    if (mode !== 'animation') return
+    const el = gl.domElement.closest('.viewport') as HTMLElement | null
+    if (!el) return
+    let down: { x: number; y: number; selected: string | null } | null = null
+    const onDown = (e: PointerEvent): void => {
+      if (e.button !== 0 || !(e.target instanceof HTMLCanvasElement)) return
+      down = { x: e.clientX, y: e.clientY, selected: useStore.getState().selectedId }
+      const who = useStore.getState().objects.find((o) => o.id === useStore.getState().selectedId)
+      if (!useAnim.getState().drawing || !who || !canWalk(who)) return
+      // Drawing: the camera and the scene's own clicks never see this drag.
+      e.stopPropagation()
+      e.preventDefault()
+      const pts: Vec3[] = []
+      const add = (ev: PointerEvent): void => {
+        const p = groundAt(ev, gl, camera, who.id, who.position[1])
+        if (p && (!pts.length || Math.hypot(p[0] - pts.at(-1)![0], p[2] - pts.at(-1)![2]) > 0.25)) {
+          pts.push(p)
+          setStroke([...pts])
+        }
+      }
+      add(e)
+      const up = (): void => {
+        window.removeEventListener('pointermove', add)
+        window.removeEventListener('pointerup', up)
+        setStroke([])
+        useAnim.setState({ drawing: false })
+        drawWalk(who.id, pts)
+      }
+      window.addEventListener('pointermove', add)
+      window.addEventListener('pointerup', up)
+    }
+    const onUp = (e: PointerEvent): void => {
+      const a = useAnim.getState()
+      if (!down || a.drawing || a.addingPoints || a.pickingTarget || a.goingTo || a.playing) return
+      if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4 || !(e.target instanceof HTMLCanvasElement)) return
+      const was = down.selected
+      down = null
+      // Which character is under the pointer, if any.
+      const r = pointerRay(e, gl, camera)
+      const people = useStore.getState().objects.filter(canWalk)
+      let best: { id: string; d: number } | null = null
+      for (const o of people) {
+        const obj = viewport.objects.get(o.id)
+        const hit = obj?.visible ? r.intersectObject(obj, true)[0] : undefined
+        if (hit && (!best || hit.distance < best.d)) best = { id: o.id, d: hit.distance }
+      }
+      const box = el.getBoundingClientRect()
+      // A second click on the character already picked is for its joints and handles, not for the actions.
+      if (best?.id === was) return
+      useAnim.setState({
+        ring: best ? { id: best.id, x: e.clientX - box.left + 12, y: e.clientY - box.top - 12 } : null
+      })
+    }
+    el.addEventListener('pointerdown', onDown, true)
+    el.addEventListener('pointerup', onUp, true)
+    return () => {
+      el.removeEventListener('pointerdown', onDown, true)
+      el.removeEventListener('pointerup', onUp, true)
+    }
+  }, [mode, gl, camera])
+
+  useEffect(() => {
+    const el = gl.domElement.closest('.viewport') as HTMLElement | null
+    if (!el || !drawing) return
+    const prev = el.style.cursor
+    el.style.cursor = 'crosshair'
+    return () => void (el.style.cursor = prev)
+  }, [drawing, gl])
+
+  const line = useMemo(
+    () =>
+      stroke.length > 1
+        ? helperLine(
+            stroke.map((p) => new THREE.Vector3(p[0], p[1] + 0.06, p[2])),
+            PATH_COLOR
+          )
+        : null,
+    [stroke]
+  )
+  return line ? <primitive object={line} /> : null
+}
+
+/** With the Shorts size picked for export: the tall frame, and where YouTube's buttons and caption cover it. */
+function ShortsGuide(): ReactNode {
+  const shorts = useAnim((s) => s.exportSize === 'shorts')
+  if (!shorts) return null
+  return (
+    <div className="shorts-guide" aria-hidden>
+      <div className="shorts-frame">
+        <div className="shorts-buttons" />
+        <div className="shorts-caption" />
+      </div>
+    </div>
+  )
+}
+
 /**
  * Animation mode: the selected block's path is drawn over the scene with a handle on each point. Dragging a handle
  * moves it along the ground; with "Add points" on, clicking the ground adds one. The selected character's whole
@@ -1254,18 +1457,7 @@ function AnimationPaths(): ReactNode {
     if (!clipId && !going) return
     const el = gl.domElement.closest('.viewport') as HTMLElement | null
     if (!el) return
-    const rayAt = (e: MouseEvent): THREE.Raycaster => {
-      const rect = gl.domElement.getBoundingClientRect()
-      const r = new THREE.Raycaster()
-      r.setFromCamera(
-        new THREE.Vector2(
-          ((e.clientX - rect.left) / rect.width) * 2 - 1,
-          -((e.clientY - rect.top) / rect.height) * 2 + 1
-        ),
-        camera
-      )
-      return r
-    }
+    const rayAt = (e: MouseEvent): THREE.Raycaster => pointerRay(e, gl, camera)
     const current = (): { objectId: string; points: Vec3[] } | null => {
       const sel = useAnim.getState().selectedClip
       const c = clipOf(sel)
@@ -1379,30 +1571,18 @@ function AnimationPaths(): ReactNode {
       // Not a selection click: the scene's own click handling never sees it.
       e.stopPropagation()
       if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return
-      const ray = rayAt(e)
       const owner = useAnim.getState().selectedClip?.objectId ?? useStore.getState().selectedId
-      const targets: THREE.Object3D[] = []
-      for (const [id, o] of viewport.objects) if (id !== owner && o.visible) targets.push(o)
-      const hit = ray.intersectObjects(targets, true).find((h) => {
-        for (let p: THREE.Object3D | null = h.object; p; p = p.parent) if (isHelperObject(p) || !p.visible) return false
-        return true
-      })
-      let point = hit?.point
-      if (!point) {
-        // Nothing there: the level the character stands on.
-        const level = current()?.points.at(-1)?.[1] ?? 0
-        point =
-          ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -level), new THREE.Vector3()) ?? undefined
-      }
+      // Nothing there: the level the character stands on.
+      const point = groundAt(e, gl, camera, owner, current()?.points.at(-1)?.[1] ?? 0)
       if (point && sending) {
         const who = useStore.getState().selectedId
         useAnim.setState({ goingTo: false })
-        if (who) goTo(who, [point.x, point.y, point.z])
+        if (who) goTo(who, point)
       } else if (point && picking) {
         const sel = useAnim.getState().selectedClip
-        if (sel) setClipReach(sel.objectId, sel.clipId, { target: [point.x, point.y, point.z] })
+        if (sel) setClipReach(sel.objectId, sel.clipId, { target: point })
         useAnim.setState({ pickingTarget: false })
-      } else if (point) addClipPoint([point.x, point.y, point.z])
+      } else if (point) addClipPoint(point)
     }
     el.addEventListener('pointerdown', onDown, true)
     el.addEventListener('click', onClick, true)
@@ -1866,6 +2046,68 @@ function watchContext(canvas: HTMLCanvasElement, rebuild: () => void): void {
   })
 }
 
+/**
+ * The biggest box of the export's shape that fits inside the frame's padding, kept up to date as the window or the
+ * panels change size. CSS alone (aspect-ratio with a max-height) stretches the picture once the height runs out.
+ */
+function useFitBox(frame: React.RefObject<HTMLDivElement | null>, ratio: number): [number, number] | null {
+  const [box, setBox] = useState<[number, number] | null>(null)
+  useEffect(() => {
+    const el = frame.current
+    if (!el) return
+    const fit = (): void => {
+      const cs = getComputedStyle(el)
+      const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+      const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+      if (w <= 0 || h <= 0) return
+      const next: [number, number] =
+        w / h > ratio ? [Math.floor(h * ratio), Math.floor(h)] : [Math.floor(w), Math.floor(w / ratio)]
+      setBox((b) => (b && b[0] === next[0] && b[1] === next[1] ? b : next))
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [frame, ratio])
+  return box
+}
+
+/** The canvas shapes most thumbnails and clips are made in, one click each, above the canvas. */
+const CANVAS_SHAPES: { label: string; hint: string; size: [number, number] }[] = [
+  { label: 'YouTube', hint: '16:9, 1280 × 720 (pick Full HD or 4K under Export)', size: [1280, 720] },
+  { label: 'Shorts', hint: '9:16, 1080 × 1920', size: [1080, 1920] },
+  { label: 'Square', hint: '1:1, 1080 × 1080', size: [1080, 1080] },
+  { label: 'Portrait', hint: '4:5, 1080 × 1350, for Instagram posts', size: [1080, 1350] }
+]
+
+function CanvasSize(): ReactNode {
+  const [w, h] = useStore(useShallow((s) => [s.settings.exportWidth, s.settings.exportHeight]))
+  const setSettings = useStore((s) => s.setSettings)
+  const same = (a: [number, number]): boolean => Math.abs(a[0] / a[1] - w / h) < 0.01
+  return (
+    <div className="canvas-size segmented" role="radiogroup" aria-label="Canvas shape">
+      {CANVAS_SHAPES.map((c) => (
+        <button
+          key={c.label}
+          role="radio"
+          aria-checked={same(c.size)}
+          className={same(c.size) ? 'active' : ''}
+          title={c.hint}
+          // Same shape already (a 4K YouTube thumbnail): keep its size.
+          onClick={() => !same(c.size) && setSettings({ exportWidth: c.size[0], exportHeight: c.size[1] })}
+        >
+          {c.label}
+        </button>
+      ))}
+      {!CANVAS_SHAPES.some((c) => same(c.size)) && (
+        <span className="canvas-size-custom">
+          {w} × {h}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function Viewport(): ReactNode {
   const objects = useStore((s) => s.objects)
   const select = useStore((s) => s.select)
@@ -1881,9 +2123,12 @@ export function Viewport(): ReactNode {
     setGlKey((k) => k + 1)
     if (view) setTimeout(() => cameraBridge.set?.(view), 100)
   }
+  const frame = useRef<HTMLDivElement>(null)
+  const box = useFitBox(frame, exportWidth / exportHeight)
   return (
-    <div className={`viewport-frame ${animating ? 'animating' : ''}`}>
-      <div className="viewport" style={{ aspectRatio: `${exportWidth} / ${exportHeight}` }}>
+    <div className={`viewport-frame ${animating ? 'animating' : ''}`} ref={frame}>
+      <CanvasSize />
+      <div className="viewport" style={box ? { width: box[0], height: box[1] } : { visibility: 'hidden' }}>
         <GlErrorBoundary onRetry={rebuild}>
           <Canvas
             key={glKey}
@@ -1900,6 +2145,7 @@ export function Viewport(): ReactNode {
             onPointerMissed={(e) => !wasDrag(e) && !e.shiftKey && !e.ctrlKey && !e.metaKey && select(null)}
           >
             <Bridge />
+            <IdleFrameloop />
             <ShadowThrottle />
             <PointerTracker />
             <SelectionTracker />
@@ -1914,6 +2160,7 @@ export function Viewport(): ReactNode {
             {showGrid && <gridHelper args={[64, 64, '#666', '#333']} userData={{ helper: true }} />}
             <AnimationDriver />
             <AnimationPaths />
+            <DrawAndRing />
             <OnionSkin />
             <Gizmo />
             <SelectionBoxes />
@@ -1938,11 +2185,17 @@ export function Viewport(): ReactNode {
           </Canvas>
           <FocusPoints />
           <StickerLayer />
+          {animating && <ActionRing />}
+          {animating && <ShortsGuide />}
           <Rulers />
           <ViewportOverlay />
         </GlErrorBoundary>
       </div>
-      {animating && <Timeline />}
+      {animating && (
+        <AppErrorBoundary area="timeline">
+          <Timeline />
+        </AppErrorBoundary>
+      )}
     </div>
   )
 }

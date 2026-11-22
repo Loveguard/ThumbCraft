@@ -5,7 +5,7 @@ import { DAY_LIGHTING, NIGHT_LIGHTING, useStore, type SkyPreset, type WeatherTyp
 import { sunInView } from '../Effects'
 import { PRESET_SUN } from '../SkyBackdrop'
 import { viewport } from '../Viewport'
-import { ColorSection, Group, Hint } from '../controls'
+import { ColorSection, Group, Hint, Toggle } from '../controls'
 import { FxGroup, FxSlider } from './EffectsTab'
 
 const PRESETS: { id: SkyPreset; label: string; hint: string; swatch: string }[] = [
@@ -256,6 +256,7 @@ export function WeatherControls(): ReactNode {
   const weather = useStore((s) => s.settings.weather)
   const density = useStore((s) => s.settings.weatherDensity)
   const wind = useStore((s) => s.settings.wind)
+  const still = useStore((s) => !!s.settings.weatherStill)
   const { setSettings, setSky } = useStore.getState()
   return (
     <>
@@ -302,6 +303,12 @@ export function WeatherControls(): ReactNode {
             />
             <em>{wind.toFixed(2)}</em>
           </label>
+          <Toggle
+            label="Falls in Animation mode"
+            title="Off keeps it as a still picture in the video too"
+            checked={!still}
+            onChange={(on) => setSettings({ weatherStill: !on })}
+          />
         </>
       )}
       <Hint label="About weather">

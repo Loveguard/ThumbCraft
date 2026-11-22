@@ -21,7 +21,7 @@ import {
   putKey,
   sampleTrack,
   strideOf,
-  walkKeys,
+  locomotion,
   type AnimKey
 } from '@shared/animation'
 import { POSES, fullPose } from '@shared/minecraft/playerModel'
@@ -94,7 +94,7 @@ describe('gaits', () => {
   })
 })
 
-describe('walkKeys', () => {
+describe('locomotion', () => {
   const path = {
     points: [
       [0, 64, 0],
@@ -105,7 +105,7 @@ describe('walkKeys', () => {
     speed: 1,
     start: 0.5
   }
-  const keys = walkKeys(path, { kind: 'player', scale: 1, rotation: [0, 0, 0], pose: POSES.Standing })
+  const keys = locomotion(path, { kind: 'player', scale: 1, rotation: [0, 0, 0], pose: POSES.Standing }).keys
 
   it('starts at the start, ends at the end, standing still both times', () => {
     expect(keys[0].t).toBe(0.5)
@@ -130,7 +130,7 @@ describe('walkKeys', () => {
     expect(keys.at(-1)!.rotation[1]).toBeLessThan(60)
   })
   it('never moves backwards along a straight path', () => {
-    const straight = walkKeys(
+    const straight = locomotion(
       {
         ...path,
         points: [
@@ -145,7 +145,7 @@ describe('walkKeys', () => {
         rotation: [0, 0, 0],
         pose: POSES.Standing
       }
-    )
+    ).keys
     const track = { objectId: 'a', keys: straight }
     let last = -1
     for (let t = 0; t < straight.at(-1)!.t; t += 1 / 30) {
@@ -155,7 +155,7 @@ describe('walkKeys', () => {
     }
   })
   it('handles a path too short to reach full speed', () => {
-    const short = walkKeys(
+    const short = locomotion(
       {
         ...path,
         points: [
@@ -165,7 +165,7 @@ describe('walkKeys', () => {
         gait: 'sprint'
       },
       { kind: 'mob', scale: 1, rotation: [0, 0, 0] }
-    )
+    ).keys
     expect(short.at(-1)!.position[2]).toBeCloseTo(0.5, 2)
     expect(short.every((k) => Number.isFinite(k.t))).toBe(true)
   })

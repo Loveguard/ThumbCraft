@@ -191,6 +191,8 @@ export interface LightningObject extends Base {
   flash: boolean
   /** Width of the bolt's glow (1 = vanilla's); missing in older projects, which keep vanilla's. */
   thickness?: number
+  /** Stays as it is in Animation mode instead of flickering. */
+  still?: boolean
 }
 
 /** Smoke, fog, fire and other effects placed in the scene (see vfx.ts). */
@@ -205,6 +207,10 @@ export interface VfxObject extends Base {
   /** Lights up its surroundings in Cinematic mode. */
   glow: boolean
   seed: number
+  /** Stays as laid out in Animation mode instead of moving. */
+  still?: boolean
+  /** Explosions and other bursts: the second of the animation they go off at (default the start). */
+  burstAt?: number
 }
 
 export type WeatherType = 'none' | 'rain' | 'snow'
@@ -289,6 +295,8 @@ export interface SceneSettings {
   weatherDensity: number
   /** Sideways lean of the falling rain or snow. */
   wind: number
+  /** Rain or snow stays as it is in Animation mode instead of falling. */
+  weatherStill?: boolean
   /** The user's saved camera ("shot"), to return to after looking around. */
   shot: (CameraState & { fov: number }) | null
   /** Characters and objects moving over time (the Animation mode). */

@@ -1,5 +1,6 @@
 // The Animation mode's timeline, under the viewport: play, scrub, and a row for every character. Blocks (walk, jump,
 // point...) are dropped on a row, dragged along it and stretched by their edges; other animated objects show keys.
+import { Splitter } from './Splitter'
 import {
   useEffect,
   useRef,
@@ -124,7 +125,7 @@ export function Timeline(): ReactNode {
       .filter(canWalk)
       .flatMap((o): Row[] => [
         { id: o.id, obj: o.id, name: o.name },
-        ...(o.kind === 'player' ? [{ id: `${o.id}:upper`, obj: o.id, name: 'Upper body', upper: true }] : [])
+        ...(o.kind === 'player' ? [{ id: `${o.id}:upper`, obj: o.id, name: 'Arms and head', upper: true }] : [])
       ]),
     ...animation.tracks
       .filter((t) => !objects.some((o) => o.id === t.objectId && canWalk(o)))
@@ -298,6 +299,7 @@ export function Timeline(): ReactNode {
 
   return (
     <div className="timeline">
+      <Splitter panel="timeline" />
       <div className="tl-bar">
         <button className="icon-btn" title="To the start" onClick={() => seek(0)}>
           <SkipBack size={15} />

@@ -111,13 +111,33 @@ export interface Puff {
   shade: number
 }
 
+/**
+ * How a layer's puffs move in Animation mode (a thumbnail shows them as laid out). `rise`: each drifts up through
+ * its spot (down for a negative speed), fading in and out; `flicker`: flames licking up and shrinking; `swirl`:
+ * turning round the middle while rising; `drift`: wandering slowly about (fog); `twinkle`: pulsing in size and
+ * brightness; `burst`: an explosion going off at the effect's time, as its `part` (0 the fireball, 1 the smoke,
+ * 2 the thrown debris) from `travel` blocks up.
+ */
+export interface PuffMotion {
+  kind: 'rise' | 'flicker' | 'swirl' | 'drift' | 'twinkle' | 'burst'
+  /** Blocks (or turns, for swirl and twinkle) a second; the part for a burst. */
+  speed: number
+  /** How far each puff travels before it starts over; the height a burst comes from. */
+  travel: number
+}
+
+export const MOTION_KINDS: PuffMotion['kind'][] = ['rise', 'flicker', 'swirl', 'drift', 'twinkle', 'burst']
+
 export interface PuffLayer {
   texture: 'puff' | 'spark' | 'star'
   blending: 'normal' | 'additive'
   /** Overrides the effect's colour for this layer (the grey smoke above an explosion). */
   color?: string
   puffs: Puff[]
+  motion: PuffMotion
 }
+
+const move = (kind: PuffMotion['kind'], speed: number, travel = 1): PuffMotion => ({ kind, speed, travel })
 
 /** mulberry32: tiny seeded random, so an effect looks the same every time. */
 function random(seed: number): () => number {
@@ -163,7 +183,7 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
         // Drifts a little downwind as it rises.
         puffs.push(puff(x + t * 1.2, 0.3 + t * 6, z, 0.8 + t * 2.4, 0.55 * (1 - t) ** 0.6, 0.75 + rnd() * 0.35))
       }
-      return [{ texture: 'puff', blending: 'normal', puffs }]
+      return [{ texture: 'puff', blending: 'normal', puffs, motion: move('rise', 0.6, 1.5) }]
     }
     case 'fog': {
       const n = count(30, 110)
@@ -172,7 +192,7 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
         const [x, z] = disc(rnd, 7)
         puffs.push(puff(x, 0.2 + rnd() * 0.9, z, 2.5 + rnd() * 2.5, 0.18 + rnd() * 0.12, 0.9 + rnd() * 0.15))
       }
-      return [{ texture: 'puff', blending: 'normal', puffs }]
+      return [{ texture: 'puff', blending: 'normal', puffs, motion: move('drift', 0.15, 0.8) }]
     }
     case 'fire': {
       const flames: Puff[] = []
@@ -193,9 +213,9 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
         smoke.push(puff(x, 2 + t * 3, z, 1 + t * 1.5, 0.3 * (1 - t), 0.7))
       }
       return [
-        { texture: 'puff', blending: 'normal', color: '#3a3a3a', puffs: smoke },
-        { texture: 'puff', blending: 'additive', puffs: flames },
-        { texture: 'spark', blending: 'additive', puffs: sparks }
+        { texture: 'puff', blending: 'normal', color: '#3a3a3a', puffs: smoke, motion: move('rise', 0.8, 1.5) },
+        { texture: 'puff', blending: 'additive', puffs: flames, motion: move('flicker', 2.2, 0.7) },
+        { texture: 'spark', blending: 'additive', puffs: sparks, motion: move('rise', 1.5, 2.5) }
       ]
     }
     case 'explosion': {
@@ -228,9 +248,9 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
         debris.push(puff(Math.cos(a) * r, 1 + u * 4, Math.sin(a) * r, 0.08 + rnd() * 0.1, 1, 1.4))
       }
       return [
-        { texture: 'puff', blending: 'normal', color: '#4a4a4a', puffs: smoke },
-        { texture: 'puff', blending: 'additive', puffs: core },
-        { texture: 'spark', blending: 'additive', puffs: debris }
+        { texture: 'puff', blending: 'normal', color: '#4a4a4a', puffs: smoke, motion: move('burst', 1, 1.8) },
+        { texture: 'puff', blending: 'additive', puffs: core, motion: move('burst', 0, 1.8) },
+        { texture: 'spark', blending: 'additive', puffs: debris, motion: move('burst', 2, 1.2) }
       ]
     }
     case 'embers': {
@@ -240,7 +260,7 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
         const [x, z] = disc(rnd, 0.6 + t * 2.2)
         puffs.push(puff(x, t * 6, z, 0.05 + rnd() * 0.08, 0.6 + 0.4 * (1 - t), 1 + rnd() * 0.4))
       }
-      return [{ texture: 'spark', blending: 'additive', puffs }]
+      return [{ texture: 'spark', blending: 'additive', puffs, motion: move('rise', 0.9, 2) }]
     }
     case 'magic': {
       const puffs: Puff[] = []
@@ -256,8 +276,8 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
       const haze: Puff[] = []
       for (let i = 0; i < 6; i++) haze.push(puff(0, 0.6 + i * 0.35, 0, 1.8, 0.12, 1))
       return [
-        { texture: 'puff', blending: 'additive', puffs: haze },
-        { texture: 'spark', blending: 'additive', puffs }
+        { texture: 'puff', blending: 'additive', puffs: haze, motion: move('twinkle', 1.5) },
+        { texture: 'spark', blending: 'additive', puffs, motion: move('swirl', 0.8, 0.6) }
       ]
     }
     case 'beam': {
@@ -267,7 +287,7 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
         const [x, z] = disc(rnd, 0.3 + t * 1.2)
         dust.push(puff(x, (1 - t) * 10, z, 0.03 + rnd() * 0.04, 0.8, 1.2))
       }
-      return [{ texture: 'spark', blending: 'additive', puffs: dust }]
+      return [{ texture: 'spark', blending: 'additive', puffs: dust, motion: move('rise', -0.25, 1) }]
     }
     case 'shine': {
       // A few big twinkles and a scatter of small ones in a loose ball, each over a soft glow, standing upright
@@ -289,8 +309,8 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
       const small = glints(count(8, 26), 0.25, 0.6, 0.5)
       const halo = [...big, ...small].map((p) => ({ ...p, size: p.size * 0.22, alpha: 0.45, shade: 0.9 }))
       return [
-        { texture: 'spark', blending: 'additive', puffs: halo },
-        { texture: 'star', blending: 'additive', puffs: [...big, ...small] }
+        { texture: 'spark', blending: 'additive', puffs: halo, motion: move('twinkle', 2.5) },
+        { texture: 'star', blending: 'additive', puffs: [...big, ...small], motion: move('twinkle', 2.5) }
       ]
     }
     case 'totem': {
@@ -311,9 +331,15 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
       const glow: Puff[] = []
       for (let i = 0; i < 4; i++) glow.push(puff(0, 1.1 + i * 0.25, 0, 2.2, 0.1, 1))
       return [
-        { texture: 'puff', blending: 'additive', puffs: glow },
-        { texture: 'spark', blending: 'additive', puffs: burst(count(40, 120)) },
-        { texture: 'spark', blending: 'additive', color: '#ffd23a', puffs: burst(count(25, 80)) }
+        { texture: 'puff', blending: 'additive', puffs: glow, motion: move('twinkle', 1.5) },
+        { texture: 'spark', blending: 'additive', puffs: burst(count(40, 120)), motion: move('burst', 2, 1.3) },
+        {
+          texture: 'spark',
+          blending: 'additive',
+          color: '#ffd23a',
+          puffs: burst(count(25, 80)),
+          motion: move('burst', 2, 1.3)
+        }
       ]
     }
     case 'impact': {
@@ -338,8 +364,8 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
         )
       }
       return [
-        { texture: 'puff', blending: 'normal', puffs: [...inner, ...ring] },
-        { texture: 'puff', blending: 'normal', color: '#4a3b2c', puffs: chunks }
+        { texture: 'puff', blending: 'normal', puffs: [...inner, ...ring], motion: move('burst', 1, 0.4) },
+        { texture: 'puff', blending: 'normal', color: '#4a3b2c', puffs: chunks, motion: move('burst', 2, 0.4) }
       ]
     }
     case 'beacon': {
@@ -353,8 +379,8 @@ export function vfxLayers(effect: VfxType, density: number, seed: number): PuffL
         motes.push(puff(x, rnd() * 12, z, 0.03 + rnd() * 0.03, 0.8, 1.2))
       }
       return [
-        { texture: 'puff', blending: 'additive', puffs: glow },
-        { texture: 'spark', blending: 'additive', puffs: motes }
+        { texture: 'puff', blending: 'additive', puffs: glow, motion: move('twinkle', 1.2) },
+        { texture: 'spark', blending: 'additive', puffs: motes, motion: move('rise', 0.8, 4) }
       ]
     }
   }

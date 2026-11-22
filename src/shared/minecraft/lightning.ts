@@ -75,3 +75,19 @@ export function lightningGeometry(seed: number | bigint, thickness = 1): Float32
   }
   return new Float32Array(out)
 }
+
+/**
+ * How bright a bolt is at `t` seconds when animated (1 = as drawn): it strikes every 2.5 seconds (the seed picks
+ * when), strobing a few times as the game's bolt does, then glows on dimmer, flickering, until the next strike.
+ */
+export function lightningFlicker(t: number, seed: number): number {
+  const period = 2.5
+  const u = (((t + (seed % 97) * 0.37) % period) + period) % period
+  if (u < 0.45) {
+    // The strike: three quick flashes with dark gaps between them.
+    const flash = Math.floor(u / 0.15)
+    const inFlash = (u % 0.15) / 0.15
+    return inFlash < 0.55 ? 1.25 - flash * 0.15 : 0.15
+  }
+  return 0.55 + 0.12 * Math.sin(t * 23 + seed) + 0.08 * Math.sin(t * 61)
+}

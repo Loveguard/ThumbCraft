@@ -1,6 +1,6 @@
 <div align="center">
 
-<a href="#new-animation-mode-beta"><img src="docs/images/animation.jpg" alt="New in ThumbCraft 0.6: the Animation update (beta). Minecraft animation without the hard part: action blocks, camera moves, sound, MP4 and GIF export." width="100%"></a>
+<a href="#new-animation-mode-beta"><img src="docs/images/animation.jpg" alt="New in ThumbCraft 0.7: the Animation update (beta). Minecraft animation without the hard part: ready-made scenes, drawn walks, living effects, MP4 and GIF export." width="100%"></a>
 
 # ThumbCraft
 
@@ -61,7 +61,7 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 | 🧍 **Players**                | Type any username to get that skin, including slim arms and the outer layer. Posable down to elbows and knees, with action poses (attack, lunge, run, shocked…), armor and held items.                                                                                                                                                                                               |
 | 🐉 **Mobs**                   | Every mob and entity model in your game version, with texture variants and per-limb posing.                                                                                                                                                                                                                                                                                          |
 | 🏠 **Builds**                 | Every vanilla structure, from village houses to bastions and ancient cities, with isometric previews. You can also import `.schem`, `.litematic` and `.nbt` files.                                                                                                                                                                                                                   |
-| 🔥 **FX**                     | Smoke, fog, fire, explosions, embers, magic, light beams, lightning strikes, **shine** (star glints that make loot and diamonds sparkle), rain and snow, plus particles straight from the game.                                                                                                                                                                                      |
+| 🔥 **FX**                     | Smoke, fog, fire, explosions, embers, magic, light beams, lightning strikes, **shine** (star glints that make loot and diamonds sparkle), rain and snow, plus particles straight from the game. In Animation mode they all move.                                                                                                                                                     |
 | 💡 **Lighting & looks**       | Four render modes: Vanilla, Cinematic, Soft and Cartoon (the bright cel-shaded style of Minecraft's key art). Coloured lights, a **rim light** on any object, bloom, god rays and a movable sun. Film-style colour looks built as real 3D LUTs, plus your own `.cube` LUTs from DaVinci Resolve or Premiere.                                                                         |
 | 🎯 **Focus & lens**           | Drag a focus point onto anything and it stays sharp while the rest blurs; add more points for several subjects. Lens warp (curved-TV bulge or pinch, never black corners), speed burst, anamorphic streaks, chromatic aberration, vignette, film grain, paper cutout, paper folds, film halation, Fujifilm colour, a light leak and a CRT TV look.                                   |
 | 🔤 **Text & media**           | Thumbnail-style outlined text with gradients and glow, 3D text in the Minecraft font, carved **stone titles** in any colour and front-on **Hardcore titles** (every O becomes the hardcore heart). Your own images, videos and 3D models, and one-click background removal. Anything can be set **always on top** with **flat lighting**, so a title never disappears behind a tree. |
@@ -79,34 +79,41 @@ ThumbCraft is a desktop app that turns your own copy of Minecraft into a thumbna
 
 ## New: Animation mode (beta)
 
-> **Beta:** Animation is new and still being polished. Expect rough edges, and please
+> [!IMPORTANT]
+> **Animation is in beta.** It is new and still being polished. Expect rough edges, and please
 > [report what you find](https://github.com/Loveguard/ThumbCraft/issues).
 
 Switch from **Thumbnail** to **Animation** in the top bar and the same scene gets a timeline.
 
 ### How it works
 
-![Six steps: 1. Switch to Animation in the top bar. 2. Pick a character and add a block such as Walk. 3. Draw the path by clicking the ground. 4. Arrange the blocks on the timeline. 5. Move the camera with camera blocks. 6. Export a video.](docs/images/readme/animation-steps.jpg)
+![Six steps: 1. Switch to Animation in the top bar. 2. Pick a character and a ready-made scene. 3. Click the character for quick actions or draw a walk. 4. Arrange the blocks on the timeline. 5. Set camera shots. 6. Export for YouTube, Shorts or GIF.](docs/images/readme/animation-steps.jpg)
 
 1. **Switch to Animation.** The switch sits in the middle of the top bar. Your scene stays as it is and a timeline
-   opens under it.
-2. **Pick a character, add a block.** Click a player or mob under **Characters**, then click a block (Walk, Run,
-   Punch, Cheer and so on) or drag it onto the timeline. **Move** blocks travel, **Act** blocks play on the spot.
-3. **Draw the path.** For a moving block, press **Add points** and click the ground where the character should go
-   (Enter or Esc stops). Drag the yellow points to bend the path, or use **Go to a spot** and the character finds
-   its own way.
+   opens under it. A short guide shows the first time.
+2. **Pick a character and a scene.** Click a player or mob under **Characters**, then a ready-made scene such as
+   Victory, Sword duel or Nap. It plays straight away. Or type what happens ("Alex walks to the cave, panics,
+   runs") and press **Make it**.
+3. **Add what happens next.** Click the character in the scene for quick actions, or pick from the
+   **What happens next?** list (Move, Everyday, Feelings, Fight, Work, with a search box). Press **Draw a walk**
+   and drag across the ground to draw where it goes, or **Go to a spot** and it finds its own way.
 4. **Arrange the timeline.** Drag a block to move it in time and drag its edges to make it longer or shorter.
-   **Space** plays and pauses, **Delete** removes the selected block, and Ctrl Z undoes.
-5. **Move the camera.** Under **Camera**, drop Orbit, Push in, Crane up or another move on the camera row. Move the
-   view in the scene and the selected camera block takes it.
-6. **Export.** The **Export** button saves the video. Its arrow picks MP4, WebM, GIF or a PNG sequence and the
-   size, or sends the current frame to a thumbnail tab.
+   **Space** plays and pauses, **Delete** removes the selected block, and Ctrl Z undoes anything.
+5. **Set the shots.** Frame the view and press **Set shot here**. Move it and press again: the camera glides
+   between your shots. Orbit, Push in, Crane up and more are there too.
+6. **Export.** Under the **Export** arrow pick **YouTube**, **Shorts** or **GIF**, then export. Shorts shows the
+   tall frame and where YouTube's buttons sit.
 
 ### What it can do
 
-- **Blocks, not keyframes.** Drop Walk, Run, Sprint, Punch, Cheer and other blocks on a character's lane. Draw the
-  path by clicking the ground, or use **Go to** and the character finds its own way across the terrain.
-- **Camera moves.** Orbit, push in, crane up, whip pan, fly-through and more on the camera's own lane.
+- **Blocks, not keyframes.** Walk, Run, Punch, Cheer and 30 more on a character's row. Each action can repeat,
+  play once or freeze at the end, and ease in snappy, smooth or gentle.
+- **Poses that hold.** Add a **Pose** block and pose the character: it holds that pose for as long as the block.
+- **Feet on the ground.** Characters stay on the real terrain, slabs and stairs included, so nobody sinks into a
+  hill or hovers over a step.
+- **Living effects.** Fire flickers, smoke and embers rise, magic swirls, shine twinkles, rain and snow fall,
+  lightning strikes and explosions go off at the second you pick. Each can be kept still instead.
+- **Camera moves.** Shots you set, plus orbit, push in, crane up, whip pan, fly-through and more on the camera row.
 - **The scene changes too.** Sun, weather, the look, focus and titles (typewriter, counter) can change over time.
 - **Sound.** Add a track and line blocks up with its beats; characters can talk along with it.
 - **Export.** MP4 or WebM, GIF, a PNG sequence, or just the characters on a transparent background, with motion
@@ -128,14 +135,19 @@ Colour looks are real film-style 3D LUTs, and your own `.cube` files from DaVinc
    - **Windows:** `ThumbCraft-Setup-<version>.exe` installs the app and keeps it up to date.
      `ThumbCraft-<version>-portable.exe` runs without installing.
    - **macOS:** the `.dmg` works on Intel and Apple Silicon.
-2. Open it.
-   - **Windows:** the app isn't code-signed yet, so SmartScreen may say _"Windows protected your PC"_. Click
-     **More info → Run anyway**. (How to turn signing on: [docs/SIGNING.md](docs/SIGNING.md).)
-   - **macOS:** see [Installing on a Mac](#installing-on-a-mac) below. It takes one extra step the first time.
+2. Open it. On a Mac, see [Installing on a Mac](#installing-on-a-mac) below: it takes one extra step the first
+   time.
 3. That's it. ThumbCraft finds your Minecraft automatically, whether it's the official launcher, Prism, Modrinth
    or CurseForge.
 
+> [!NOTE]
+> **Windows:** the app isn't code-signed yet, so SmartScreen may say _"Windows protected your PC"_. Click
+> **More info → Run anyway**. (How to turn signing on: [docs/SIGNING.md](docs/SIGNING.md).)
+
 ### Installing on a Mac
+
+<details>
+<summary><b>Allow ThumbCraft once on macOS (one extra step)</b></summary>
 
 ThumbCraft is free and made by one creator. Apple only "notarises" apps for members of its developer program,
 which costs $99 a year, so the Mac version isn't notarised. It works fine, but macOS blocks it on first launch
@@ -149,8 +161,9 @@ allow it once:
 
 On macOS 14 (Sonoma) and older you can instead **right-click the app → Open → Open**.
 
-If macOS says the app _"is damaged and can't be opened"_, that's the same block worded differently. Paste this
-into **Terminal** and open the app again:
+> [!TIP]
+> If macOS says the app _"is damaged and can't be opened"_, that's the same block worded differently. Paste this
+> into **Terminal** and open the app again:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/ThumbCraft.app
@@ -158,9 +171,12 @@ xattr -dr com.apple.quarantine /Applications/ThumbCraft.app
 
 On a Mac, new versions are announced inside the app with a download link; they don't install themselves.
 
-**You need** Minecraft: Java Edition 1.18 or newer. If the app can't find your game, it downloads the files
-from Mojang for you. Generating terrain needs Java. The official launcher already includes it, and if it's
-missing ThumbCraft installs it with one click.
+</details>
+
+> [!NOTE]
+> **You need** Minecraft: Java Edition 1.18 or newer. If the app can't find your game, it downloads the files
+> from Mojang for you. Generating terrain needs Java. The official launcher already includes it, and if it's
+> missing ThumbCraft installs it with one click.
 
 ## System requirements
 
@@ -175,6 +191,9 @@ ThumbCraft is light. If your PC can run Minecraft, it can run ThumbCraft, and mo
 | **Disk space** | 1 GB free                                                            | 2 GB free                                          |
 | **Internet**   | Only the first time (game files, Java) and to fetch player skins     | Same                                               |
 
+<details>
+<summary><b>Tips for older PCs</b></summary>
+
 - **On an older or slower PC,** use the **Vanilla** render mode: it's the lightest, and drawing the scene the
   way the game does costs very little. Cinematic, Soft and Cartoon add real-time shadows and effects that a
   modern GPU handles easily.
@@ -182,6 +201,8 @@ ThumbCraft is light. If your PC can run Minecraft, it can run ThumbCraft, and mo
   memory: ThumbCraft gives it a quarter of your RAM (1 GB on a 4 GB PC), and it simply takes a little longer on
   older machines. The ready-made backdrops need nothing extra.
 - **Exports** (even 4K) are rendered once when you click Export, so a slow PC just takes a second longer.
+
+</details>
 
 ## Your first thumbnail
 
@@ -199,7 +220,11 @@ ThumbCraft is light. If your PC can run Minecraft, it can run ThumbCraft, and mo
 The labelled icons on the left open one panel at a time (click the open one again to fold the panel away),
 and the panel on the right edits whatever you've selected. Every editing tool (move, rotate, scale, undo, camera
 angles, saved view, frame all, grid, snap, rulers) sits in the dock under the canvas. **Hide panels** (the last dock
-button, or **\\**) clears both side panels away so the thumbnail fills the window.
+button, or **\\**) clears both side panels away so the thumbnail fills the window. Drag the inner edge of either side
+panel, or the top of the timeline, to make it bigger or smaller; double-click the edge to reset it.
+
+<details>
+<summary><b>Every panel, explained</b></summary>
 
 - **Biomes:** swap in a ready-made backdrop instantly, or generate any real biome (needs Java; the first run
   takes up to a minute). **Import from your own world** cuts an area out of one of your saves.
@@ -229,7 +254,12 @@ button, or **\\**) clears both side panels away so the thumbnail fills the windo
 - **Render mode** (Render & camera, right panel): Vanilla is exactly the game's look; Cinematic, Soft and
   Cartoon add a real sun with shadows.
 
+</details>
+
 ### Shortcuts
+
+<details>
+<summary><b>Keyboard shortcuts</b></summary>
 
 | Keys                          | Does                                      |
 | ----------------------------- | ----------------------------------------- |
@@ -250,7 +280,10 @@ button, or **\\**) clears both side panels away so the thumbnail fills the windo
 | **Esc**                       | Deselect                                  |
 | **Ctrl+N / Ctrl+O / Ctrl+S**  | New / open / save project                 |
 
-_Psst: there's a secret code somewhere. Find it, and three extra scenes unlock._
+</details>
+
+> [!TIP]
+> Psst: there's a secret code somewhere. Find it, and three extra scenes unlock.
 
 ## How it works
 
@@ -275,9 +308,10 @@ details are in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#how-it-stays-accurate-n
 - **Opening a project is safe.** The app runs in Electron's sandbox, can't open web pages inside itself, and
   ignores project files that try to load files from your disk.
 
-Found a security problem? Please report it privately through
-[GitHub's security advisories](https://github.com/Loveguard/ThumbCraft/security/advisories/new) instead of a public
-issue.
+> [!IMPORTANT]
+> Found a security problem? Please report it privately through
+> [GitHub's security advisories](https://github.com/Loveguard/ThumbCraft/security/advisories/new) instead of a public
+> issue.
 
 ## FAQ
 
