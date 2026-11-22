@@ -3921,10 +3921,10 @@ body {
   min-width: 0;
 }
 .asset-panel {
-  width: clamp(300px, 22vw, 440px);
+  width: var(--asset-w, clamp(300px, 22vw, 440px));
 }
 .inspector {
-  width: clamp(280px, 20vw, 400px);
+  width: var(--inspector-w, clamp(280px, 20vw, 400px));
 }
 .app.focus .inspector {
   display: none;
@@ -4543,14 +4543,14 @@ button:hover:not(:disabled) {
 
 /* Animation mode: the timeline sits under the viewport. */
 .viewport-frame.animating {
-  padding-bottom: 260px;
+  padding-bottom: calc(var(--timeline-h, 170px) + 90px);
 }
 .timeline {
   position: absolute;
   left: 16px;
   right: 16px;
   bottom: 12px;
-  height: 170px;
+  height: var(--timeline-h, 170px);
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-lg);
@@ -5747,6 +5747,10 @@ button {
 }
 
 /* The canvas shape picker, centred above the canvas. */
+/* The shape picker has a strip of its own above the canvas, so a tall canvas never runs under it. */
+.viewport-frame {
+  padding-top: 52px;
+}
 .canvas-size {
   position: absolute;
   top: 12px;
@@ -5762,4 +5766,45 @@ button {
   align-self: center;
   padding: 0 10px;
   color: var(--text-3);
+}
+
+/* Drag handles on the panels' inner edges: invisible until hovered, a thin accent line while dragged. */
+.splitter {
+  position: relative;
+  z-index: 6;
+  flex: none;
+  width: 7px;
+  margin: 0 -3px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.splitter::after {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  transition: background 0.15s;
+}
+.splitter:hover::after,
+.splitter:active::after {
+  background: var(--accent);
+}
+.splitter.split-timeline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 7px;
+  margin: 0;
+  cursor: row-resize;
+}
+.splitter.split-timeline::after {
+  inset: 0 0 5px;
+}
+.app.focus .splitter.split-inspector {
+  display: none;
+}
+/* While dragging, the whole window shows the resize cursor and nothing gets selected. */
+body.resizing {
+  user-select: none;
 }

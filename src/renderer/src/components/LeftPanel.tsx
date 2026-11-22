@@ -1,3 +1,4 @@
+import { Splitter } from './Splitter'
 import type { ReactNode } from 'react'
 import {
   Box,
@@ -173,6 +174,7 @@ export function LeftPanel(): ReactNode {
           </div>
         </aside>
       )}
+      {current && <Splitter panel="asset" />}
     </>
   )
 }

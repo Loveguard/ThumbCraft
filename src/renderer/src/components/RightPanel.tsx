@@ -1,3 +1,4 @@
+import { Splitter } from './Splitter'
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import * as THREE from 'three'
 import {
@@ -865,10 +866,13 @@ export function RightPanel(): ReactNode {
   const selected = useStore((s) => s.objects.find((o) => o.id === s.selectedId))
   const many = useStore(useShallow((s) => selection(s)))
   return (
-    <aside className="inspector">
-      <Layers />
-      {many.length > 1 ? <MultiProperties ids={many} /> : selected && <Properties key={selected.id} o={selected} />}
-      <SceneSettings />
-    </aside>
+    <>
+      <Splitter panel="inspector" />
+      <aside className="inspector">
+        <Layers />
+        {many.length > 1 ? <MultiProperties ids={many} /> : selected && <Properties key={selected.id} o={selected} />}
+        <SceneSettings />
+      </aside>
+    </>
   )
 }

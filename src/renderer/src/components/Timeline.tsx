@@ -1,5 +1,6 @@
 // The Animation mode's timeline, under the viewport: play, scrub, and a row for every character. Blocks (walk, jump,
 // point...) are dropped on a row, dragged along it and stretched by their edges; other animated objects show keys.
+import { Splitter } from './Splitter'
 import {
   useEffect,
   useRef,
@@ -298,6 +299,7 @@ export function Timeline(): ReactNode {
 
   return (
     <div className="timeline">
+      <Splitter panel="timeline" />
       <div className="tl-bar">
         <button className="icon-btn" title="To the start" onClick={() => seek(0)}>
           <SkipBack size={15} />

@@ -14,7 +14,7 @@ import { Viewport, viewport } from './components/Viewport'
 import { encodeExport, extensionOf, overYouTubeLimit, reportExportError, sizeLabel } from './exportImage'
 import { useShallow } from 'zustand/react/shallow'
 import { useStore } from './store'
-import { useLayout } from './layout'
+import { panelSizes, useLayout } from './layout'
 import { captureFrame } from './capture'
 import { layeredPsd } from './layeredExport'
 import { useDismiss } from './useDismiss'
@@ -502,6 +502,7 @@ export function App(): ReactNode {
   const assets = useStore((s) => s.assets)
   const tabbed = useTabs((s) => s.tabs.length > 1)
   const focus = useLayout((s) => s.focus)
+  const sizes = useLayout((s) => s.sizes)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -619,7 +620,7 @@ export function App(): ReactNode {
 
   if (!assets) return <Setup />
   return (
-    <div className={`app ${tabbed ? 'with-tabs' : ''} ${focus ? 'focus' : ''}`}>
+    <div className={`app ${tabbed ? 'with-tabs' : ''} ${focus ? 'focus' : ''}`} style={panelSizes(sizes)}>
       <TopBar />
       <TabBar />
       <div className="workspace">
